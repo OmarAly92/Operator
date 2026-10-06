@@ -12,9 +12,16 @@ describe("mapKey", () => {
 
 	it("maps the readline motions users expect", () => {
 		expect(mapKey(key({ key: "a", ctrlKey: true }))).toEqual({ kind: "home" });
-		expect(mapKey(key({ key: "e", ctrlKey: true }))).toEqual({ kind: "accept-suggestion" });
+		expect(mapKey(key({ key: "e", ctrlKey: true }))).toEqual({ kind: "end-or-accept-suggestion" });
 		expect(mapKey(key({ key: "w", ctrlKey: true }))).toEqual({ kind: "delete-word-backward" });
 		expect(mapKey(key({ key: "r", ctrlKey: true }))).toEqual({ kind: "reverse-search" });
+	});
+
+	it("moves and walks history on Ctrl-F, Ctrl-B, Ctrl-P and Ctrl-N instead of sending them to the shell", () => {
+		expect(mapKey(key({ key: "f", ctrlKey: true }))).toEqual({ kind: "move", delta: 1 });
+		expect(mapKey(key({ key: "b", ctrlKey: true }))).toEqual({ kind: "move", delta: -1 });
+		expect(mapKey(key({ key: "p", ctrlKey: true }))).toEqual({ kind: "history", direction: -1 });
+		expect(mapKey(key({ key: "n", ctrlKey: true }))).toEqual({ kind: "history", direction: 1 });
 	});
 
 	// Warp binds cmd-backspace to kill_to_line_start and ctrl-u alongside it

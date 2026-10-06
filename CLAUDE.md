@@ -120,6 +120,18 @@ the current config and `ServerConfigInterceptor` stamps `baseUrl` and the
 how pairing verifies before persisting. Saved desktops live in the drift `desktops`
 table; each one's password lives in `flutter_secure_storage` keyed by desktop id;
 `ServerConfigStore` holds only the active one in memory, loaded at launch.
+`ServerConfig.desktopId` names the active desktop; every replica read and write is
+scoped by it, so a desktop never shows another desktop's data.
+
+**Start flow and connection state.** Opening the app paints the last known board, first
+notifications page and chat history from drift, then replaces them with fresh data. Each
+replicated repository writes the daemon's decoded JSON on every successful fetch and exposes
+a `cachedX()` read that parses through the same hand-written `fromJson`; cubits read the cache
+once per desktop. `ConnectionCubit` (`core/connection/`, provided at the app root) is the single
+source of connection state, fed by `ConnectionReportInterceptor` and `MuxClient.status`. It backs
+off 1 s to 30 s while offline, waits 60 s when rate-limited, and stops on an auth failure so a
+rotated password cannot trip the daemon's lockout. `/healthz` needs no password, so its 200 never
+clears an auth failure.
 
 **Two load-bearing behaviors that look like inefficiencies.** Do not "optimize" either:
 
@@ -153,22 +165,55 @@ branches on it. Keep `requestId` — dropping it is a regression, not a simplifi
 deliberately: this is a dense, information-first phone UI, and rounding up to a
 Material scale would visibly change the design.
 
+**Phone alerts.** The phone gets alerts two ways: while the app is open, a live
+`notifications` channel on `MuxClient` raises local notifications (skipping the
+viewed session and quiet ones); while it is backgrounded or the phone is locked,
+the daemon sends through ntfy (ntfy.sh) to a per-pairing topic claimed via
+`POST /api/v1/phone-alerts/subscribe` and rotated with the desktop password.
+Settings → Phone alerts covers install, subscribe and a test send against
+`/api/v1/phone-alerts`. There is no Firebase or APNs dependency.
+
+**Composer attachments and permission mode.** The agent composer is a two-row
+glass card: the text on top, then **+**, the model chip, the mic, and one slot
+for Send or Stop. **+** opens the Add context sheet (Camera, Photos, Files,
+Show recent photos via `photo_manager`, and a Permission row). Attachments are
+admitted against the daemon's caps (8 files, 10 MiB each, 25 MiB total, no
+SVG), staged with `POST /sessions/{id}/attachments`, and named in the message
+in the daemon's own reference format (`attachment_references.dart` mirrors
+`appendAttachmentReferences`). A failed stage or send keeps the text and the
+attachments; a send with attachments never reroutes to the terminal on
+`SESSION_AWAITING_DECISION` the way a plain send does — it keeps the draft and
+shows "Agent is waiting on a prompt — answer it, then send again." — and a
+retry reuses already staged paths. The Permission row shows only when the
+session DTO's `capabilities.permissionMode` is true; the live mode comes from
+`permission_mode` block events, and a change goes through the
+`permission-mode` session command. The daemon always tries Shift+Tab first and
+relaunches the agent with `--resume` only when a full loop never showed the
+mode, answering `restarted: true`; the phone never predicts which modes need a
+restart and says so only after one happened. `PermissionModeCubit` holds an
+observed or chosen mode until a session DTO agrees, a newer block event
+arrives, or the mux reconnects. Phone spawns default to `bypass-permissions`.
+
 ### Conventions specific to this package
 
 - **Cubit only** — never `Bloc` with events. Static-only classes are `sealed class X`.
 - **No `freezed` or `json_serializable`** in first-party code. Models are hand-written
   with all fields nullable and `fromJson` doing the wire→domain mapping. One params
   class per method under `data/model/params/`, never shared.
-- **`drift` and `build_runner` are permitted for on-device state under
-  `lib/core/database/`** (saved desktops today; the replica cache when it lands),
-  following the `flutter-knowledge:drift-local-database` layout: tables and DAOs
-  in `core/database/tables/<table>/`, local data sources in the feature, no drift
-  import above the data source. Wire models stay hand-written — drift never
-  parses the wire. Passwords never enter SQLite; they stay in
-  `flutter_secure_storage` under `server.password.<id>`. Generated `*.g.dart` is
-  committed, because CI runs `flutter analyze` and `flutter test` with no
-  generation step. Regenerate with `dart run build_runner build
-  --delete-conflicting-outputs`.
+- **drift is the single local store**, under `lib/core/database/`: saved desktops, settings
+  (read through `AppPreferences`, loaded once at launch so reads stay synchronous), and the
+  replica (`replica_documents` for whole-resource snapshots, `replica_block_events` for chat
+  history capped at 200 per session). Layout follows `flutter-knowledge:drift-local-database`:
+  tables and DAOs in `core/database/tables/<table>/`, local data sources in the feature, no drift
+  import above the data source. Wire models stay hand-written: drift never parses the wire, and
+  the replica stores the daemon's JSON for the same `fromJson` to parse. Passwords never enter
+  SQLite; the Keychain (`flutter_secure_storage`, `server.password.<id>`) holds passwords only.
+  There is no SharedPreferences in first-party code (`easy_localization` still pulls it in
+  transitively), and `test/core/no_shared_preferences_test.dart` pins that. The v1→v2 upgrade
+  wiped and recreated every table and purged the Keychain passwords with it; every later schema
+  bump must migrate in `onUpgrade`, never wipe. Generated
+  `*.g.dart` is committed, because CI runs `flutter analyze` and `flutter test` with no
+  generation step. Regenerate with `dart run build_runner build --delete-conflicting-outputs`.
 - Parameterized paths get static methods on `EndPoints`; interpolating at a call site is
   forbidden.
 - Feature code never imports `flutter_screenutil` — spacing, padding and radii take raw ints.
@@ -185,14 +230,13 @@ that the published package does not expose — see `packages/speech_to_text/FORK
 before upgrading. `analysis_options.yaml` excludes `packages/**`, so upstream lints do
 not gate the app; keep fork diffs small enough to re-apply.
 
+`ios_liquid_glass` is the Liquid Glass package, forked from `liquid_glass_renderer` and turned into an iOS 27 look-alike for any Flutter app. Its `FORK.md` lists every change, its material tables are written only by `tool/glass_lab/harness/lab.py tune --write`, and `docs/liquid_glass/ROADMAP.md` is the source of truth for its roadmap.
+
 ### Deliberately unwired
 
-Two subsystems are built and tested behind their seams but have no live SDK, and this
-is intentional — do not "finish" them without the credentials:
+One subsystem is built and tested behind its seam but has no live SDK, and this
+is intentional — do not "finish" it without the credentials:
 
 - **Telemetry.** The sanitizer, rate limiter, daily-active tracker and closed event
   vocabulary all exist; the sink is the abstract `MobileTelemetryClient`. No PostHog key
   exists, so nothing is sent.
-- **Push.** `push_registrar`, `push_registration`, `push_status` and the Settings switch
-  exist behind `PushTokenSource`. FCM/APNs registration needs a Firebase project and an
-  APNs key.

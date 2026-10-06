@@ -37,9 +37,9 @@ func (a *captureAgent) SessionInfo(context.Context, ports.SessionRef) (ports.Ses
 }
 
 func TestReviewCommandUsesReadOnlySandbox(t *testing.T) {
+	// The shell gets no Operator environment: results go through the MCP
+	// server, which carries its own.
 	t.Setenv("OPERATOR_PORT", "3103")
-	t.Setenv("OPERATOR_DATA_DIR", "/tmp/opr data")
-	t.Setenv("OPERATOR_RUN_FILE", "/tmp/opr data/running.json")
 	agent := &captureAgent{}
 	r := &Reviewer{agent: agent}
 
@@ -48,6 +48,7 @@ func TestReviewCommandUsesReadOnlySandbox(t *testing.T) {
 		WorkspacePath: "/ws/w1",
 		Prompt:        "review it",
 		SystemPrompt:  "review only",
+		MCPServers:    []ports.MCPServerSpec{{Name: "operator", Command: "/opt/opr", Args: []string{"mcp", "--reviewer"}}},
 	})
 	if err != nil {
 		t.Fatalf("ReviewCommand: %v", err)
@@ -56,13 +57,13 @@ func TestReviewCommandUsesReadOnlySandbox(t *testing.T) {
 	want := []string{
 		"agent",
 		"--sandbox", "read-only",
-		"-c", `shell_environment_policy.set.OPERATOR_PORT="3103"`,
-		"-c", `shell_environment_policy.set.OPERATOR_DATA_DIR="/tmp/opr data"`,
-		"-c", `shell_environment_policy.set.OPERATOR_RUN_FILE="/tmp/opr data/running.json"`,
 		"--", "review it",
 	}
 	if !slices.Equal(got.Argv, want) {
 		t.Fatalf("argv = %#v, want %#v", got.Argv, want)
+	}
+	if len(agent.got.MCPServers) != 1 || agent.got.MCPServers[0].Name != "operator" {
+		t.Fatalf("mcp servers = %#v, want the reviewer server", agent.got.MCPServers)
 	}
 	if agent.got.Permissions != ports.PermissionModeAuto {
 		t.Fatalf("permissions = %q, want auto", agent.got.Permissions)
@@ -111,9 +112,6 @@ func TestReviewCommandUsesHiddenSystemPromptFile(t *testing.T) {
 }
 
 func TestReviewRestoreCommandUsesNativeSessionIDAndReadOnlySandbox(t *testing.T) {
-	t.Setenv("OPERATOR_PORT", "3103")
-	t.Setenv("OPERATOR_DATA_DIR", "")
-	t.Setenv("OPERATOR_RUN_FILE", "")
 	agent := &captureAgent{}
 	r := &Reviewer{agent: agent}
 
@@ -122,14 +120,18 @@ func TestReviewRestoreCommandUsesNativeSessionIDAndReadOnlySandbox(t *testing.T)
 		AgentSessionID:   "codex-native-1",
 		WorkspacePath:    "/ws/w1",
 		SystemPromptFile: "/opr/prompts/reviewer/system.md",
+		MCPServers:       []ports.MCPServerSpec{{Name: "operator", Command: "/opt/opr", Args: []string{"mcp", "--reviewer"}}},
 	})
 	if err != nil {
 		t.Fatalf("ReviewRestoreCommand: %v", err)
 	}
+	if len(agent.gotRestore.MCPServers) != 1 {
+		t.Fatalf("restore mcp servers = %#v, want the reviewer server", agent.gotRestore.MCPServers)
+	}
 	if !ok {
 		t.Fatal("ReviewRestoreCommand ok = false, want true")
 	}
-	want := []string{"agent", "resume", "--sandbox", "read-only", "-c", `shell_environment_policy.set.OPERATOR_PORT="3103"`, "codex-native-1"}
+	want := []string{"agent", "resume", "--sandbox", "read-only", "codex-native-1"}
 	if !slices.Equal(got.Argv, want) {
 		t.Fatalf("argv = %#v, want %#v", got.Argv, want)
 	}

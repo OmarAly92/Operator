@@ -71,8 +71,8 @@ func Build() ([]byte, error) {
 			"Durable dashboard notifications"),
 		*(&openapi31.Tag{Name: "usage"}).WithDescription(
 			"Token usage telemetry for Operator sessions"),
-		*(&openapi31.Tag{Name: "push"}).WithDescription(
-			"Mobile push-device registration for OS push notifications"),
+		*(&openapi31.Tag{Name: "phone-alerts"}).WithDescription(
+			"Phone alert delivery through ntfy"),
 		*(&openapi31.Tag{Name: "events"}).WithDescription(
 			"Server-sent CDC event stream with durable replay"),
 		*(&openapi31.Tag{Name: "dev"}).WithDescription(
@@ -143,7 +143,7 @@ func schemaName(_ reflect.Type, defaultName string) string {
 // schemaNames is the exhaustive default→clean mapping for every type reflected
 // by projectOperations(). Add an entry when a new contract type is introduced;
 // the drift test fails until the spec is regenerated, which flags the gap.
-var schemaNames = map[string]string{
+var schemaNames = map[string]string{ //nolint:gosec // G101: schema type names such as MobileNgrokCredential, not credentials.
 	"ControllersSettingsResponse": "SettingsResponse",
 	"ControllersUiSettings":       "UiSettings",
 	"SettingsUpdateSettings":      "UpdateSettings",
@@ -158,6 +158,8 @@ var schemaNames = map[string]string{
 	"DomainIssueID":                    "IssueID",
 	"DomainSession":                    "Session",
 	"DomainSessionTicketRef":           "SessionTicketRef",
+	"DomainAgentReport":                "AgentReport",
+	"ControllersSetAgentReportRequest": "SetAgentReportRequest",
 	"DomainTicketRole":                 "TicketRole",
 	"DomainProjectConfig":              "ProjectConfig",
 	"DomainTrackerIntakeConfig":        "TrackerIntakeConfig",
@@ -210,12 +212,17 @@ var schemaNames = map[string]string{
 	"ControllersRenameSessionResponse":              "RenameSessionResponse",
 	"ControllersRestoreSessionResponse":             "RestoreSessionResponse",
 	"ControllersResumeAgentResponse":                "ResumeAgentResponse",
+	"ControllersRestartTerminalRequest":             "RestartTerminalRequest",
+	"ControllersRestartTerminalResponse":            "RestartTerminalResponse",
 	"ControllersSwitchAgentRequest":                 "SwitchAgentRequest",
 	"ControllersAgentSwitchView":                    "AgentSwitch",
 	"ControllersAgentSwitchResponse":                "AgentSwitchResponse",
 	"ControllersListAgentSwitchesResponse":          "ListAgentSwitchesResponse",
 	"ControllersListSessionBlockEventsResponse":     "ListSessionBlockEventsResponse",
 	"ControllersBlockEventView":                     "BlockEventView",
+	"ControllersSessionTaskView":                    "SessionTaskView",
+	"ControllersListSessionTasksResponse":           "ListSessionTasksResponse",
+	"ControllersStopSessionTaskResponse":            "StopSessionTaskResponse",
 	"ControllersBlockRedactedSpanView":              "BlockRedactedSpanView",
 	"ControllersSubmitAgentHandoffRequest":          "SubmitAgentHandoffRequest",
 	"ControllersCleanupSessionsResponse":            "CleanupSessionsResponse",
@@ -233,6 +240,7 @@ var schemaNames = map[string]string{
 	"ControllersSendSessionMessageResponse":         "SendSessionMessageResponse",
 	"ControllersSessionCommandRequest":              "SessionCommandRequest",
 	"ControllersSessionCommandResponse":             "SessionCommandResponse",
+	"ControllersSessionCapabilitiesView":            "SessionCapabilitiesView",
 	"ControllersDelegateTaskRequest":                "DelegateTaskRequest",
 	"ControllersDelegateTaskResponse":               "DelegateTaskResponse",
 	"ControllersClaimPRResponse":                    "ClaimPRResponse",
@@ -290,6 +298,8 @@ var schemaNames = map[string]string{
 	"ControllersListShellTerminalsResponse": "ListShellTerminalsResponse",
 	"ControllersShellTerminalEnvelope":      "ShellTerminalEnvelope",
 	"ControllersTerminalBlockView":          "TerminalBlockView",
+	"ControllersTerminalHistoryEntry":       "TerminalHistoryEntry",
+	"ControllersTerminalHistoryResponse":    "TerminalHistoryResponse",
 	"ControllersClaudeAccountView":          "ClaudeAccountView",
 	"ControllersClaudeAccountStatus":        "ClaudeAccountStatus",
 	"ControllersListClaudeAccountsResponse": "ListClaudeAccountsResponse",
@@ -350,16 +360,16 @@ var schemaNames = map[string]string{
 	"ControllersRedactionPatternsResponse": "RedactionPatternsResponse",
 	"ControllersRedactionPattern":          "RedactionPattern",
 	// devimport report
-	"DevimportReport":   "DevImportProjectsReport",
-	"DevimportConflict": "DevImportProjectsConflict",
-	// httpd/controllers: push-device wire envelopes
-	"ControllersRegisterPushDeviceRequest":    "RegisterPushDeviceRequest",
-	"ControllersPushDeviceEnvelope":           "PushDeviceEnvelope",
-	"ControllersPushDeviceResponse":           "PushDeviceResponse",
-	"ControllersUnregisterPushDeviceResponse": "UnregisterPushDeviceResponse",
+	"DevimportReport":                        "DevImportProjectsReport",
+	"DevimportConflict":                      "DevImportProjectsConflict",
+	"ControllersPhoneAlertDeliveryResponse":  "PhoneAlertDeliveryResponse",
+	"ControllersPhoneAlertStatusResponse":    "PhoneAlertStatusResponse",
+	"ControllersPhoneAlertSubscribeResponse": "PhoneAlertSubscribeResponse",
 	// service/project entities + DTOs
 	"ProjectProject":                    "Project",
 	"ProjectSummary":                    "ProjectSummary",
+	"ProjectBranches":                   "ProjectBranches",
+	"ProjectBranch":                     "ProjectBranch",
 	"ProjectDegraded":                   "DegradedProject",
 	"ProjectAddInput":                   "AddProjectInput",
 	"ProjectInitializeRepositoryInput":  "InitializeRepositoryInput",
@@ -453,7 +463,7 @@ func operations() []operation {
 	ops = append(ops, reviewOperations()...)
 	ops = append(ops, notificationOperations()...)
 	ops = append(ops, usageOperations()...)
-	ops = append(ops, pushOperations()...)
+	ops = append(ops, phoneAlertOperations()...)
 	ops = append(ops, devOperations()...)
 	ops = append(ops, mobileOperations()...)
 	ops = append(ops, desktopOperations()...)
@@ -621,6 +631,10 @@ type shellTerminalBlocksQuery struct {
 	Limit *int64 `query:"limit,omitempty" minimum:"1" maximum:"500" description:"Maximum blocks to return, oldest first. Defaults to 100."`
 }
 
+type terminalHistoryQuery struct {
+	Limit *int64 `query:"limit,omitempty" minimum:"1" maximum:"1000" description:"Maximum distinct commands to return, oldest first. Defaults to 500."`
+}
+
 type claudeAccountsListQuery struct {
 	Refresh *int64 `query:"refresh,omitempty" minimum:"1" maximum:"1" description:"Set to 1 to bypass the 30-second login status cache."`
 }
@@ -778,6 +792,17 @@ func shellTerminalOperations() []operation {
 				{http.StatusOK, []controllers.TerminalBlockView{}},
 				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/terminal-history", id: "listTerminalHistory", tag: "shellTerminals",
+			summary:    "Read recent distinct shell commands from every terminal, oldest first, leaving out commands that look like they hold a secret",
+			pathParams: []any{terminalHistoryQuery{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.TerminalHistoryResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},
@@ -1210,30 +1235,32 @@ func notificationOperations() []operation {
 	}
 }
 
-// reviewOperations declares the session-scoped /reviews operations. Must stay
-// 1:1 with the routes ReviewsController.Register mounts (enforced by the parity
-// test).
-// pushOperations declares the /push/devices operations. Must stay 1:1 with the
-// routes PushController.Register mounts (enforced by the parity test).
-func pushOperations() []operation {
+func phoneAlertOperations() []operation {
 	return []operation{
 		{
-			method: http.MethodPost, path: "/api/v1/push/devices", id: "registerPushDevice", tag: "push",
-			summary: "Register (upsert) a phone's Expo push token",
-			reqBody: controllers.RegisterPushDeviceRequest{},
+			method: http.MethodGet, path: "/api/v1/phone-alerts", id: "getPhoneAlerts", tag: "phone-alerts",
+			summary: "Phone alert status and the last delivery",
 			resps: []respUnit{
-				{http.StatusOK, controllers.PushDeviceEnvelope{}},
-				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusOK, controllers.PhoneAlertStatusResponse{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/phone-alerts/subscribe", id: "subscribePhoneAlerts", tag: "phone-alerts",
+			summary: "Return the ntfy topic for this pairing and mark it claimed",
+			resps: []respUnit{
+				{http.StatusOK, controllers.PhoneAlertSubscribeResponse{}},
+				{http.StatusConflict, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},
 		},
 		{
-			method: http.MethodDelete, path: "/api/v1/push/devices/{token}", id: "unregisterPushDevice", tag: "push",
-			summary:    "Unregister a phone's Expo push token",
-			pathParams: []any{controllers.PushDeviceTokenParam{}},
+			method: http.MethodPost, path: "/api/v1/phone-alerts/test", id: "testPhoneAlerts", tag: "phone-alerts",
+			summary: "Send one test alert to the paired phone",
 			resps: []respUnit{
-				{http.StatusOK, controllers.UnregisterPushDeviceResponse{}},
+				{http.StatusOK, controllers.PhoneAlertDeliveryResponse{}},
+				{http.StatusConflict, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},
@@ -1241,6 +1268,9 @@ func pushOperations() []operation {
 	}
 }
 
+// reviewOperations declares the session-scoped /reviews operations. Must stay
+// 1:1 with the routes ReviewsController.Register mounts (enforced by the parity
+// test).
 func reviewOperations() []operation {
 	return []operation{
 		{
@@ -1397,6 +1427,17 @@ func projectOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodGet, path: "/api/v1/projects/{id}/branches", id: "listProjectBranches", tag: "projects",
+			summary:    "List a single-repo project's local branches, newest commit first, with where each is checked out",
+			pathParams: []any{controllers.ProjectIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, projectsvc.Branches{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+			},
+		},
+		{
 			method: http.MethodPut, path: "/api/v1/projects/{id}", id: "updateProjectSettings", tag: "projects",
 			summary:    "Atomically replace a project's display name and config",
 			pathParams: []any{controllers.ProjectIDParam{}},
@@ -1474,6 +1515,32 @@ func sessionOperations() []operation {
 			resps: []respUnit{
 				{http.StatusOK, controllers.SessionResponse{}},
 				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPut, path: "/api/v1/sessions/{sessionId}/agent-report", id: "setSessionAgentReport", tag: "sessions",
+			summary:    "Record what the agent reports about its own board card",
+			pathParams: []any{controllers.SessionIDParam{}},
+			reqBody:    controllers.SetAgentReportRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.SessionResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodDelete, path: "/api/v1/sessions/{sessionId}/agent-report", id: "clearSessionAgentReport", tag: "sessions",
+			summary:    "Clear the agent's report about its own board card",
+			pathParams: []any{controllers.SessionIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.SessionResponse{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},
@@ -1756,6 +1823,21 @@ func sessionOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodPost, path: "/api/v1/sessions/{sessionId}/restart-terminal", id: "restartSessionTerminal", tag: "sessions",
+			summary:         "Stop a session's unresponsive terminal host and resume the agent in a fresh one",
+			pathParams:      []any{controllers.SessionIDParam{}},
+			reqBody:         controllers.RestartTerminalRequest{},
+			optionalReqBody: true,
+			resps: []respUnit{
+				{http.StatusOK, controllers.RestartTerminalResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
 			method: http.MethodPost, path: "/api/v1/sessions/{sessionId}/switch-agent", id: "switchSessionAgent", tag: "sessions",
 			summary:    "Switch a logical Operator session to another agent harness",
 			pathParams: []any{controllers.SessionIDParam{}},
@@ -1803,6 +1885,32 @@ func sessionOperations() []operation {
 				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/sessions/{sessionId}/tasks", id: "listSessionTasks", tag: "sessions",
+			summary:    "List a session's background tasks (shells, monitors, subagents), latest status per task",
+			pathParams: []any{controllers.SessionIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.ListSessionTasksResponse{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/sessions/{sessionId}/tasks/{taskId}/stop", id: "stopSessionTask", tag: "sessions",
+			summary:    "Stop one running background task: a shell or monitor by signal (202), a subagent through the agent's own tasks panel (200 once confirmed)",
+			pathParams: []any{controllers.SessionIDParam{}, controllers.SessionTaskIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.StopSessionTaskResponse{}},
+				{http.StatusAccepted, controllers.StopSessionTaskResponse{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusUnprocessableEntity, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+				{http.StatusGatewayTimeout, envelope.APIError{}},
 			},
 		},
 		{
@@ -2000,8 +2108,9 @@ func prOperations() []operation {
 			method: http.MethodPost, path: "/api/v1/prs/{id}/resolve-comments", id: "resolveComments", tag: "prs",
 			summary:    "Resolve review threads on a pull request",
 			pathParams: []any{controllers.PRIDParam{}},
-			reqBody:    nil, // body is optional: omitting it resolves all unresolved threads
+			reqBody:    controllers.ResolveCommentsRequest{},
 			resps: []respUnit{
+				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusOK, controllers.ResolveCommentsResponse{}},
 				{http.StatusNotFound, envelope.APIError{}},
 				{http.StatusUnprocessableEntity, envelope.APIError{}},

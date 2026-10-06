@@ -1,0 +1,65 @@
+material.materialize dark-photo: motion 10/16 pass, events [2, 2], touches [2, 2], steps [[1, 3], [1, 3]]
+   step1e0: t10_90 133/125 settle 233/200 overshoot 0.0/0.0 spring 0.27/0.96 vs 0.27/0.89 rms 0.017 sharp -1.27/-2.29 delay 45/17 ms
+   step3e0: t10_90 275/267 settle 475/475 overshoot 0.0/0.0 spring 0.57/0.93 vs 0.38/1.20 rms 0.014 sharp -1.01/-2.39 delay 95/30 ms
+   FAIL motion.block.step1e0.progress.settle_ms 33.333 > 17.000
+   FAIL motion.block.step1e0.progress.sharpness 1.017 > 1.000
+   FAIL motion.block.step1e0.progress.damping 0.070 > 0.050
+   FAIL motion.block.step3e0.progress.sharpness 1.378 > 1.000
+   FAIL motion.block.step3e0.progress.response_pct 33.333 > 5.000
+   FAIL motion.block.step3e0.progress.damping 0.270 > 0.050
+material.materialize light-photo: motion 14/16 pass, events [2, 2], touches [2, 2], steps [[1, 3], [1, 3]]
+   step1e0: t10_90 125/125 settle 208/208 overshoot 0.0/0.0 spring 0.22/1.03 vs 0.22/1.03 rms 0.006 sharp -1.44/-2.39 delay 47/17 ms
+   step3e0: t10_90 292/308 settle 550/533 overshoot 0.0/0.0 spring 0.76/0.83 vs 0.55/1.02 rms 0.010 sharp -1.54/-2.46 delay 75/17 ms
+   FAIL motion.block.step3e0.progress.response_pct 27.632 > 5.000
+   FAIL motion.block.step3e0.progress.damping 0.190 > 0.050
+material.materialize.bouncy dark-photo: motion 10/16 pass, events [2, 2], touches [2, 2], steps [[1, 3], [1, 3]]
+   step1e0: t10_90 108/92 settle 167/142 overshoot 0.0/0.0 spring 0.25/0.85 vs 0.24/0.78 rms 0.027 sharp -1.17/-2.39 delay 47/15 ms
+   step3e0: t10_90 133/133 settle 200/192 overshoot 1.4/0.0 spring 0.42/0.72 vs 0.33/0.82 rms 0.013 sharp -1.19/-2.37 delay 100/30 ms
+   FAIL motion.block.step1e0.progress.settle_ms 25.000 > 17.000
+   FAIL motion.block.step1e0.progress.sharpness 1.219 > 1.000
+   FAIL motion.block.step1e0.progress.damping 0.070 > 0.050
+   FAIL motion.block.step3e0.progress.sharpness 1.182 > 1.000
+   FAIL motion.block.step3e0.progress.response_pct 21.429 > 5.000
+   FAIL motion.block.step3e0.progress.damping 0.100 > 0.050
+material.materialize.bouncy light-photo: motion 11/16 pass, events [2, 3], touches [2, 2], steps [[1, 3], [1, 3]]
+   step1e0: t10_90 100/92 settle 158/142 overshoot 0.0/0.0 spring 0.23/0.85 vs 0.20/0.89 rms 0.020 sharp -1.50/-2.35 delay 48/17 ms
+   step3e0: t10_90 133/142 settle 367/208 overshoot 2.5/0.0 spring 0.47/0.67 vs 0.45/0.74 rms 0.021 sharp -1.46/-2.59 delay 95/17 ms
+   FAIL motion.block.step1e0.progress.response_pct 13.043 > 5.000
+   FAIL motion.block.step3e0.progress.settle_ms 158.333 > 17.000
+   FAIL motion.block.step3e0.progress.overshoot_pct 2.499 > 2.000
+   FAIL motion.block.step3e0.progress.sharpness 1.124 > 1.000
+   FAIL motion.block.step3e0.progress.damping 0.070 > 0.050
+material.materialize.snappy dark-photo: motion 9/16 pass, events [2, 2], touches [2, 2], steps [[1, 3], [1, 3]]
+   step1e0: t10_90 125/108 settle 192/167 overshoot 0.0/0.0 spring 0.25/0.92 vs 0.26/0.84 rms 0.017 sharp -1.15/-2.52 delay 45/17 ms
+   step3e0: t10_90 200/183 settle 308/275 overshoot 0.3/0.0 spring 0.50/0.81 vs 0.37/0.94 rms 0.010 sharp -1.03/-2.36 delay 97/33 ms
+   FAIL motion.block.step1e0.progress.settle_ms 25.000 > 17.000
+   FAIL motion.block.step1e0.progress.sharpness 1.365 > 1.000
+   FAIL motion.block.step1e0.progress.damping 0.080 > 0.050
+   FAIL motion.block.step3e0.progress.settle_ms 33.333 > 17.000
+   FAIL motion.block.step3e0.progress.sharpness 1.330 > 1.000
+   FAIL motion.block.step3e0.progress.response_pct 26.000 > 5.000
+   FAIL motion.block.step3e0.progress.damping 0.130 > 0.050
+material.materialize.snappy light-photo: motion 14/16 pass, events [2, 2], touches [2, 2], steps [[1, 3], [1, 3]]
+   step1e0: t10_90 117/108 settle 183/175 overshoot 0.0/0.0 spring 0.21/0.99 vs 0.22/0.93 rms 0.005 sharp -1.60/-2.57 delay 47/17 ms
+   step3e0: t10_90 200/208 settle 317/308 overshoot 0.3/0.0 spring 0.56/0.78 vs 0.53/0.81 rms 0.009 sharp -1.52/-2.39 delay 97/17 ms
+   FAIL motion.block.step1e0.progress.damping 0.060 > 0.050
+   FAIL motion.block.step3e0.progress.response_pct 5.357 > 5.000
+material.materialize dark-stripes: motion 13/16 pass, events [2, 2], touches [2, 2], steps [[1, 3], [1, 3]]
+   step1e0: t10_90 125/133 settle 208/217 overshoot 0.0/0.0 spring 0.23/1.01 vs 0.23/1.01 rms 0.005 sharp 0.03/-0.15 delay 47/17 ms
+   step3e0: t10_90 275/292 settle 467/500 overshoot 0.0/0.0 spring 0.52/1.01 vs 0.43/1.19 rms 0.009 sharp 0.01/-0.19 delay 112/28 ms
+   FAIL motion.block.step3e0.progress.settle_ms 33.333 > 17.000
+   FAIL motion.block.step3e0.progress.response_pct 17.308 > 5.000
+   FAIL motion.block.step3e0.progress.damping 0.180 > 0.050
+material.materialize.bouncy dark-stripes: motion 13/16 pass, events [2, 2], touches [2, 2], steps [[1, 3], [1, 3]]
+   step1e0: t10_90 108/92 settle 158/142 overshoot 0.0/0.0 spring 0.24/0.85 vs 0.21/0.86 rms 0.015 sharp 0.04/-0.16 delay 47/17 ms
+   step3e0: t10_90 133/133 settle 183/192 overshoot 2.0/0.0 spring 0.39/0.72 vs 0.37/0.78 rms 0.017 sharp 0.04/-0.22 delay 112/33 ms
+   FAIL motion.block.step1e0.progress.response_pct 12.500 > 5.000
+   FAIL motion.block.step3e0.progress.response_pct 5.128 > 5.000
+   FAIL motion.block.step3e0.progress.damping 0.060 > 0.050
+material.materialize.snappy dark-stripes: motion 12/16 pass, events [2, 2], touches [2, 2], steps [[1, 3], [1, 3]]
+   step1e0: t10_90 117/108 settle 183/183 overshoot 0.0/0.0 spring 0.23/0.94 vs 0.24/0.88 rms 0.008 sharp 0.10/-0.13 delay 47/17 ms
+   step3e0: t10_90 208/192 settle 308/267 overshoot 0.3/0.1 spring 0.48/0.86 vs 0.35/0.98 rms 0.017 sharp 0.09/-0.19 delay 95/50 ms
+   FAIL motion.block.step1e0.progress.damping 0.060 > 0.050
+   FAIL motion.block.step3e0.progress.settle_ms 41.667 > 17.000
+   FAIL motion.block.step3e0.progress.response_pct 27.083 > 5.000
+   FAIL motion.block.step3e0.progress.damping 0.120 > 0.050

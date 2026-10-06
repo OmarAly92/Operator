@@ -44,14 +44,12 @@ type Deps struct {
 	Store    Store
 	Sessions Sessions
 	Now      func() time.Time
-	BaseURL  string
 }
 
 type Service struct {
 	store    Store
 	sessions Sessions
 	now      func() time.Time
-	baseURL  string
 }
 
 func New(d Deps) *Service {
@@ -59,11 +57,7 @@ func New(d Deps) *Service {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	base := strings.TrimRight(d.BaseURL, "/")
-	if base == "" {
-		base = "http://127.0.0.1:3001"
-	}
-	return &Service{store: d.Store, sessions: d.Sessions, now: now, baseURL: base}
+	return &Service{store: d.Store, sessions: d.Sessions, now: now}
 }
 
 type File struct {
@@ -682,10 +676,6 @@ func (s *Service) currentAssignment(ctx context.Context, project domain.ProjectI
 	return a, ok, nil
 }
 
-func (s *Service) mergeReadyCurl(project domain.ProjectID, slug, planName string) string {
-	return fmt.Sprintf(`curl -s -X POST %s/api/v1/projects/%s/tickets/%s/plans/%s/merge-ready -H 'content-type: application/json' -d '{"summary":"<one line: what you verified>"}'`, s.baseURL, project, slug, planName)
-}
-
 func (s *Service) sessionLive(sessions map[domain.SessionID]*domain.Session, id domain.SessionID) bool {
 	return planningLive(sessions, id)
 }
@@ -721,7 +711,7 @@ func (s *Service) Review(ctx context.Context, project domain.ProjectID, slug, pl
 	if err != nil {
 		return ReviewResult{}, err
 	}
-	prompt := reviewPrompt(t, plan, impl.Metadata.Branch, impl.Metadata.WorkspacePath, s.mergeReadyCurl(project, slug, path.Base(plan.File)), in.Extra)
+	prompt := reviewPrompt(t, plan, impl.Metadata.Branch, impl.Metadata.WorkspacePath, in.Extra)
 	var reviewer domain.Session
 	spawned := false
 	switch {

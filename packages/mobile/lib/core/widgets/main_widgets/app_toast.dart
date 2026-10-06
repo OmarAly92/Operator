@@ -14,6 +14,7 @@ sealed class AppToast {
     bool destructive = false,
     String? actionLabel,
     VoidCallback? onAction,
+    double bottomOffset = 0,
   }) {
     final skin = context.skin;
     showExpressiveSnack(
@@ -25,6 +26,7 @@ sealed class AppToast {
       iconBackgroundColor: destructive ? Colors.white24 : skin.accentTint,
       actionLabel: actionLabel,
       onAction: onAction,
+      bottomOffset: bottomOffset,
     );
   }
 }

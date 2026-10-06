@@ -48,7 +48,15 @@ pub(crate) fn joins_previous(previous: &str, ch: char) -> bool {
     if previous.is_empty() || (ch.is_ascii() && previous.is_ascii()) {
         return false;
     }
-    let mut joined = String::with_capacity(previous.len() + ch.len_utf8());
+    let total = previous.len() + ch.len_utf8();
+    let mut stack = [0u8; 64];
+    if total <= stack.len() {
+        stack[..previous.len()].copy_from_slice(previous.as_bytes());
+        ch.encode_utf8(&mut stack[previous.len()..total]);
+        let joined = std::str::from_utf8(&stack[..total]).expect("two strs joined are utf-8");
+        return joined.graphemes(true).nth(1).is_none();
+    }
+    let mut joined = String::with_capacity(total);
     joined.push_str(previous);
     joined.push(ch);
     joined.graphemes(true).nth(1).is_none()

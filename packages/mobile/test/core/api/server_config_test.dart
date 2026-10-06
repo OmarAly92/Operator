@@ -26,5 +26,12 @@ void main() {
       expect(config.httpBase, 'https://my-pc.tail1234.ts.net:443');
       expect(config.wsBase, 'wss://my-pc.tail1234.ts.net:443');
     });
+
+    test('two configs for different desktops are not equal', () {
+      const a = ServerConfig(host: 'h', httpPort: '1', secure: false, password: 'p', desktopId: 'a');
+      const b = ServerConfig(host: 'h', httpPort: '1', secure: false, password: 'p', desktopId: 'b');
+
+      expect(a == b, isFalse);
+    });
   });
 }

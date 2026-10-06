@@ -1,0 +1,1516 @@
+{
+  "roots": [
+    "/Users/omaraly/development/AI/Operator-2b1/packages/mobile/build/glass_lab/runs/20261006-091133",
+    "/Users/omaraly/development/AI/Operator-2b1/packages/mobile/build/glass_lab/runs/20261006-091925",
+    "/Users/omaraly/development/AI/Operator-2b1/packages/mobile/build/glass_lab/runs/noise-2b1"
+  ],
+  "gain_mode": "pooled",
+  "mapping": {
+    "material.materialize": {
+      "spring": [
+        0.55,
+        1.0
+      ],
+      "exponent": {
+        "value": 3.1,
+        "rms": 0.030527432031677883,
+        "at_grid_edge": false,
+        "curves": 24,
+        "excluded": []
+      },
+      "exponent_cases": {
+        "dark-photo": {
+          "value": 2.9,
+          "rms": 0.007019955488886053,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "dark-stripes": {
+          "value": 2.45,
+          "rms": 0.04799292665861382,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "light-photo": {
+          "value": 3.5,
+          "rms": 0.01640350870888616,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "light-stripes": {
+          "value": 3.65,
+          "rms": 0.026121427537879514,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        }
+      },
+      "exponent_spread": {
+        "min": 3.05,
+        "max": 3.2,
+        "std": 0.045,
+        "per_take": {
+          "20261006-091133": 3.1,
+          "noise-2b1/take0": 3.05,
+          "noise-2b1/take1": 3.1,
+          "noise-2b1/take2": 3.1,
+          "noise-2b1/take3": 3.1,
+          "noise-2b1/take4": 3.2
+        }
+      },
+      "cases": [
+        "dark-photo",
+        "dark-stripes",
+        "light-photo",
+        "light-stripes"
+      ],
+      "reduce_motion_cases": [
+        "dark-photo-reduce-motion",
+        "dark-stripes-reduce-motion",
+        "light-photo-reduce-motion",
+        "light-stripes-reduce-motion"
+      ],
+      "takes": [
+        "20261006-091133",
+        "noise-2b1/take0",
+        "noise-2b1/take1",
+        "noise-2b1/take2",
+        "noise-2b1/take3",
+        "noise-2b1/take4"
+      ],
+      "gains": {
+        "pooled": {
+          "value": 0.0,
+          "identifiable": false,
+          "inert": true,
+          "from": "the spring does not overshoot, so no gain can be measured and none is used"
+        },
+        "appearances": {
+          "dark": {
+            "value": 0.0,
+            "identifiable": false,
+            "inert": true,
+            "from": "the spring does not overshoot, so no gain can be measured and none is used"
+          },
+          "light": {
+            "value": 0.0,
+            "identifiable": false,
+            "inert": true,
+            "from": "the spring does not overshoot, so no gain can be measured and none is used"
+          }
+        },
+        "cases": {},
+        "case_spread": null,
+        "take_spread": null
+      },
+      "reduce_motion_gains": {
+        "pooled": {
+          "value": 0.0,
+          "identifiable": false,
+          "inert": true,
+          "from": "the spring does not overshoot, so no gain can be measured and none is used"
+        },
+        "appearances": {
+          "dark": {
+            "value": 0.0,
+            "identifiable": false,
+            "inert": true,
+            "from": "the spring does not overshoot, so no gain can be measured and none is used"
+          },
+          "light": {
+            "value": 0.0,
+            "identifiable": false,
+            "inert": true,
+            "from": "the spring does not overshoot, so no gain can be measured and none is used"
+          }
+        },
+        "cases": {},
+        "case_spread": null,
+        "take_spread": null
+      }
+    },
+    "material.materialize.snappy": {
+      "spring": [
+        0.5,
+        0.85
+      ],
+      "exponent": {
+        "value": 2.75,
+        "rms": 0.02958421880418349,
+        "at_grid_edge": false,
+        "curves": 24,
+        "excluded": []
+      },
+      "exponent_cases": {
+        "dark-photo": {
+          "value": 2.55,
+          "rms": 0.008193677762287693,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "dark-stripes": {
+          "value": 2.2,
+          "rms": 0.04606810234772529,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "light-photo": {
+          "value": 3.1,
+          "rms": 0.016215375644412788,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "light-stripes": {
+          "value": 3.1,
+          "rms": 0.02569634044480251,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        }
+      },
+      "exponent_spread": {
+        "min": 2.65,
+        "max": 2.75,
+        "std": 0.038,
+        "per_take": {
+          "20261006-091133": 2.75,
+          "noise-2b1/take0": 2.65,
+          "noise-2b1/take1": 2.75,
+          "noise-2b1/take2": 2.75,
+          "noise-2b1/take3": 2.7,
+          "noise-2b1/take4": 2.75
+        }
+      },
+      "cases": [
+        "dark-photo",
+        "dark-stripes",
+        "light-photo",
+        "light-stripes"
+      ],
+      "reduce_motion_cases": [
+        "dark-photo-reduce-motion",
+        "dark-stripes-reduce-motion",
+        "light-photo-reduce-motion",
+        "light-stripes-reduce-motion"
+      ],
+      "takes": [
+        "20261006-091133",
+        "noise-2b1/take0",
+        "noise-2b1/take1",
+        "noise-2b1/take2",
+        "noise-2b1/take3",
+        "noise-2b1/take4"
+      ],
+      "gains": {
+        "dropped": {},
+        "pooled": {
+          "value": 0.44,
+          "rms": 0.0006910901935273844,
+          "at_grid_edge": false,
+          "at_floor": false,
+          "cases": [
+            "dark-photo",
+            "dark-stripes",
+            "light-photo",
+            "light-stripes"
+          ],
+          "native_overshoot": {
+            "dark-photo": 0.00298,
+            "dark-stripes": 0.00297,
+            "light-photo": 0.00284,
+            "light-stripes": 0.00293
+          },
+          "flutter_overshoot": {
+            "dark-photo": 0.0017,
+            "dark-stripes": 0.00299,
+            "light-photo": 0.00336,
+            "light-stripes": 0.00308
+          }
+        },
+        "appearances": {
+          "dark": {
+            "value": 0.52,
+            "rms": 0.0007878589296174827,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo",
+              "dark-stripes"
+            ],
+            "native_overshoot": {
+              "dark-photo": 0.00298,
+              "dark-stripes": 0.00297
+            },
+            "flutter_overshoot": {
+              "dark-photo": 0.00201,
+              "dark-stripes": 0.00353
+            }
+          },
+          "light": {
+            "value": 0.4,
+            "rms": 0.00017890251093838932,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo",
+              "light-stripes"
+            ],
+            "native_overshoot": {
+              "light-photo": 0.00284,
+              "light-stripes": 0.00293
+            },
+            "flutter_overshoot": {
+              "light-photo": 0.00305,
+              "light-stripes": 0.0028
+            }
+          }
+        },
+        "cases": {
+          "dark-photo": {
+            "value": 0.76,
+            "rms": 3.192518992415705e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo"
+            ],
+            "native_overshoot": {
+              "dark-photo": 0.00298
+            },
+            "flutter_overshoot": {
+              "dark-photo": 0.00294
+            }
+          },
+          "dark-stripes": {
+            "value": 0.44,
+            "rms": 1.9546180936432563e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-stripes"
+            ],
+            "native_overshoot": {
+              "dark-stripes": 0.00297
+            },
+            "flutter_overshoot": {
+              "dark-stripes": 0.00299
+            }
+          },
+          "light-photo": {
+            "value": 0.38,
+            "rms": 6.329426355781509e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo"
+            ],
+            "native_overshoot": {
+              "light-photo": 0.00284
+            },
+            "flutter_overshoot": {
+              "light-photo": 0.0029
+            }
+          },
+          "light-stripes": {
+            "value": 0.42,
+            "rms": 8.197043792364852e-06,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-stripes"
+            ],
+            "native_overshoot": {
+              "light-stripes": 0.00293
+            },
+            "flutter_overshoot": {
+              "light-stripes": 0.00294
+            }
+          }
+        },
+        "case_spread": {
+          "min": 0.38,
+          "max": 0.76,
+          "std": 0.152,
+          "per_take": {
+            "dark-photo": 0.76,
+            "dark-stripes": 0.44,
+            "light-photo": 0.38,
+            "light-stripes": 0.42
+          }
+        },
+        "take_spread": {
+          "min": 0.4,
+          "max": 0.48,
+          "std": 0.027,
+          "per_take": {
+            "20261006-091133": 0.42,
+            "noise-2b1/take0": 0.46,
+            "noise-2b1/take1": 0.44,
+            "noise-2b1/take2": 0.48,
+            "noise-2b1/take3": 0.4,
+            "noise-2b1/take4": 0.42
+          }
+        },
+        "spring_overshoot": 0.00629
+      },
+      "reduce_motion_gains": {
+        "dropped": {},
+        "pooled": {
+          "value": 0.6,
+          "rms": 0.0013123062924157041,
+          "at_grid_edge": false,
+          "at_floor": false,
+          "cases": [
+            "dark-photo-reduce-motion",
+            "dark-stripes-reduce-motion",
+            "light-photo-reduce-motion",
+            "light-stripes-reduce-motion"
+          ],
+          "native_overshoot": {
+            "dark-photo-reduce-motion": 0.00484,
+            "dark-stripes-reduce-motion": 0.00366,
+            "light-photo-reduce-motion": 0.00399,
+            "light-stripes-reduce-motion": 0.00402
+          },
+          "flutter_overshoot": {
+            "dark-photo-reduce-motion": 0.00232,
+            "dark-stripes-reduce-motion": 0.00408,
+            "light-photo-reduce-motion": 0.00458,
+            "light-stripes-reduce-motion": 0.0042
+          }
+        },
+        "appearances": {
+          "dark": {
+            "value": 0.72,
+            "rms": 0.0016919054939172741,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo-reduce-motion",
+              "dark-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "dark-photo-reduce-motion": 0.00484,
+              "dark-stripes-reduce-motion": 0.00366
+            },
+            "flutter_overshoot": {
+              "dark-photo-reduce-motion": 0.00279,
+              "dark-stripes-reduce-motion": 0.00489
+            }
+          },
+          "light": {
+            "value": 0.54,
+            "rms": 0.00019243888140449894,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo-reduce-motion",
+              "light-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "light-photo-reduce-motion": 0.00399,
+              "light-stripes-reduce-motion": 0.00402
+            },
+            "flutter_overshoot": {
+              "light-photo-reduce-motion": 0.00412,
+              "light-stripes-reduce-motion": 0.00378
+            }
+          }
+        },
+        "cases": {
+          "dark-photo-reduce-motion": {
+            "value": 1.24,
+            "rms": 3.690830477024853e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo-reduce-motion"
+            ],
+            "native_overshoot": {
+              "dark-photo-reduce-motion": 0.00484
+            },
+            "flutter_overshoot": {
+              "dark-photo-reduce-motion": 0.0048
+            }
+          },
+          "dark-stripes-reduce-motion": {
+            "value": 0.54,
+            "rms": 9.536477472556811e-06,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "dark-stripes-reduce-motion": 0.00366
+            },
+            "flutter_overshoot": {
+              "dark-stripes-reduce-motion": 0.00367
+            }
+          },
+          "light-photo-reduce-motion": {
+            "value": 0.52,
+            "rms": 1.761620926121754e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo-reduce-motion"
+            ],
+            "native_overshoot": {
+              "light-photo-reduce-motion": 0.00399
+            },
+            "flutter_overshoot": {
+              "light-photo-reduce-motion": 0.00397
+            }
+          },
+          "light-stripes-reduce-motion": {
+            "value": 0.58,
+            "rms": 4.377055679431318e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "light-stripes-reduce-motion": 0.00402
+            },
+            "flutter_overshoot": {
+              "light-stripes-reduce-motion": 0.00406
+            }
+          }
+        },
+        "case_spread": {
+          "min": 0.52,
+          "max": 1.24,
+          "std": 0.301,
+          "per_take": {
+            "dark-photo-reduce-motion": 1.24,
+            "dark-stripes-reduce-motion": 0.54,
+            "light-photo-reduce-motion": 0.52,
+            "light-stripes-reduce-motion": 0.58
+          }
+        },
+        "take_spread": {
+          "min": 0.58,
+          "max": 0.66,
+          "std": 0.025,
+          "per_take": {
+            "20261006-091925": 0.6,
+            "noise-2b1/take0": 0.6,
+            "noise-2b1/take1": 0.62,
+            "noise-2b1/take2": 0.6,
+            "noise-2b1/take3": 0.66,
+            "noise-2b1/take4": 0.58
+          }
+        },
+        "spring_overshoot": 0.00629
+      }
+    },
+    "material.materialize.bouncy": {
+      "spring": [
+        0.5,
+        0.7
+      ],
+      "exponent": {
+        "value": 2.7,
+        "rms": 0.03063889829499412,
+        "at_grid_edge": false,
+        "curves": 24,
+        "excluded": []
+      },
+      "exponent_cases": {
+        "dark-photo": {
+          "value": 2.6,
+          "rms": 0.007668241674967538,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "dark-stripes": {
+          "value": 2.3,
+          "rms": 0.050115605904978835,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "light-photo": {
+          "value": 3.05,
+          "rms": 0.017568322355522817,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "light-stripes": {
+          "value": 3.05,
+          "rms": 0.02668548902743888,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        }
+      },
+      "exponent_spread": {
+        "min": 2.7,
+        "max": 2.85,
+        "std": 0.055,
+        "per_take": {
+          "20261006-091133": 2.7,
+          "noise-2b1/take0": 2.75,
+          "noise-2b1/take1": 2.7,
+          "noise-2b1/take2": 2.7,
+          "noise-2b1/take3": 2.7,
+          "noise-2b1/take4": 2.85
+        }
+      },
+      "cases": [
+        "dark-photo",
+        "dark-stripes",
+        "light-photo",
+        "light-stripes"
+      ],
+      "reduce_motion_cases": [
+        "dark-photo-reduce-motion",
+        "dark-stripes-reduce-motion",
+        "light-photo-reduce-motion",
+        "light-stripes-reduce-motion"
+      ],
+      "takes": [
+        "20261006-091133",
+        "noise-2b1/take0",
+        "noise-2b1/take1",
+        "noise-2b1/take2",
+        "noise-2b1/take3",
+        "noise-2b1/take4"
+      ],
+      "gains": {
+        "dropped": {},
+        "pooled": {
+          "value": 0.5,
+          "rms": 0.0028252603856539615,
+          "at_grid_edge": false,
+          "at_floor": false,
+          "cases": [
+            "dark-photo",
+            "dark-stripes",
+            "light-photo",
+            "light-stripes"
+          ],
+          "native_overshoot": {
+            "dark-photo": 0.01804,
+            "dark-stripes": 0.02368,
+            "light-photo": 0.02474,
+            "light-stripes": 0.02796
+          },
+          "flutter_overshoot": {
+            "dark-photo": 0.01416,
+            "dark-stripes": 0.02484,
+            "light-photo": 0.02791,
+            "light-stripes": 0.0256
+          }
+        },
+        "appearances": {
+          "dark": {
+            "value": 0.52,
+            "rms": 0.002788048514937312,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo",
+              "dark-stripes"
+            ],
+            "native_overshoot": {
+              "dark-photo": 0.01804,
+              "dark-stripes": 0.02368
+            },
+            "flutter_overshoot": {
+              "dark-photo": 0.01473,
+              "dark-stripes": 0.02584
+            }
+          },
+          "light": {
+            "value": 0.5,
+            "rms": 0.002793380944743873,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo",
+              "light-stripes"
+            ],
+            "native_overshoot": {
+              "light-photo": 0.02474,
+              "light-stripes": 0.02796
+            },
+            "flutter_overshoot": {
+              "light-photo": 0.02791,
+              "light-stripes": 0.0256
+            }
+          }
+        },
+        "cases": {
+          "dark-photo": {
+            "value": 0.64,
+            "rms": 9.557415915354903e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo"
+            ],
+            "native_overshoot": {
+              "dark-photo": 0.01804
+            },
+            "flutter_overshoot": {
+              "dark-photo": 0.01813
+            }
+          },
+          "dark-stripes": {
+            "value": 0.48,
+            "rms": 0.000164390513836727,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-stripes"
+            ],
+            "native_overshoot": {
+              "dark-stripes": 0.02368
+            },
+            "flutter_overshoot": {
+              "dark-stripes": 0.02385
+            }
+          },
+          "light-photo": {
+            "value": 0.44,
+            "rms": 0.0001800056590960386,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo"
+            ],
+            "native_overshoot": {
+              "light-photo": 0.02474
+            },
+            "flutter_overshoot": {
+              "light-photo": 0.02456
+            }
+          },
+          "light-stripes": {
+            "value": 0.54,
+            "rms": 0.0003095594330877853,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-stripes"
+            ],
+            "native_overshoot": {
+              "light-stripes": 0.02796
+            },
+            "flutter_overshoot": {
+              "light-stripes": 0.02765
+            }
+          }
+        },
+        "case_spread": {
+          "min": 0.44,
+          "max": 0.64,
+          "std": 0.075,
+          "per_take": {
+            "dark-photo": 0.64,
+            "dark-stripes": 0.48,
+            "light-photo": 0.44,
+            "light-stripes": 0.54
+          }
+        },
+        "take_spread": {
+          "min": 0.48,
+          "max": 0.52,
+          "std": 0.012,
+          "per_take": {
+            "20261006-091133": 0.5,
+            "noise-2b1/take0": 0.48,
+            "noise-2b1/take1": 0.52,
+            "noise-2b1/take2": 0.5,
+            "noise-2b1/take3": 0.5,
+            "noise-2b1/take4": 0.5
+          }
+        },
+        "spring_overshoot": 0.04599
+      },
+      "reduce_motion_gains": {
+        "dropped": {},
+        "pooled": {
+          "value": 0.8,
+          "rms": 0.007256243586311975,
+          "at_grid_edge": false,
+          "at_floor": false,
+          "cases": [
+            "dark-photo-reduce-motion",
+            "dark-stripes-reduce-motion",
+            "light-photo-reduce-motion",
+            "light-stripes-reduce-motion"
+          ],
+          "native_overshoot": {
+            "dark-photo-reduce-motion": 0.0353,
+            "dark-stripes-reduce-motion": 0.03963,
+            "light-photo-reduce-motion": 0.03752,
+            "light-stripes-reduce-motion": 0.04087
+          },
+          "flutter_overshoot": {
+            "dark-photo-reduce-motion": 0.02266,
+            "dark-stripes-reduce-motion": 0.03975,
+            "light-photo-reduce-motion": 0.04466,
+            "light-stripes-reduce-motion": 0.04097
+          }
+        },
+        "appearances": {
+          "dark": {
+            "value": 0.9,
+            "rms": 0.007873432418968046,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo-reduce-motion",
+              "dark-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "dark-photo-reduce-motion": 0.0353,
+              "dark-stripes-reduce-motion": 0.03963
+            },
+            "flutter_overshoot": {
+              "dark-photo-reduce-motion": 0.0254,
+              "dark-stripes-reduce-motion": 0.04473
+            }
+          },
+          "light": {
+            "value": 0.72,
+            "rms": 0.003404267873034708,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo-reduce-motion",
+              "light-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "light-photo-reduce-motion": 0.03752,
+              "light-stripes-reduce-motion": 0.04087
+            },
+            "flutter_overshoot": {
+              "light-photo-reduce-motion": 0.04019,
+              "light-stripes-reduce-motion": 0.03687
+            }
+          }
+        },
+        "cases": {
+          "dark-photo-reduce-motion": {
+            "value": 1.28,
+            "rms": 3.404500818534467e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo-reduce-motion"
+            ],
+            "native_overshoot": {
+              "dark-photo-reduce-motion": 0.0353
+            },
+            "flutter_overshoot": {
+              "dark-photo-reduce-motion": 0.03533
+            }
+          },
+          "dark-stripes-reduce-motion": {
+            "value": 0.8,
+            "rms": 0.00011497615713940146,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "dark-stripes-reduce-motion": 0.03963
+            },
+            "flutter_overshoot": {
+              "dark-stripes-reduce-motion": 0.03975
+            }
+          },
+          "light-photo-reduce-motion": {
+            "value": 0.68,
+            "rms": 0.0004400198385996826,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo-reduce-motion"
+            ],
+            "native_overshoot": {
+              "light-photo-reduce-motion": 0.03752
+            },
+            "flutter_overshoot": {
+              "light-photo-reduce-motion": 0.03796
+            }
+          },
+          "light-stripes-reduce-motion": {
+            "value": 0.8,
+            "rms": 9.264710668018677e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "light-stripes-reduce-motion": 0.04087
+            },
+            "flutter_overshoot": {
+              "light-stripes-reduce-motion": 0.04097
+            }
+          }
+        },
+        "case_spread": {
+          "min": 0.68,
+          "max": 1.28,
+          "std": 0.23,
+          "per_take": {
+            "dark-photo-reduce-motion": 1.28,
+            "dark-stripes-reduce-motion": 0.8,
+            "light-photo-reduce-motion": 0.68,
+            "light-stripes-reduce-motion": 0.8
+          }
+        },
+        "take_spread": {
+          "min": 0.78,
+          "max": 0.8,
+          "std": 0.007,
+          "per_take": {
+            "20261006-091925": 0.8,
+            "noise-2b1/take0": 0.78,
+            "noise-2b1/take1": 0.8,
+            "noise-2b1/take2": 0.8,
+            "noise-2b1/take3": 0.8,
+            "noise-2b1/take4": 0.8
+          }
+        },
+        "spring_overshoot": 0.04599
+      }
+    }
+  },
+  "default_spring_check": {
+    "swiftui": [
+      0.55,
+      1.0
+    ],
+    "all": {
+      "response": 0.58,
+      "damping": 0.97,
+      "rms": 0.02774213225996886,
+      "at_grid_edge": false,
+      "pass": false
+    },
+    "cases": {
+      "dark-photo": {
+        "response": 0.58,
+        "damping": 0.97,
+        "rms": 0.007984385192813115,
+        "at_grid_edge": false,
+        "pass": false
+      },
+      "dark-stripes": {
+        "response": 0.71,
+        "damping": 0.79,
+        "rms": 0.041362012578958156,
+        "at_grid_edge": false,
+        "pass": false
+      },
+      "light-photo": {
+        "response": 0.51,
+        "damping": 1.09,
+        "rms": 0.015282917143490615,
+        "at_grid_edge": false,
+        "pass": false
+      },
+      "light-stripes": {
+        "response": 0.45,
+        "damping": 1.24,
+        "rms": 0.02353320658728732,
+        "at_grid_edge": false,
+        "pass": false
+      }
+    },
+    "pass": false
+  },
+  "blur_ramp": {
+    "value": 1.0,
+    "objective": "sharpness RMS at matched progress, over the targets every k measures, / 1.0 + per-backdrop progress deviation RMS at fixed visibility / 0.05",
+    "table": {
+      "0.25": {
+        "sharpness_rms": 0.9727,
+        "progress_deviation_rms": 0.0971,
+        "objective": 2.915,
+        "unmeasured": [
+          "dark-photo@0.25"
+        ],
+        "flutter_deviation": {
+          "dark-photo": {
+            "0.25": 0.211,
+            "0.5": 0.197,
+            "0.75": 0.1082
+          },
+          "dark-stripes": {
+            "0.25": -0.0283,
+            "0.5": -0.0306,
+            "0.75": -0.0163
+          },
+          "light-photo": {
+            "0.25": -0.1012,
+            "0.5": -0.0936,
+            "0.75": -0.0524
+          },
+          "light-stripes": {
+            "0.25": -0.0814,
+            "0.5": -0.0728,
+            "0.75": -0.0395
+          }
+        }
+      },
+      "0.5": {
+        "sharpness_rms": 0.9726,
+        "progress_deviation_rms": 0.0704,
+        "objective": 2.3812,
+        "unmeasured": [],
+        "flutter_deviation": {
+          "dark-photo": {
+            "0.25": 0.126,
+            "0.5": 0.131,
+            "0.75": 0.0794
+          },
+          "dark-stripes": {
+            "0.25": -0.0129,
+            "0.5": -0.019,
+            "0.75": -0.0115
+          },
+          "light-photo": {
+            "0.25": -0.0658,
+            "0.5": -0.0654,
+            "0.75": -0.0398
+          },
+          "light-stripes": {
+            "0.25": -0.0473,
+            "0.5": -0.0466,
+            "0.75": -0.0281
+          }
+        }
+      },
+      "1.0": {
+        "sharpness_rms": 0.941,
+        "progress_deviation_rms": 0.0587,
+        "objective": 2.1144,
+        "unmeasured": [],
+        "flutter_deviation": {
+          "dark-photo": {
+            "0.25": 0.0239,
+            "0.5": 0.0476,
+            "0.75": 0.0407
+          },
+          "dark-stripes": {
+            "0.25": 0.0013,
+            "0.5": -0.0053,
+            "0.75": -0.0053
+          },
+          "light-photo": {
+            "0.25": -0.0184,
+            "0.5": -0.029,
+            "0.75": -0.0222
+          },
+          "light-stripes": {
+            "0.25": -0.0068,
+            "0.5": -0.0133,
+            "0.75": -0.0132
+          }
+        }
+      },
+      "1.5": {
+        "sharpness_rms": 0.8657,
+        "progress_deviation_rms": 0.0679,
+        "objective": 2.2241,
+        "unmeasured": [],
+        "flutter_deviation": {
+          "dark-photo": {
+            "0.25": -0.0299,
+            "0.5": -0.0116,
+            "0.75": 0.0141
+          },
+          "dark-stripes": {
+            "0.25": 0.0081,
+            "0.5": 0.0038,
+            "0.75": 0.0016
+          },
+          "light-photo": {
+            "0.25": 0.0068,
+            "0.5": -0.0025,
+            "0.75": -0.0109
+          },
+          "light-stripes": {
+            "0.25": 0.015,
+            "0.5": 0.0103,
+            "0.75": -0.0047
+          }
+        }
+      },
+      "2.0": {
+        "sharpness_rms": 0.7127,
+        "progress_deviation_rms": 0.0782,
+        "objective": 2.2774,
+        "unmeasured": [],
+        "flutter_deviation": {
+          "dark-photo": {
+            "0.25": -0.0603,
+            "0.5": -0.0444,
+            "0.75": -0.0106
+          },
+          "dark-stripes": {
+            "0.25": 0.0115,
+            "0.5": 0.0103,
+            "0.75": 0.0039
+          },
+          "light-photo": {
+            "0.25": 0.0216,
+            "0.5": 0.0123,
+            "0.75": 0.0012
+          },
+          "light-stripes": {
+            "0.25": 0.0272,
+            "0.5": 0.0219,
+            "0.75": 0.0055
+          }
+        }
+      },
+      "3.0": {
+        "sharpness_rms": 0.7846,
+        "progress_deviation_rms": 0.0969,
+        "objective": 2.7229,
+        "unmeasured": [],
+        "flutter_deviation": {
+          "dark-photo": {
+            "0.25": -0.0891,
+            "0.5": -0.1022,
+            "0.75": -0.0519
+          },
+          "dark-stripes": {
+            "0.25": 0.0132,
+            "0.5": 0.0183,
+            "0.75": 0.011
+          },
+          "light-photo": {
+            "0.25": 0.0372,
+            "0.5": 0.0392,
+            "0.75": 0.0201
+          },
+          "light-stripes": {
+            "0.25": 0.0387,
+            "0.5": 0.0447,
+            "0.75": 0.0208
+          }
+        }
+      },
+      "4.0": {
+        "sharpness_rms": 0.9823,
+        "progress_deviation_rms": 0.1081,
+        "objective": 3.1433,
+        "unmeasured": [],
+        "flutter_deviation": {
+          "dark-photo": {
+            "0.25": -0.0972,
+            "0.5": -0.1328,
+            "0.75": -0.0812
+          },
+          "dark-stripes": {
+            "0.25": 0.0114,
+            "0.5": 0.0232,
+            "0.75": 0.0153
+          },
+          "light-photo": {
+            "0.25": 0.0435,
+            "0.5": 0.0535,
+            "0.75": 0.0339
+          },
+          "light-stripes": {
+            "0.25": 0.0423,
+            "0.5": 0.0561,
+            "0.75": 0.032
+          }
+        }
+      }
+    },
+    "dropped_targets": [
+      "dark-photo@0.25"
+    ],
+    "native_deviation": {
+      "dark-photo": {
+        "0.25": 0.0284,
+        "0.5": 0.0379,
+        "0.75": 0.0234
+      },
+      "dark-stripes": {
+        "0.25": 0.0893,
+        "0.5": 0.092,
+        "0.75": 0.0798
+      },
+      "light-photo": {
+        "0.25": -0.0585,
+        "0.5": -0.0626,
+        "0.75": -0.0451
+      },
+      "light-stripes": {
+        "0.25": -0.0592,
+        "0.5": -0.0673,
+        "0.75": -0.0581
+      }
+    },
+    "at_grid_edge": false
+  },
+  "native_sharpness": {
+    "dark-photo": {
+      "0.25": -1.47,
+      "0.5": -1.066,
+      "0.75": -0.439
+    },
+    "dark-stripes": {
+      "0.25": -0.034,
+      "0.5": 0.029,
+      "0.75": 0.098
+    },
+    "light-photo": {
+      "0.25": -1.991,
+      "0.5": -1.488,
+      "0.75": -0.637
+    },
+    "light-stripes": {
+      "0.25": -0.081,
+      "0.5": -0.03,
+      "0.75": 0.06
+    }
+  },
+  "flutter_sharpness": {
+    "0.25": {
+      "dark-photo": {
+        "0.25": null,
+        "0.5": -2.711,
+        "0.75": -1.265
+      },
+      "dark-stripes": {
+        "0.25": -0.414,
+        "0.5": -0.265,
+        "0.75": -0.123
+      },
+      "light-photo": {
+        "0.25": -4.167,
+        "0.5": -2.694,
+        "0.75": -1.245
+      },
+      "light-stripes": {
+        "0.25": -0.399,
+        "0.5": -0.242,
+        "0.75": -0.134
+      }
+    },
+    "0.5": {
+      "dark-photo": {
+        "0.25": -3.991,
+        "0.5": -2.7,
+        "0.75": -1.271
+      },
+      "dark-stripes": {
+        "0.25": -0.426,
+        "0.5": -0.271,
+        "0.75": -0.136
+      },
+      "light-photo": {
+        "0.25": -4.152,
+        "0.5": -2.706,
+        "0.75": -1.25
+      },
+      "light-stripes": {
+        "0.25": -0.424,
+        "0.5": -0.275,
+        "0.75": -0.14
+      }
+    },
+    "1.0": {
+      "dark-photo": {
+        "0.25": -3.883,
+        "0.5": -2.689,
+        "0.75": -1.264
+      },
+      "dark-stripes": {
+        "0.25": -0.423,
+        "0.5": -0.309,
+        "0.75": -0.154
+      },
+      "light-photo": {
+        "0.25": -3.987,
+        "0.5": -2.71,
+        "0.75": -1.264
+      },
+      "light-stripes": {
+        "0.25": -0.426,
+        "0.5": -0.29,
+        "0.75": -0.146
+      }
+    },
+    "1.5": {
+      "dark-photo": {
+        "0.25": -3.634,
+        "0.5": -2.687,
+        "0.75": -1.262
+      },
+      "dark-stripes": {
+        "0.25": -0.357,
+        "0.5": -0.327,
+        "0.75": -0.17
+      },
+      "light-photo": {
+        "0.25": -3.588,
+        "0.5": -2.696,
+        "0.75": -1.27
+      },
+      "light-stripes": {
+        "0.25": -0.367,
+        "0.5": -0.326,
+        "0.75": -0.178
+      }
+    },
+    "2.0": {
+      "dark-photo": {
+        "0.25": -3.594,
+        "0.5": -2.634,
+        "0.75": -1.262
+      },
+      "dark-stripes": {
+        "0.25": -0.269,
+        "0.5": -0.319,
+        "0.75": -0.184
+      },
+      "light-photo": {
+        "0.25": -2.561,
+        "0.5": -2.623,
+        "0.75": -1.274
+      },
+      "light-stripes": {
+        "0.25": -0.247,
+        "0.5": -0.333,
+        "0.75": -0.183
+      }
+    },
+    "3.0": {
+      "dark-photo": {
+        "0.25": -2.775,
+        "0.5": -2.614,
+        "0.75": -1.289
+      },
+      "dark-stripes": {
+        "0.25": -0.118,
+        "0.5": -0.3,
+        "0.75": -0.197
+      },
+      "light-photo": {
+        "0.25": -0.52,
+        "0.5": -2.357,
+        "0.75": -1.263
+      },
+      "light-stripes": {
+        "0.25": -0.075,
+        "0.5": -0.305,
+        "0.75": -0.199
+      }
+    },
+    "4.0": {
+      "dark-photo": {
+        "0.25": -2.275,
+        "0.5": -2.533,
+        "0.75": -1.31
+      },
+      "dark-stripes": {
+        "0.25": -0.019,
+        "0.5": -0.251,
+        "0.75": -0.21
+      },
+      "light-photo": {
+        "0.25": 0.637,
+        "0.5": -1.863,
+        "0.75": -1.244
+      },
+      "light-stripes": {
+        "0.25": 0.003,
+        "0.5": -0.238,
+        "0.75": -0.197
+      }
+    }
+  },
+  "flutter_sharpness_table": {
+    "dark-photo": {
+      "0.25": -3.884,
+      "0.5": -2.695,
+      "0.75": -1.273
+    },
+    "dark-stripes": {
+      "0.25": -0.425,
+      "0.5": -0.306,
+      "0.75": -0.17
+    },
+    "light-photo": {
+      "0.25": -4.002,
+      "0.5": -2.711,
+      "0.75": -1.262
+    },
+    "light-stripes": {
+      "0.25": -0.434,
+      "0.5": -0.296,
+      "0.75": -0.152
+    }
+  },
+  "flutter_progress": {
+    "dark-photo": {
+      "0.0": 0.0,
+      "0.1": 0.1138,
+      "0.2": 0.2443,
+      "0.3": 0.3618,
+      "0.4": 0.4812,
+      "0.5": 0.5931,
+      "0.6": 0.6775,
+      "0.7": 0.7689,
+      "0.8": 0.8542,
+      "0.9": 0.9301,
+      "1.0": 1.0,
+      "1.05": 1.0232,
+      "1.1": 1.0454,
+      "1.15": 1.0848,
+      "1.2": 1.1059,
+      "1.3": 1.1594,
+      "1.4": 1.2092,
+      "1.5": 1.2415
+    },
+    "dark-stripes": {
+      "0.0": 0.0,
+      "0.1": 0.1116,
+      "0.2": 0.2256,
+      "0.3": 0.3305,
+      "0.4": 0.4337,
+      "0.5": 0.5364,
+      "0.6": 0.6312,
+      "0.7": 0.7256,
+      "0.8": 0.8198,
+      "0.9": 0.9109,
+      "1.0": 1.0,
+      "1.05": 1.0407,
+      "1.1": 1.0815,
+      "1.15": 1.1271,
+      "1.2": 1.1649,
+      "1.3": 1.2501,
+      "1.4": 1.333,
+      "1.5": 1.4082
+    },
+    "light-photo": {
+      "0.0": 0.0,
+      "0.1": 0.1,
+      "0.2": 0.206,
+      "0.3": 0.3086,
+      "0.4": 0.4105,
+      "0.5": 0.5115,
+      "0.6": 0.6116,
+      "0.7": 0.7104,
+      "0.8": 0.8078,
+      "0.9": 0.9043,
+      "1.0": 1.0,
+      "1.05": 1.0457,
+      "1.1": 1.0907,
+      "1.15": 1.1389,
+      "1.2": 1.1824,
+      "1.3": 1.2698,
+      "1.4": 1.3532,
+      "1.5": 1.4323
+    },
+    "light-stripes": {
+      "0.0": 0.0,
+      "0.1": 0.1081,
+      "0.2": 0.2169,
+      "0.3": 0.3239,
+      "0.4": 0.4284,
+      "0.5": 0.5272,
+      "0.6": 0.6239,
+      "0.7": 0.72,
+      "0.8": 0.8128,
+      "0.9": 0.9065,
+      "1.0": 1.0,
+      "1.05": 1.0419,
+      "1.1": 1.0822,
+      "1.15": 1.1273,
+      "1.2": 1.1682,
+      "1.3": 1.2509,
+      "1.4": 1.3313,
+      "1.5": 1.408
+    }
+  },
+  "flutter_progress_mean": [
+    0.0,
+    0.1084,
+    0.2232,
+    0.3312,
+    0.4384,
+    0.542,
+    0.6361,
+    0.7312,
+    0.8237,
+    0.9129,
+    1.0
+  ],
+  "flutter_progress_mean_above_full": [
+    1.0,
+    1.0379,
+    1.0749,
+    1.1195,
+    1.1553,
+    1.2326,
+    1.3067,
+    1.3725
+  ],
+  "visibility_for_progress": [
+    0.0,
+    0.0461,
+    0.0923,
+    0.1362,
+    0.1798,
+    0.2248,
+    0.2711,
+    0.3175,
+    0.3641,
+    0.4112,
+    0.4594,
+    0.5085,
+    0.5616,
+    0.6146,
+    0.6672,
+    0.7203,
+    0.7744,
+    0.8295,
+    0.8855,
+    0.9426,
+    1.0
+  ],
+  "visibility_above_full": [
+    1.0664,
+    1.1281,
+    1.1925,
+    1.2578,
+    1.3235,
+    1.391,
+    1.4658
+  ],
+  "overrides": {
+    "allowed": [],
+    "used": []
+  },
+  "write": {
+    "requested": true,
+    "refused": [],
+    "problems": []
+  }
+}

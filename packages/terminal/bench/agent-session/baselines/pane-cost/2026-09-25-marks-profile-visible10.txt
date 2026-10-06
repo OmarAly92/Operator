@@ -1,0 +1,21 @@
+total self ms 10269.3
+6877.3	(idle) 
+1144.7	getBoundingClientRect 
+521.3	(program) 
+188.4	flushPending /@fs/home/user/Operator/packages/terminal/ts/renderer-dom/dist/row-builder.js:35
+132.7	(garbage collector) 
+123.8	remove 
+92.7	append 
+76.6	visibleRowCapacity /@fs/home/user/Operator/packages/terminal/ts/renderer-dom/dist/scroll-tracker.js:21
+74.3	paint /@fs/home/user/Operator/packages/terminal/ts/renderer-dom/dist/highlight-painter.js:80
+65	vt_core::screen::ScreenGrid::cell::h49488c1cecb472ba wasm://wasm/vt_wasm.wasm-006241f2:1
+57.4	decode 
+46.5	buildRowNode /@fs/home/user/Operator/packages/terminal/ts/renderer-dom/dist/row-builder.js:9
+44.5	apply /@fs/home/user/Operator/packages/terminal/ts/renderer-dom/dist/highlight-painter.js:24
+40.2	renderedRowRefs /@fs/home/user/Operator/packages/terminal/ts/renderer-dom/dist/selection-view.js:101
+37.6	reconcileChildren /@fs/home/user/Operator/packages/terminal/ts/renderer-dom/dist/block-body.js:67
+36.8	vt_core::grid::export_screen_row::h9e5a99db0ae9d033 wasm://wasm/vt_wasm.wasm-006241f2:1
+33.7	querySelectorAll 
+32.7	createElement 
+32.3	appendMeasuredText /@fs/home/user/Operator/packages/terminal/ts/renderer-dom/dist/row-builder.js:118
+27.3	get /@fs/home/user/Operator/packages/terminal/ts/renderer-dom/dist/width-cache.js:9

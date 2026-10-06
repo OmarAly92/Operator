@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blockGlyph, isBlockGlyph, isFullBlock } from "./block-glyphs.js";
+import { DEFAULT_FEATURES } from "./features.js";
 import { buildRowNode, CLASS_GLYPH, CLASS_RUN, type RowSource } from "./row-builder.js";
 
 const DEFAULT_FOREGROUND = 255;
@@ -99,7 +100,7 @@ describe("block glyph rendering", () => {
 });
 
 describe("row run merging", () => {
-	it("merges adjacent runs sharing styleCode and backgroundCode into one span, even when attrs or underline differ", () => {
+	it("merges adjacent runs sharing styleCode and backgroundCode into one span under plain, even when attrs or underline differ", () => {
 		const content = new TextEncoder().encode("ab");
 		const source: RowSource = {
 			content,
@@ -110,7 +111,7 @@ describe("row run merging", () => {
 				2, DEFAULT_FOREGROUND, DEFAULT_BACKGROUND, 0, 3, 0,
 			]),
 		};
-		const row = buildRowNode(source, 0, 0, new TextDecoder("utf-8", { fatal: true }));
+		const row = buildRowNode(source, 0, 0, new TextDecoder("utf-8", { fatal: true }), 0, { ...DEFAULT_FEATURES, attributes: "plain" });
 		const runs = [...row.querySelectorAll<HTMLElement>(`.${CLASS_RUN}`)];
 		expect(runs.length).toBe(1);
 		expect(runs[0]?.textContent).toBe("ab");

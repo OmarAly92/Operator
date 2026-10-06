@@ -11,7 +11,7 @@ Triage bugs into well-structured GitHub issues on the Operator repo.
 > **Operator is Go + Tauri.** The backend is a Go daemon (`backend/`)
 > exposing a loopback HTTP API on `127.0.0.1:3001`; the frontend is a Tauri +
 > React renderer inside the Tauri shell (`frontend/`). There is **no** pm2/tmux/Node runtime here —
-> the daemon owns lifecycle and sessions run under the **Zellij** runtime
+> the daemon owns lifecycle and sessions run under the **pty-host** runtime
 > adapter. Triage against _this_ stack, not the old TypeScript operator.
 
 ## ⚠️ Which `opr` are you running?
@@ -98,7 +98,6 @@ tail -n 100 ~/.operator/daemon.log                        # daemon log
 # Sessions & runtime
 /tmp/opr session ls                                  # all sessions and their state
 /tmp/opr session get <id>                            # one session: spawn config, runtime, lifecycle
-zellij list-sessions                                # Zellij runtime sessions backing terminals
 
 # Durable state (SQLite at ~/.operator/data)
 sqlite3 ~/.operator/data/opr.db '.tables'                  # inspect schema/rows if state looks wrong
@@ -124,7 +123,7 @@ one layer down. Operator's layers:
 - Daemon (loopback HTTP on :3001): `backend/internal/daemon/daemon.go`,
   controllers under `backend/internal/httpd/controllers/`
 - Sessions & lifecycle: `backend/internal/session_manager/manager.go`
-- Runtime adapter (Zellij): `backend/internal/adapters/runtime/`
+- Runtime adapter (pty-host): `backend/internal/adapters/runtime/ptyhost/`
 - Agent harness adapters: `backend/internal/adapters/agent/<harness>/`
 - Terminal mux: `backend/internal/terminal/`
 - Agent hooks: `backend/internal/cli/hooks.go`
@@ -141,7 +140,7 @@ git log --oneline -S 'exact-string' -- <file>
 git show <sha> -- <file> | grep -B 5 -A 10 'pattern'
 ```
 
-**Research dependencies** (Zellij, the agent harness binary, Tauri, React, the
+**Research dependencies** (the agent harness binary, Tauri, React, the
 SQLite driver) — check installed vs latest version, search their issue trackers,
 check changelogs. Root cause is sometimes in a dependency, not Operator.
 
@@ -212,7 +211,7 @@ EOF
 
 ### 5b. Upload screenshots
 
-**⛔ NEVER use placeholder URLs.** Upload BEFORE creating the issue.
+Upload screenshots before creating the issue, so the issue body links real image URLs rather than placeholders.
 
 ```bash
 SLUG="descriptive-slug"
@@ -351,7 +350,7 @@ any priority/confidence stated in the body), root cause summary.
 | **CLI** (`opr start/stop/spawn`) | Version, install method, OS, which binary | `backend/internal/cli/`, `backend/cmd/opr/main.go`                          |
 | **Daemon / HTTP API**           | `opr status`, port, daemon.log             | `backend/internal/daemon/daemon.go`, `backend/internal/httpd/controllers/` |
 | **Sessions / Lifecycle**        | Session ID, spawn config, runtime, state  | `backend/internal/session_manager/manager.go`                              |
-| **Runtime (Zellij)**            | Zellij version, `zellij list-sessions`    | `backend/internal/adapters/runtime/`                                       |
+| **Runtime (pty-host)**          | Session id, `opr session get <id>`        | `backend/internal/adapters/runtime/ptyhost/`                               |
 | **Terminal mux**                | Runtime type, shell, attach behavior      | `backend/internal/terminal/`                                               |
 | **Agent harness**               | Harness name + version                    | `backend/internal/adapters/agent/<harness>/`                               |
 | **Storage**                     | DB state, migrations                      | `backend/internal/storage/sqlite/`, `~/.operator/data/opr.db`                     |
@@ -360,10 +359,10 @@ any priority/confidence stated in the body), root cause summary.
 
 **Misrouting patterns:**
 
-- Terminal bugs → Zellij runtime adapter vs the terminal mux vs the Tauri xterm
-  surface. Trace where bytes flow (daemon → mux → frontend).
+- Terminal bugs → pty-host runtime adapter vs the terminal mux vs the renderer's
+  `BlockTerminal` (`packages/terminal`); read `TERMINAL.md` first. Trace where bytes flow (daemon → mux → frontend).
 - "Session stuck" → lifecycle/session-manager state vs agent harness process vs
-  Zellij runtime connection.
+  pty-host runtime connection.
 - "Config not saving" → config loading (`backend/internal/config/config.go`) vs
   project registration vs SQLite write (`~/.operator/data/opr.db`).
 - "Command does nothing / wrong port" → you're on the wrong `opr` binary (:3000 vs
@@ -393,9 +392,9 @@ git log --oneline origin/development -1              # the commit you're analyzi
 To bisect a regression, build `opr` at two commits and compare behavior:
 
 ```bash
-git stash; git checkout <good-sha>; (cd backend && go build -o /tmp/opr-good ./cmd/opr)
-git checkout <bad-sha>;             (cd backend && go build -o /tmp/opr-bad  ./cmd/opr)
-git checkout - ; git stash pop
+git worktree add /tmp/opr-good-src <good-sha> && (cd /tmp/opr-good-src/backend && go build -o /tmp/opr-good ./cmd/opr)
+git worktree add /tmp/opr-bad-src  <bad-sha>  && (cd /tmp/opr-bad-src/backend  && go build -o /tmp/opr-bad  ./cmd/opr)
+git worktree remove /tmp/opr-good-src; git worktree remove /tmp/opr-bad-src
 # run the repro against /tmp/opr-good vs /tmp/opr-bad
 ```
 

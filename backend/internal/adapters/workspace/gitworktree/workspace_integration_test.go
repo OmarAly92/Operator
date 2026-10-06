@@ -472,7 +472,7 @@ func TestWorkspaceIntegrationWorkspaceProjectInfersChildDefaultBranches(t *testi
 	info, err := ws.CreateWorkspaceProject(context.Background(), ports.WorkspaceProjectConfig{
 		ProjectID:    "proj",
 		SessionID:    "sess",
-		Branch:       "opr/proj-1",
+		Branch:       "opr/proj-1/root",
 		RootRepoPath: rootRepo,
 		BaseBranch:   "main",
 		Repos: []ports.WorkspaceProjectRepoConfig{
@@ -498,20 +498,89 @@ func TestWorkspaceIntegrationWorkspaceProjectInfersChildDefaultBranches(t *testi
 	if _, err := os.Stat(filepath.Join(devChildPath, "README.md")); err != nil {
 		t.Fatalf("dev child worktree missing seed file: %v", err)
 	}
-	devChildHead := gitOutput(t, git, devChildRepo, "rev-parse", "refs/heads/opr/proj-1")
+	devChildHead := gitOutput(t, git, devChildRepo, "rev-parse", "refs/heads/opr/proj-1/root")
 	devChildBase := gitOutput(t, git, devChildRepo, "rev-parse", "origin/dev")
 	if devChildHead != devChildBase {
 		t.Fatalf("dev child branch base = %s, want origin/dev %s", devChildHead, devChildBase)
 	}
-	mainChildHead := gitOutput(t, git, mainChildRepo, "rev-parse", "refs/heads/opr/proj-1")
+	mainChildHead := gitOutput(t, git, mainChildRepo, "rev-parse", "refs/heads/opr/proj-1/root")
 	mainChildBase := gitOutput(t, git, mainChildRepo, "rev-parse", "origin/main")
 	if mainChildHead != mainChildBase {
 		t.Fatalf("main child branch base = %s, want origin/main %s", mainChildHead, mainChildBase)
 	}
-	rootHead := gitOutput(t, git, rootRepo, "rev-parse", "refs/heads/opr/proj-1")
+	rootHead := gitOutput(t, git, rootRepo, "rev-parse", "refs/heads/opr/proj-1/root")
 	rootBase := gitOutput(t, git, rootRepo, "rev-parse", "origin/main")
 	if rootHead != rootBase {
 		t.Fatalf("root branch base = %s, want origin/main %s", rootHead, rootBase)
+	}
+	if err := ws.DestroyWorkspaceProject(context.Background(), info); err != nil {
+		t.Fatalf("destroy workspace project: %v", err)
+	}
+}
+
+// TestWorkspaceIntegrationWorkspaceProjectInfersRootDefaultBranch covers a
+// workspace project whose root branch was never recorded: an empty BaseBranch
+// must resolve the root repo's own default, not a `main` it does not have.
+func TestWorkspaceIntegrationWorkspaceProjectInfersRootDefaultBranch(t *testing.T) {
+	git := requireGit(t)
+	tmp := t.TempDir()
+	rootRepo := setupOriginCloneOnBranch(t, git, filepath.Join(tmp, "root"), "master")
+	childRepo := setupOriginClone(t, git, filepath.Join(tmp, "child"))
+
+	ws, err := New(Options{Binary: git, ManagedRoot: filepath.Join(tmp, "managed"), RepoResolver: StaticRepoResolver{"proj": rootRepo}})
+	if err != nil {
+		t.Fatalf("new: %v", err)
+	}
+	info, err := ws.CreateWorkspaceProject(context.Background(), ports.WorkspaceProjectConfig{
+		ProjectID:    "proj",
+		SessionID:    "sess",
+		Branch:       "opr/proj-1/root",
+		RootRepoPath: rootRepo,
+		Repos:        []ports.WorkspaceProjectRepoConfig{{Name: "api", RelativePath: "api", RepoPath: childRepo}},
+	})
+	if err != nil {
+		t.Fatalf("create workspace project on a master root: %v", err)
+	}
+	rootHead := gitOutput(t, git, rootRepo, "rev-parse", "refs/heads/opr/proj-1/root")
+	rootBase := gitOutput(t, git, rootRepo, "rev-parse", "origin/master")
+	if rootHead != rootBase {
+		t.Fatalf("root branch base = %s, want origin/master %s", rootHead, rootBase)
+	}
+	if err := ws.DestroyWorkspaceProject(context.Background(), info); err != nil {
+		t.Fatalf("destroy workspace project: %v", err)
+	}
+}
+
+// TestWorkspaceIntegrationWorkspaceProjectRootIgnoresChildren covers a root
+// worktree based on an origin that never received the registration-time
+// .gitignore commit: the children must still be invisible to the root repo, or
+// its status is never clean and `git add -A` there records them as gitlinks.
+func TestWorkspaceIntegrationWorkspaceProjectRootIgnoresChildren(t *testing.T) {
+	git := requireGit(t)
+	tmp := t.TempDir()
+	rootRepo := setupOriginClone(t, git, filepath.Join(tmp, "root"))
+	apiRepo := setupOriginClone(t, git, filepath.Join(tmp, "api"))
+	authRepo := setupOriginClone(t, git, filepath.Join(tmp, "auth"))
+
+	ws, err := New(Options{Binary: git, ManagedRoot: filepath.Join(tmp, "managed"), RepoResolver: StaticRepoResolver{"proj": rootRepo}})
+	if err != nil {
+		t.Fatalf("new: %v", err)
+	}
+	info, err := ws.CreateWorkspaceProject(context.Background(), ports.WorkspaceProjectConfig{
+		ProjectID:    "proj",
+		SessionID:    "sess",
+		Branch:       "opr/proj-1/root",
+		RootRepoPath: rootRepo,
+		Repos: []ports.WorkspaceProjectRepoConfig{
+			{Name: "api", RelativePath: "api", RepoPath: apiRepo},
+			{Name: "auth", RelativePath: "services/auth", RepoPath: authRepo},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create workspace project: %v", err)
+	}
+	if status := gitOutput(t, git, info.Root.Path, "status", "--porcelain", "--untracked-files=all"); status != "" {
+		t.Fatalf("root worktree status = %q, want clean with children ignored", status)
 	}
 	if err := ws.DestroyWorkspaceProject(context.Background(), info); err != nil {
 		t.Fatalf("destroy workspace project: %v", err)

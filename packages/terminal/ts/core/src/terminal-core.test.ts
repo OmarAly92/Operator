@@ -10,6 +10,7 @@ import {
 	type RowEvent,
 } from "./index";
 import { WasmTerminalCore } from "../wasm/vt_core.js";
+import { remapStableRow } from "./row-events";
 
 beforeAll(async () => {
 	const bytes = await readFile(fileURLToPath(new URL("../wasm/vt_core_bg.wasm", import.meta.url)));
@@ -165,7 +166,7 @@ describe("TerminalCore", () => {
 		core.snapshot();
 		for (const line of ["5", "6", "7"]) core.feed(encoder.encode(`${line}\r\n`));
 		core.snapshot();
-		expect(events).toEqual([{ trimmed: 1, remap: null }]);
+		expect(events).toEqual([{ trimmed: 1, remap: null, remapEnd: null }]);
 		core.feed(encoder.encode("aaaaaaaaaabbbbbbbbbbcccccccccc\r\n"));
 		core.snapshot();
 		core.resize(40, 2);
@@ -174,6 +175,19 @@ describe("TerminalCore", () => {
 		expect(remap.length).toBeGreaterThan(0);
 		expect(remap.every(([from, to]) => to <= from)).toBe(true);
 		expect(core.snapshot().firstStableRow).toBeGreaterThan(0);
+	});
+
+	it("reports where the rows after the rewrapped ones went", () => {
+		const core = createTerminalCore({ columns: 20, scrollback: 100, rows: 3 });
+		core.setAgentTuiMode(true);
+		const events: RowEvent[] = [];
+		core.onRowEvents((event) => events.push(event));
+		core.feed(new TextEncoder().encode("aaaaaaaaaabbbbbbbbbbcccccccccc\r\ntail\r\nx\r\nzeta"));
+		core.snapshot();
+		core.resize(40, 3);
+		core.snapshot();
+		expect(events.at(-1)).toEqual({ trimmed: 0, remap: [[0, 0], [1, 0]], remapEnd: [2, 1] });
+		expect(remapStableRow(4, events.at(-1)!)).toBe(3);
 	});
 
 	it("lays a ZWJ family out over two cells once grapheme clusters are on", () => {

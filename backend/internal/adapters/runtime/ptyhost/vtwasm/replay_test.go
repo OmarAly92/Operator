@@ -247,6 +247,43 @@ func TestReplayEmitsTheModesTheChildSet(t *testing.T) {
 	}
 }
 
+func TestReplayCarriesThePointerShapeTheChildSet(t *testing.T) {
+	p := newTestParser(t, 80, 24)
+	feed(t, p, "\x1b]22;pointer\x07hello\r\n")
+
+	out, err := p.Replay(1000)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	shape := "\x1b]22;pointer\x1b\\"
+	if !strings.Contains(out, shape) {
+		t.Fatalf("replay is missing the pointer shape:\n%q", out)
+	}
+	if strings.Index(out, shape) > strings.Index(out, "hello") {
+		t.Fatalf("the pointer shape came after the frame:\n%q", out)
+	}
+
+	alt := newTestParser(t, 80, 24)
+	feed(t, alt, "\x1b[?1049h\x1b]22;text\x07menu")
+	out, err = alt.Replay(1000)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	if !strings.Contains(out, "\x1b]22;text\x1b\\") {
+		t.Fatalf("alt-screen replay is missing the pointer shape:\n%q", out)
+	}
+
+	plain := newTestParser(t, 80, 24)
+	feed(t, plain, "hello\r\n")
+	out, err = plain.Replay(1000)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	if strings.Contains(out, "\x1b]22;") {
+		t.Fatalf("a child that set no pointer shape replayed one:\n%q", out)
+	}
+}
+
 // The client paints at READY, so READY must be the last byte of the frame —
 // everything before it is one complete screen (Ghostty's READY-first snapshot,
 // ghostty/src/termio/Termio.zig).

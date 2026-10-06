@@ -1,0 +1,215 @@
+{
+  "name": "agent-state",
+  "description": "OSC 777 ; agent-state ; v=1 ; state=<working|waiting|idle|done> [; detail=<percent-encoded UTF-8>] (BEL | ST). Each case is fed to a fresh core; events lists what take_agent_events returns, in order.",
+  "cases": [
+    {
+      "name": "minimal-bel",
+      "input": "\u001b]777;agent-state;v=1;state=working\u0007",
+      "events": [
+        {
+          "state": "working",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "name": "st-terminator-with-detail",
+      "input": "\u001b]777;agent-state;v=1;state=waiting;detail=Allow%20Bash%3F\u001b\\",
+      "events": [
+        {
+          "state": "waiting",
+          "detail": "Allow Bash?"
+        }
+      ]
+    },
+    {
+      "name": "every-state-in-order",
+      "input": "\u001b]777;agent-state;v=1;state=working\u0007\u001b]777;agent-state;v=1;state=waiting\u0007\u001b]777;agent-state;v=1;state=idle\u0007\u001b]777;agent-state;v=1;state=done\u0007",
+      "events": [
+        {
+          "state": "working",
+          "detail": ""
+        },
+        {
+          "state": "waiting",
+          "detail": ""
+        },
+        {
+          "state": "idle",
+          "detail": ""
+        },
+        {
+          "state": "done",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "name": "identical-consecutive-events-collapse",
+      "input": "\u001b]777;agent-state;v=1;state=working\u0007text\u001b]777;agent-state;v=1;state=working\u0007",
+      "events": [
+        {
+          "state": "working",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "name": "same-state-new-detail-is-a-new-event",
+      "input": "\u001b]777;agent-state;v=1;state=working;detail=Read\u0007\u001b]777;agent-state;v=1;state=working;detail=Edit\u0007",
+      "events": [
+        {
+          "state": "working",
+          "detail": "Read"
+        },
+        {
+          "state": "working",
+          "detail": "Edit"
+        }
+      ]
+    },
+    {
+      "name": "a-state-returning-after-another-fires-again",
+      "input": "\u001b]777;agent-state;v=1;state=working\u0007\u001b]777;agent-state;v=1;state=done\u0007\u001b]777;agent-state;v=1;state=working\u0007",
+      "events": [
+        {
+          "state": "working",
+          "detail": ""
+        },
+        {
+          "state": "done",
+          "detail": ""
+        },
+        {
+          "state": "working",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "name": "fields-in-any-order-with-a-space-after-the-separator",
+      "input": "\u001b]777;agent-state;state=done; v=1\u0007",
+      "events": [
+        {
+          "state": "done",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "name": "unknown-key-ignored",
+      "input": "\u001b]777;agent-state;v=1;state=idle;session=42\u0007",
+      "events": [
+        {
+          "state": "idle",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "name": "empty-trailing-field-ignored",
+      "input": "\u001b]777;agent-state;v=1;state=idle;\u0007",
+      "events": [
+        {
+          "state": "idle",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "name": "higher-version-ignored",
+      "input": "\u001b]777;agent-state;v=2;state=working\u0007",
+      "events": []
+    },
+    {
+      "name": "missing-version-ignored",
+      "input": "\u001b]777;agent-state;state=working\u0007",
+      "events": []
+    },
+    {
+      "name": "missing-state-ignored",
+      "input": "\u001b]777;agent-state;v=1;detail=x\u0007",
+      "events": []
+    },
+    {
+      "name": "unknown-state-ignored",
+      "input": "\u001b]777;agent-state;v=1;state=paused\u0007",
+      "events": []
+    },
+    {
+      "name": "repeated-key-ignored",
+      "input": "\u001b]777;agent-state;v=1;state=working;state=done\u0007",
+      "events": []
+    },
+    {
+      "name": "field-without-equals-ignored",
+      "input": "\u001b]777;agent-state;v=1;state=working;oops\u0007",
+      "events": []
+    },
+    {
+      "name": "malformed-percent-escape-ignored",
+      "input": "\u001b]777;agent-state;v=1;state=working;detail=100%\u0007",
+      "events": []
+    },
+    {
+      "name": "detail-decodes-utf8-and-drops-control-characters",
+      "input": "\u001b]777;agent-state;v=1;state=done;detail=caf%C3%A9%0A%1Bok\u0007",
+      "events": [
+        {
+          "state": "done",
+          "detail": "caféok"
+        }
+      ]
+    },
+    {
+      "name": "detail-capped-at-256-bytes",
+      "input": "\u001b]777;agent-state;v=1;state=working;detail=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0007",
+      "events": [
+        {
+          "state": "working",
+          "detail": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ]
+    },
+    {
+      "name": "payload-of-1023-bytes-accepted",
+      "input": "\u001b]777;agent-state;v=1;state=working;x=ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\u0007",
+      "events": [
+        {
+          "state": "working",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "name": "payload-filling-the-1024-byte-osc-buffer-ignored",
+      "input": "\u001b]777;agent-state;v=1;state=working;x=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\u0007",
+      "events": []
+    },
+    {
+      "name": "extension-name-is-case-sensitive",
+      "input": "\u001b]777;Agent-State;v=1;state=working\u0007",
+      "events": []
+    },
+    {
+      "name": "notify-is-not-an-agent-event",
+      "input": "\u001b]777;notify;Build;done\u0007",
+      "events": []
+    },
+    {
+      "name": "other-osc-numbers-are-not-agent-events",
+      "input": "\u001b]7000;agent-state;v=1;state=working\u0007\u001b]9;agent-state;v=1;state=working\u0007",
+      "events": []
+    },
+    {
+      "name": "an-ignored-event-does-not-break-the-next-one",
+      "input": "\u001b]777;agent-state;v=9;state=working\u0007\u001b]777;agent-state;v=1;state=idle\u0007",
+      "events": [
+        {
+          "state": "idle",
+          "detail": ""
+        }
+      ]
+    }
+  ]
+}

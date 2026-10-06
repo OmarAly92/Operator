@@ -89,6 +89,9 @@ class DarkSkin extends AppSkin {
   Color get onAccent => const Color(0xFF18171C);
 
   @override
+  Color get onGlassProminent => const Color(0xFFFFFFFF);
+
+  @override
   Color get scrim => const Color(0x8C1A1612);
 
   @override
@@ -96,6 +99,15 @@ class DarkSkin extends AppSkin {
 
   @override
   Color get accentTint => const Color(0x291ACB64);
+
+  @override
+  Color get accentText => const Color(0xFF1ACB64);
+
+  @override
+  Color get attentionText => const Color(0xFF1ACB64);
+
+  @override
+  Color get scrollEdgeTint => const Color(0xFF000000);
 
   @override
   Color get attention => const Color(0xFF1ACB64);

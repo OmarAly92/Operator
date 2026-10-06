@@ -12,17 +12,17 @@ fn param(params: &Params, index: usize, default: u16) -> u16 {
 }
 
 impl ScreenGrid {
-    pub(crate) fn csi(&mut self, params: &Params, intermediates: &[u8], c: char) {
+    pub(crate) fn csi(&mut self, params: &Params, intermediates: &[u8], c: char) -> bool {
         if intermediates.first() == Some(&b'?') {
             match (param(params, 0, 0), c) {
                 (25, 'h') => self.set_cursor_visible(true),
                 (25, 'l') => self.set_cursor_visible(false),
-                _ => {}
+                _ => return false,
             }
-            return;
+            return true;
         }
         if !intermediates.is_empty() {
-            return;
+            return false;
         }
         match c {
             'A' => self.move_by(-(param(params, 0, 1) as isize), 0),
@@ -66,8 +66,9 @@ impl ScreenGrid {
             }
             's' => self.save_cursor(),
             'u' => self.restore_cursor(),
-            _ => {}
+            _ => return false,
         }
+        true
     }
 
     pub(crate) fn esc(&mut self, byte: u8) {

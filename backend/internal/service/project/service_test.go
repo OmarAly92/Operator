@@ -1443,3 +1443,28 @@ func TestManager_AddWorkspaceRejectsBareParent(t *testing.T) {
 	_, err := m.Add(ctx, project.AddInput{Path: bareParent, ProjectID: ptr("bare"), AsWorkspace: true})
 	wantCode(t, err, "WORKSPACE_PARENT_BARE")
 }
+
+// TestManager_AddWorkspaceRecordsNonMainRootBranch mirrors
+// TestManager_AddDetectsNonMainDefaultBranch for an adopted workspace parent: a
+// root on `master` must record it, or every session bases the root worktree on
+// a `main` that does not exist and spawn fails BRANCH_NOT_FETCHED.
+func TestManager_AddWorkspaceRecordsNonMainRootBranch(t *testing.T) {
+	configureCommitter(t)
+	ctx := context.Background()
+	m := newManager(t)
+
+	parent := t.TempDir()
+	gitRepoWithCommit(t, parent)
+	if out, err := exec.Command("git", "-C", parent, "branch", "-m", "master").CombinedOutput(); err != nil {
+		t.Fatalf("git branch -m: %v (%s)", err, out)
+	}
+	gitRepoWithCommit(t, filepath.Join(parent, "api"))
+
+	proj, err := m.Add(ctx, project.AddInput{Path: parent, ProjectID: ptr("wsm"), AsWorkspace: true})
+	if err != nil {
+		t.Fatalf("Add workspace: %v", err)
+	}
+	if proj.DefaultBranch != "master" {
+		t.Fatalf("DefaultBranch = %q, want master", proj.DefaultBranch)
+	}
+}

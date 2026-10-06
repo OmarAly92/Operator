@@ -124,4 +124,33 @@ void main() {
     },
     expect: () => [isA<ConnectLoadingState>(), isA<ConnectFailureState>()],
   );
+
+  blocTest<ManualConnectCubit, ManualConnectState>(
+    're-pair mode keeps the paired host and asks for a fresh password',
+    build: () {
+      when(() => store.current).thenReturn(
+        const ServerConfig(host: '10.0.0.5', httpPort: '58682', secure: true, password: 'rotated-away'),
+      );
+      return ManualConnectCubit(repository, store, mode: ManualConnectMode.rePair);
+    },
+    verify: (cubit) {
+      expect(cubit.hostController.text, '10.0.0.5:58682');
+      expect(cubit.passwordController.text, isEmpty);
+      expect(cubit.secure, isTrue);
+    },
+  );
+
+  blocTest<ManualConnectCubit, ManualConnectState>(
+    'a verified connect names the saved desktop for the success step',
+    build: () {
+      when(() => store.current).thenReturn(null);
+      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(_desktop));
+      return ManualConnectCubit(repository, store);
+    },
+    act: (cubit) {
+      cubit.hostController.text = '10.0.0.9';
+      return cubit.connect(TargetPlatform.iOS);
+    },
+    expect: () => [isA<ConnectLoadingState>(), const ConnectSuccessState('Mac')],
+  );
 }

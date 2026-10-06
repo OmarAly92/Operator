@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
+import 'package:operator_mobile/core/preferences/preference_keys.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/terminal/logic/terminal_fit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../terminal/terminal_harness.dart';
 
@@ -38,8 +38,7 @@ void main() {
 
   group('SessionViewCubit', () {
     setUp(() async {
-      SharedPreferences.setMockInitialValues({});
-      await CacheHelper.init();
+      AppPreferences.debugLoad(const {});
     });
 
     test('toggles between the two modes', () {
@@ -72,8 +71,7 @@ void main() {
     });
 
     test('ignores an unknown saved value', () async {
-      SharedPreferences.setMockInitialValues({'opr.session.view.s-9': 'sideways'});
-      await CacheHelper.init();
+      AppPreferences.debugLoad({PreferenceKeys.sessionView('s-9'): 'sideways'});
 
       expect(persistedViewMode('s-9'), isNull);
     });

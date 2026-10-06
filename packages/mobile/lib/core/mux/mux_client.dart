@@ -5,7 +5,9 @@ import 'dart:typed_data';
 import 'package:equatable/equatable.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/connection/connection_signals.dart';
 import 'package:operator_mobile/core/mux/mux_backoff.dart';
+import 'package:operator_mobile/core/mux/mux_notification.dart';
 import 'package:operator_mobile/core/mux/mux_socket.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 
@@ -80,6 +82,7 @@ class MuxClient {
   final _sessionPatchesController = StreamController<List<SessionPatch>>.broadcast();
   final _terminalEventsController = StreamController<TerminalEvent>.broadcast();
   final _blockEventsController = StreamController<BlockEventEnvelope>.broadcast();
+  final _notificationsController = StreamController<MuxNotification>.broadcast();
 
   Stream<void> get boardChanges => _boardChangesController.stream;
   bool get boardStreamReady => _boardStreamReady;
@@ -88,6 +91,7 @@ class MuxClient {
   Stream<List<SessionPatch>> get sessionPatches => _sessionPatchesController.stream;
   Stream<TerminalEvent> get terminalEvents => _terminalEventsController.stream;
   Stream<BlockEventEnvelope> get blockEvents => _blockEventsController.stream;
+  Stream<MuxNotification> get notifications => _notificationsController.stream;
 
   MuxSocket? _socket;
   StreamSubscription<dynamic>? _sub;
@@ -97,6 +101,9 @@ class MuxClient {
   ServerConfig? _dialled;
   int _dialGeneration = 0;
   Timer? _reconnectTimer;
+  ConnectionSignals? _connection;
+  StreamSubscription<void>? _retrySub;
+  bool _parked = false;
   Timer? _pingTimer;
   int _backoffMs = MuxBackoff.initialMs;
   final Map<String, String?> _openTerminals = {};
@@ -104,6 +111,7 @@ class MuxClient {
   final Map<String, int> _ackedBytes = {};
   final Set<String> _blockSessions = {};
   bool _subscribed = false;
+  bool _notificationsSubscribed = false;
 
   MuxStatus _currentStatus = MuxStatus.closed;
 
@@ -115,10 +123,29 @@ class MuxClient {
     _statusController.add(status);
   }
 
+  void bindConnection(ConnectionSignals connection) {
+    unawaited(_retrySub?.cancel());
+    _connection = connection;
+    _retrySub = connection.retries.listen((_) => _unpark());
+  }
+
+  bool get _authFailed => _connection?.authFailed ?? false;
+
+  void _unpark() {
+    if (!_parked || _closedByUser || _authFailed) return;
+    _parked = false;
+    _backoffMs = MuxBackoff.initialMs;
+    unawaited(_open());
+  }
+
   void connect() {
     if (_isOpen || _currentStatus == MuxStatus.connecting) return;
     _closedByUser = false;
     _reconnectTimer?.cancel();
+    if (_authFailed) {
+      _parked = true;
+      return;
+    }
     unawaited(_open());
   }
 
@@ -176,6 +203,7 @@ class MuxClient {
     for (final sessionId in _blockSessions) {
       _send({'ch': 'blocks', 'id': sessionId, 'type': 'subscribe'});
     }
+    if (_notificationsSubscribed) _send({'ch': 'notifications', 'type': 'subscribe'});
 
     _pingTimer = Timer.periodic(const Duration(seconds: 20), (_) => _send({'ch': 'system', 'type': 'ping'}));
   }
@@ -216,6 +244,12 @@ class MuxClient {
       return;
     }
 
+    if (ch == 'notifications' && type == 'notification') {
+      final notification = MuxNotification.fromJson(msg['notification']);
+      if (notification != null) _notificationsController.add(notification);
+      return;
+    }
+
     if (ch == 'terminal') {
       final id = msg['id'] as String? ?? '';
       switch (type) {
@@ -249,7 +283,8 @@ class MuxClient {
   }
 
   void _onConfigChanged(ServerConfig? next) {
-    if (_closedByUser || _dialled == next) return;
+    if (_closedByUser || (_dialled == next && !_parked)) return;
+    _parked = false;
     _dialGeneration++;
     _reconnectTimer?.cancel();
     _clearPing();
@@ -276,7 +311,19 @@ class MuxClient {
   void _scheduleReconnect() {
     if (_closedByUser) return;
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(Duration(milliseconds: _backoffMs), () => unawaited(_open()));
+    if (_authFailed) {
+      _parked = true;
+      return;
+    }
+    _reconnectTimer = Timer(Duration(milliseconds: _backoffMs), () {
+      _reconnectTimer = null;
+      if (_closedByUser) return;
+      if (_authFailed) {
+        _parked = true;
+        return;
+      }
+      unawaited(_open());
+    });
     _backoffMs = MuxBackoff.next(_backoffMs);
   }
 
@@ -341,8 +388,19 @@ class MuxClient {
     _send({'ch': 'blocks', 'id': sessionId, 'type': 'unsubscribe'});
   }
 
+  void subscribeNotifications() {
+    _notificationsSubscribed = true;
+    _send({'ch': 'notifications', 'type': 'subscribe'});
+  }
+
+  void unsubscribeNotifications() {
+    _notificationsSubscribed = false;
+    _send({'ch': 'notifications', 'type': 'unsubscribe'});
+  }
+
   Future<void> disconnect() async {
     _closedByUser = true;
+    _parked = false;
     _reconnectTimer?.cancel();
     _clearPing();
     _isOpen = false;

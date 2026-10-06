@@ -28,6 +28,9 @@ impl<A: Copy + Eq> AttributeMap<A> {
         for (end, value) in runs {
             self.ends.insert(*end, *value);
         }
+        if let Some((end, _)) = runs.last() {
+            self.run_start = self.run_start.max(*end);
+        }
     }
 
     #[cfg(test)]
@@ -64,6 +67,14 @@ impl<A: Copy + Eq> AttributeMap<A> {
         };
         result.push(((end - start) as u32, final_value));
         result
+    }
+
+    pub fn truncate_to(&mut self, offset: u64, first: u64) {
+        let cut = self.ends.split_off(&offset);
+        if let Some(value) = cut.values().next() {
+            self.tail = *value;
+        }
+        self.run_start = self.ends.keys().next_back().copied().unwrap_or(first);
     }
 
     pub fn drop_before(&mut self, offset: u64) {
@@ -162,6 +173,29 @@ mod tests {
     }
 
     #[test]
+    fn truncate_to_keeps_the_value_of_the_last_kept_byte() {
+        let mut m = AttributeMap::<u32>::new(0);
+        m.set_from(0, 1);
+        m.set_from(3, 2);
+        m.set_from(7, 0);
+        m.truncate_to(5, 0);
+        assert_eq!(runs(&m, 0, 5), vec![(3, 1), (5, 2)]);
+        m.set_from(5, 4);
+        assert_eq!(runs(&m, 0, 8), vec![(3, 1), (5, 2), (8, 4)]);
+    }
+
+    #[test]
+    fn truncate_to_at_a_run_end_then_the_same_value_extends_it() {
+        let mut m = AttributeMap::<u32>::new(0);
+        m.set_from(0, 1);
+        m.set_from(3, 0);
+        m.truncate_to(3, 0);
+        assert_eq!(runs(&m, 0, 3), vec![(3, 1)]);
+        m.set_from(3, 1);
+        assert_eq!(runs(&m, 0, 6), vec![(6, 1)]);
+    }
+
+    #[test]
     fn prepended_runs_read_back_in_their_own_region() {
         let mut map = AttributeMap::with_base(0u8, 100);
         map.set_from(100, 7);
@@ -169,5 +203,43 @@ mod tests {
         map.prepend_runs(&[(98, 3u8), (100, 4u8)]);
         assert_eq!(map.runs(96, 100), vec![(2, 3u8), (4, 4u8)]);
         assert_eq!(map.runs(100, 102), vec![(2, 7u8)]);
+    }
+
+    #[test]
+    fn runs_prepended_after_a_full_truncation_survive_a_style_change_at_the_seam() {
+        let mut map = AttributeMap::with_base(0u8, 100);
+        map.set_from(100, 1);
+        map.set_from(104, 0);
+        map.truncate_to(100, 100);
+        map.prepend_runs(&[(98, 3u8), (100, 4u8)]);
+        map.set_from(100, 5);
+        assert_eq!(map.runs(96, 100), vec![(2, 3u8), (4, 4u8)]);
+        assert_eq!(map.runs(100, 103), vec![(3, 5u8)]);
+    }
+
+    #[test]
+    fn a_full_truncation_to_the_first_byte_adds_no_key_at_the_next_style_change() {
+        let mut map = AttributeMap::with_base(0u8, 100);
+        map.set_from(100, 1);
+        map.set_from(104, 0);
+        map.truncate_to(100, 100);
+        map.set_from(100, 5);
+        assert_eq!(map.len(), 0);
+        assert_eq!(map.runs(100, 103), vec![(3, 5u8)]);
+    }
+
+    #[test]
+    fn a_full_truncation_above_prepended_bytes_keeps_their_style() {
+        let mut map = AttributeMap::with_base(0u8, 100);
+        map.prepend_runs(&[(100, 3u8)]);
+        map.set_from(100, 1);
+        map.set_from(104, 0);
+        map.truncate_to(100, 96);
+        map.set_from(100, 5);
+        assert_eq!(map.runs(96, 100), vec![(4, 3u8)]);
+        assert_eq!(map.runs(100, 103), vec![(3, 5u8)]);
+        map.truncate_to(98, 96);
+        map.set_from(98, 6);
+        assert_eq!(map.runs(96, 100), vec![(2, 3u8), (4, 6u8)]);
     }
 }

@@ -47,6 +47,24 @@ void main() {
     expect(result.data?.models, ['sonnet', 'opus']);
   });
 
+  test('a permission-mode command waits longer than the app default for the drive or restart', () async {
+    when(() => api.post(any(), body: any(named: 'body'), options: any(named: 'options')))
+        .thenAnswer((_) async => Response(
+              requestOptions: RequestOptions(path: ''),
+              data: {'state': 'sent', 'permissionMode': 'plan'},
+            ));
+
+    await dataSource.sendCommand('s1', const SessionCommandParams(command: 'permission-mode', mode: 'plan'));
+
+    final options = verify(() => api.post(
+          '/api/v1/sessions/s1/command',
+          body: {'command': 'permission-mode', 'mode': 'plan'},
+          options: captureAny(named: 'options'),
+        )).captured.single as Options;
+    expect(options.receiveTimeout, SessionControlRemoteDataSourceImp.permissionModeReceiveTimeout);
+    expect(options.receiveTimeout, greaterThan(const Duration(seconds: 40)));
+  });
+
   test('decide posts the request id and behavior', () async {
     when(() => api.post(any(), body: any(named: 'body')))
         .thenAnswer((_) async => Response(

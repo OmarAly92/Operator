@@ -27,9 +27,10 @@ var validSessionID = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // hostSession is the in-memory state for a live pty-host connection.
 type hostSession struct {
-	addr     string
-	pid      int
-	launchID string
+	addr         string
+	pid          int
+	launchID     string
+	failedProbes int
 }
 
 // Options configures the Runtime. All fields are optional; zero values use
@@ -48,9 +49,21 @@ type Runtime struct {
 	processFinder func(int) (processKiller, error)
 	destroyWait   time.Duration
 	destroyPoll   time.Duration
+	probeTimeout  time.Duration
 
-	mu       sync.Mutex
-	sessions map[string]*hostSession // sessionID -> live session
+	mu         sync.Mutex
+	sessions   map[string]*hostSession // sessionID -> live session
+	inputGates map[string]chan struct{}
+
+	watchMu     sync.Mutex
+	watchers    map[int]func(string, ports.TerminalHealth)
+	nextWatcher int
+
+	programMu           sync.Mutex
+	programWatches      map[string]*programWatch
+	titles              map[string]string
+	programListeners    map[int]func(string, ports.TerminalProgramEvent)
+	nextProgramListener int
 }
 
 // New creates a Runtime with the given options.
@@ -66,7 +79,14 @@ func New(opts Options) *Runtime {
 		processFinder: findProcess,
 		destroyWait:   500 * time.Millisecond,
 		destroyPoll:   25 * time.Millisecond,
+		probeTimeout:  isAliveTimeout,
 		sessions:      make(map[string]*hostSession),
+		inputGates:    make(map[string]chan struct{}),
+		watchers:      make(map[int]func(string, ports.TerminalHealth)),
+
+		programWatches:   make(map[string]*programWatch),
+		titles:           make(map[string]string),
+		programListeners: make(map[int]func(string, ports.TerminalProgramEvent)),
 	}
 }
 
@@ -85,15 +105,22 @@ func (r *Runtime) Create(ctx context.Context, cfg ports.RuntimeConfig) (ports.Ru
 		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: argv required")
 	}
 
+	r.dropDeadHost(id)
+
 	r.mu.Lock()
 	if _, dup := r.sessions[id]; dup {
 		r.mu.Unlock()
-		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: session %q already exists; destroy before re-creating", id)
+		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: session %q already exists; destroy before re-creating: %w", id, ports.ErrRuntimeSessionExists)
 	}
 	// Reserve the slot before the async spawn so a concurrent Create for the
 	// same id fails immediately (no gap between check and set).
 	r.sessions[id] = nil
 	r.mu.Unlock()
+
+	if !cfg.RestoreHistory {
+		_ = removeHistory(id)
+	}
+	r.pruneStaleHistory(time.Now(), id)
 
 	addr, pid, err := r.spawner(ctx, id, cfg.WorkspacePath, cfg.Argv, cfg.Env, cfg.Cols, cfg.Rows)
 	if err != nil {
@@ -109,6 +136,7 @@ func (r *Runtime) Create(ctx context.Context, cfg ports.RuntimeConfig) (ports.Ru
 	r.mu.Lock()
 	r.sessions[id] = sess
 	r.mu.Unlock()
+	r.ensureProgramWatch(id, sess)
 
 	// Register in B2 registry for daemon-restart recovery (best-effort).
 	// launchID is read from the local, not sess: the session is public the
@@ -158,14 +186,45 @@ func (r *Runtime) Destroy(ctx context.Context, handle ports.RuntimeHandle) error
 		return errors.Join(gracefulErr, forceErr, fmt.Errorf("ptyhost: pty-host pid %d is still alive after teardown", sess.pid))
 	}
 
-	r.mu.Lock()
-	delete(r.sessions, handle.ID)
-	r.mu.Unlock()
-
-	if err := ptyregistry.Unregister(handle.ID); err != nil {
+	if err := r.forgetHost(handle.ID, sess); err != nil {
 		return fmt.Errorf("ptyhost: unregister destroyed session %q: %w", handle.ID, err)
 	}
 	return nil
+}
+
+func (r *Runtime) forgetHost(id string, sess *hostSession) error {
+	r.mu.Lock()
+	if r.sessions[id] != sess {
+		r.mu.Unlock()
+		return nil
+	}
+	wasHung := sess.failedProbes >= hungAfterFailedProbes
+	delete(r.sessions, id)
+	delete(r.inputGates, id)
+	r.mu.Unlock()
+	r.stopProgramWatch(id)
+	if wasHung {
+		r.notifyHealth(id, ports.TerminalHealthy)
+	}
+	return ptyregistry.Unregister(id)
+}
+
+func (r *Runtime) dropDeadHost(id string) {
+	r.mu.Lock()
+	sess := r.sessions[id]
+	r.mu.Unlock()
+	if sess == nil || !r.hostGone(sess) {
+		return
+	}
+	_ = r.forgetHost(id, sess)
+}
+
+func (r *Runtime) hostGone(sess *hostSession) bool {
+	if sess.pid > 0 && !r.pidIsAlive(sess.pid) {
+		return true
+	}
+	_, alive, err := clientStatusWithin(sess.addr, r.probeTimeout)
+	return !alive && err == nil
 }
 
 func (r *Runtime) waitForPIDExit(ctx context.Context, pid int) (bool, error) {
@@ -271,7 +330,12 @@ func (r *Runtime) IsAlive(ctx context.Context, handle ports.RuntimeHandle) (bool
 	if sess == nil {
 		return false, nil // no in-memory entry, no registry entry -> definitively gone
 	}
-	return clientIsAlive(sess.addr)
+	_, alive, err := clientStatusWithin(sess.addr, r.probeTimeout)
+	r.recordProbe(handle.ID, sess, err)
+	if alive {
+		r.ensureProgramWatch(handle.ID, sess)
+	}
+	return alive, err
 }
 
 // IsSupervisedProcessAlive uses the pty-host's child status. For a supervised
@@ -317,6 +381,11 @@ func (r *Runtime) SendMessage(ctx context.Context, handle ports.RuntimeHandle, m
 	if sess == nil {
 		return fmt.Errorf("ptyhost: session %q not found", handle.ID)
 	}
+	release, err := r.acquireInput(ctx, handle.ID)
+	if err != nil {
+		return err
+	}
+	defer release()
 	return clientSendMessage(sess.addr, message)
 }
 
@@ -326,6 +395,11 @@ func (r *Runtime) Interrupt(ctx context.Context, handle ports.RuntimeHandle) err
 	if sess == nil {
 		return fmt.Errorf("ptyhost: session %q not found", handle.ID)
 	}
+	release, err := r.acquireInput(ctx, handle.ID)
+	if err != nil {
+		return err
+	}
+	defer release()
 	return clientSendInput(sess.addr, "\x03")
 }
 
@@ -336,7 +410,28 @@ func (r *Runtime) SendInput(ctx context.Context, handle ports.RuntimeHandle, inp
 	if sess == nil {
 		return fmt.Errorf("ptyhost: session %q not found", handle.ID)
 	}
+	release, err := r.acquireInput(ctx, handle.ID)
+	if err != nil {
+		return err
+	}
+	defer release()
 	return clientSendInput(sess.addr, input)
+}
+
+func (r *Runtime) acquireInput(ctx context.Context, id string) (func(), error) {
+	r.mu.Lock()
+	gate := r.inputGates[id]
+	if gate == nil {
+		gate = make(chan struct{}, 1)
+		r.inputGates[id] = gate
+	}
+	r.mu.Unlock()
+	select {
+	case gate <- struct{}{}:
+		return func() { <-gate }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // GetOutput returns the last lines lines from the pty-host ring buffer.
@@ -414,3 +509,20 @@ type processKiller interface {
 // The real defaultOSProcessFinder is in pidalive_unix.go / pidalive_windows.go
 // (same files that provide pidAlive).
 var osProcessFinder = defaultOSProcessFinder
+
+func (r *Runtime) ChildPID(ctx context.Context, handle ports.RuntimeHandle) (int, error) {
+	sess := r.resolve(handle.ID)
+	if sess == nil {
+		return 0, fmt.Errorf("ptyhost: session %q not found", handle.ID)
+	}
+	status, hostAlive, err := clientStatus(sess.addr)
+	if err != nil {
+		return 0, err
+	}
+	if !hostAlive || !status.Alive || status.PID <= 0 {
+		return 0, fmt.Errorf("ptyhost: session %q has no live child", handle.ID)
+	}
+	return status.PID, nil
+}
+
+var _ ports.RuntimeProcessReader = (*Runtime)(nil)

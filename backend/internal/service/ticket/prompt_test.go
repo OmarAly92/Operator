@@ -79,15 +79,14 @@ func TestImplementPrompt(t *testing.T) {
 
 func TestReviewAndMergePrompts(t *testing.T) {
 	tk := domain.Ticket{Slug: "editor", Title: "Editor", Plans: []domain.Plan{{File: "plans/01-daemon.md", Title: "Daemon"}}}
-	curl := `curl -s -X POST http://127.0.0.1:3001/api/v1/projects/tk/tickets/editor/plans/01-daemon.md/merge-ready -H 'content-type: application/json' -d '{"summary":"<one line>"}'`
-	got := reviewPrompt(tk, tk.Plans[0], "opr/editor-01", "/data/worktrees/tk/tk-7", curl, "Be strict.")
+	got := reviewPrompt(tk, tk.Plans[0], "opr/editor-01", "/data/worktrees/tk/tk-7", "Be strict.")
 	for _, want := range []string{
 		".operator/tickets/editor/spec.md",
 		".operator/tickets/editor/plans/01-daemon.md",
 		"opr/editor-01",
 		"/data/worktrees/tk/tk-7",
 		"Do not merge",
-		curl,
+		"ticket_mark_merge_ready",
 		"Be strict.",
 	} {
 		if !strings.Contains(got, want) {

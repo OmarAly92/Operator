@@ -2,7 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 
-const String kDeepLinkScheme = 'aomobile';
+const String kDeepLinkScheme = 'operator';
 
 /// The PRs tab's index in `HomeShell`.
 const int kPrsTabIndex = 1;
@@ -18,8 +18,8 @@ class DeepLinkTarget extends Equatable {
   List<Object?> get props => [route, arguments, tabIndex];
 }
 
-/// `aomobile://session/abc` parses with `session` as the host, while
-/// `aomobile:///session/abc` puts it in the path — both forms reach a phone, so
+/// `operator://session/abc` parses with `session` as the host, while
+/// `operator:///session/abc` puts it in the path — both forms reach a phone, so
 /// both are flattened to the same segment list.
 ///
 /// `Uri.pathSegments` is already percent-decoded, so decoding it again would

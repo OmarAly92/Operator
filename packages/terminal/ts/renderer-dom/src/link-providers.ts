@@ -1,14 +1,15 @@
-import { detectLinks, LINK_MAX_LINE_LENGTH, LINK_MAX_RESOLVED_LENGTH, LINK_MAX_RESOLVED_PER_LINE, type LinkOs } from "./link-parsing.js";
+import type { PathCandidate, ResolvedPath } from "@operator/terminal-core";
+import { LINK_MAX_LINE_LENGTH } from "./link-parsing.js";
 import type { LinkRange, LogicalLineView } from "./logical-lines.js";
+import { pathCandidatesAt, type PathSpan } from "./path-candidates.js";
 
 export type LinkKind = "hyperlink" | "url" | "path";
 export type DetectedLink = Readonly<{ kind: LinkKind; text: string; uri?: string; path?: string; line?: number; column?: number; range: LinkRange }>;
-export type LinkProvider = (line: LogicalLineView) => Promise<readonly DetectedLink[]>;
+export type LinkProvider = (line: LogicalLineView, offset: number) => Promise<readonly DetectedLink[]>;
 
 // xterm.js/addons/addon-web-links/src/WebLinksAddon.ts:21 (strictUrlRegex)
 const STRICT_URL = /(https?|HTTPS?):[/]{2}[^\s"'!*(){}|\\^<>`]*[^\s"':,.!?{}|\\^~\[\]`()<>]/g;
-const SCHEME = /^[a-z][a-z0-9+.-]*:\/\//iu;
-const PATH_CACHE_CAPACITY = 256;
+const PATH_CACHE_LINES = 256;
 
 export const hyperlinkProvider: LinkProvider = async (line) => {
 	const out: DetectedLink[] = [];
@@ -37,39 +38,50 @@ export const urlProvider: LinkProvider = async (line) => {
 	return out;
 };
 
-export function createPathProvider(
-	resolve: (path: string, cwd: string) => Promise<string | null>,
-	cwdOf: (blockId: string) => string,
-	os: LinkOs,
-): LinkProvider {
-	const cache = new Map<string, Promise<string | null>>();
-	const lookup = (path: string, cwd: string): Promise<string | null> => {
-		const key = `${cwd}\u0000${path}`;
-		let pending = cache.get(key);
-		if (!pending) {
-			pending = resolve(path, cwd);
-			cache.set(key, pending);
-			if (cache.size > PATH_CACHE_CAPACITY) cache.delete(cache.keys().next().value as string);
-		}
-		return pending;
+type FoundPath = PathSpan & Readonly<{ resolved: string }>;
+
+function pathLink(line: LogicalLineView, found: FoundPath): DetectedLink {
+	return {
+		kind: "path",
+		text: line.text.slice(found.start, found.end),
+		path: found.resolved,
+		...(found.line === undefined ? {} : { line: found.line }),
+		...(found.column === undefined ? {} : { column: found.column }),
+		range: line.rangeOf(found.start, found.end),
 	};
-	return async (line) => {
-		if (line.text.length === 0 || line.text.length > LINK_MAX_LINE_LENGTH) return [];
+}
+
+export function createPathProvider(
+	resolveFirstPath: (candidates: readonly PathCandidate[], cwd: string) => Promise<ResolvedPath | null>,
+	cwdOf: (blockId: string) => string,
+): LinkProvider {
+	const found = new Map<string, FoundPath[]>();
+	const remember = (key: string, path: FoundPath) => {
+		const paths = found.get(key) ?? [];
+		found.delete(key);
+		found.set(key, [...paths, path]);
+		if (found.size > PATH_CACHE_LINES) found.delete(found.keys().next().value as string);
+	};
+	return async (line, offset) => {
+		const text = line.text;
+		if (text.length === 0 || text.length > LINK_MAX_LINE_LENGTH) return [];
+		const taken: [number, number][] = [
+			...line.linkRuns.map((run) => [run.startOffset, run.endOffset] as [number, number]),
+			...[...text.matchAll(STRICT_URL)].map((match) => [match.index ?? 0, (match.index ?? 0) + match[0].length] as [number, number]),
+		];
+		if (taken.some(([start, end]) => offset >= start && offset < end)) return [];
 		const cwd = cwdOf(line.blockId);
-		const urls = [...line.text.matchAll(STRICT_URL)].map((match) => [match.index ?? 0, (match.index ?? 0) + match[0].length] as const);
-		const out: DetectedLink[] = [];
-		for (const candidate of detectLinks(line.text, os)) {
-			if (out.length >= LINK_MAX_RESOLVED_PER_LINE) break;
-			const raw = candidate.path.text;
-			if (raw.length > LINK_MAX_RESOLVED_LENGTH || SCHEME.test(raw)) continue;
-			if (urls.some(([start, end]) => candidate.path.index >= start && candidate.path.index < end)) continue;
-			const resolved = await lookup(raw, cwd);
-			if (resolved === null) continue;
-			const start = candidate.prefix ? candidate.prefix.index : candidate.path.index;
-			const end = candidate.suffix ? candidate.suffix.suffix.index + candidate.suffix.suffix.text.length : candidate.path.index + candidate.path.text.length;
-			out.push({ kind: "path", text: line.text.slice(start, end), path: resolved, line: candidate.suffix?.row, column: candidate.suffix?.col, range: line.rangeOf(start, end) });
-		}
-		return out;
+		const key = `${cwd}\u0000${text}`;
+		const known = found.get(key)?.find((path) => offset >= path.start && offset < path.end);
+		if (known) return [pathLink(line, known)];
+		const spans = pathCandidatesAt(text, offset).filter((span) => !taken.some(([start, end]) => span.start < end && start < span.end));
+		if (spans.length === 0) return [];
+		const result = await resolveFirstPath(spans.map((span) => ({ path: span.path, allowDirectory: span.allowDirectory })), cwd);
+		const span = result ? spans[result.index] : undefined;
+		if (!result || !span) return [];
+		const path = { ...span, resolved: result.path };
+		remember(key, path);
+		return [pathLink(line, path)];
 	};
 }
 

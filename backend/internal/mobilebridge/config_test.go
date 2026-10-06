@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -113,5 +114,36 @@ func TestLoadDefaultsTunnelEnabledToFalseForOldConfigs(t *testing.T) {
 	}
 	if got.TunnelEnabled {
 		t.Error("a config written before this feature must not imply a public tunnel")
+	}
+}
+
+func TestUpdateReadModifyWritesUnderOneLock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mobile", "config.json")
+	if err := Save(path, State{Enabled: true, Password: "pw", NgrokDomain: "x.ngrok.app"}); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, _ = Update(path, func(s *State) error { s.LastPort++; return nil })
+		}(i)
+	}
+	wg.Wait()
+	got, err := Load(path)
+	if err != nil || got.LastPort != 20 || got.NgrokDomain != "x.ngrok.app" {
+		t.Fatalf("state = %+v err=%v", got, err)
+	}
+}
+
+func TestGenerateAlertTopic(t *testing.T) {
+	a, err := GenerateAlertTopic()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := GenerateAlertTopic()
+	if len(a) != AlertTopicLength || a == b || strings.Trim(a, pwAlphabet) != "" {
+		t.Fatalf("topics %q %q", a, b)
 	}
 }

@@ -6,15 +6,15 @@ import { CommandPalette } from "../components/CommandPalette";
 import { CenterPanelShell } from "../components/CenterPanelShell";
 import { DaemonFailureBanner } from "../components/DaemonFailureBanner";
 import { NotificationCenter, NotificationRuntime } from "../components/NotificationCenter";
+import { ProgramRuntime } from "../components/ProgramRuntime";
 import { TrayRuntime } from "../components/TrayRuntime";
 import { GlobalNewTaskDialog } from "../components/GlobalNewTaskDialog";
 import { SettingsDialog } from "../components/SettingsDialog";
 import { KeyboardShortcutsDialog } from "../components/KeyboardShortcutsDialog";
 import { KeyboardShortcutsSettingsDialog } from "../components/settings/KeyboardShortcutsSettingsDialog";
 import { ShellTopbar } from "../components/ShellTopbar";
-import { SessionTopbarHost, SessionTopbarProvider } from "../components/SessionTopbarPortal";
 import { Sidebar } from "../components/Sidebar";
-import { TicketDndProvider } from "../components/tickets/TicketDndProvider";
+import { AppDndProvider } from "../components/dnd/AppDndProvider";
 import { SidebarProvider } from "../components/ui/sidebar";
 import { TitlebarNav } from "../components/TitlebarNav";
 import { UpdateOptInPrompt } from "../components/UpdateOptInPrompt";
@@ -546,12 +546,12 @@ function ShellLayout() {
 
 	return (
 		<ShellProvider value={{ daemonStatus, workspaceStartupState, createProject, initializeProjectRepository }}>
-			<SessionTopbarProvider>
-				{/* The first-run update opt-in lives at the shell level so the board's
+			{/* The first-run update opt-in lives at the shell level so the board's
 				    scratch-project redirect cannot unmount it mid-ask. It waits for a
 				    ready daemon because the answer is read from shared settings. */}
 				{daemonStatus.state === "ready" && <UpdateOptInPrompt />}
 				<NotificationRuntime />
+				<ProgramRuntime />
 				<TrayRuntime />
 				<GlobalNewTaskDialog />
 				<SettingsDialog />
@@ -597,7 +597,7 @@ function ShellLayout() {
 				{/* Controlled by the ui-store so TitlebarNav / Topbar toggles (which
             call the store directly) stay in sync. --sidebar-width chains to
             the drag-resizable --opr-sidebar-w set on :root by useResizable. */}
-				<TicketDndProvider>
+				<AppDndProvider>
 				<SidebarProvider
 					className="min-h-0 flex-1 flex-col overflow-x-hidden"
 					keyboardShortcut={false}
@@ -639,12 +639,6 @@ function ShellLayout() {
 								) : (
 							// Platform hides shell topbar: full-height panel; session mounts actions in-panel.
 							<CenterPanelShell className={routeParams.sessionId ? "center-panel-shell--session" : undefined}>
-								{routeParams.sessionId ? (
-									<SessionTopbarHost
-										className="relative z-chrome flex h-inspector-tabs w-full shrink-0 overflow-hidden"
-										data-testid="session-topbar-host"
-									/>
-								) : null}
 								<div className="flex min-h-0 flex-1 flex-col">
 									<Outlet />
 								</div>
@@ -652,26 +646,13 @@ function ShellLayout() {
 						)
 					) : framedAppTopbar ? (
 						<CenterPanelShell className={routeParams.sessionId ? "center-panel-shell--session" : undefined}>
-							{routeParams.sessionId ? (
-								<SessionTopbarHost
-									className="relative z-chrome flex h-inspector-tabs w-full shrink-0 overflow-hidden"
-									data-testid="session-topbar-host"
-								/>
-							) : (
-								<ShellTopbar />
-							)}
+							{routeParams.sessionId ? null : <ShellTopbar />}
 							<div className="flex min-h-0 flex-1 flex-col">
 								<Outlet />
 							</div>
 						</CenterPanelShell>
 					) : (
 						<CenterPanelShell className={routeParams.sessionId ? "center-panel-shell--session" : undefined}>
-							{routeParams.sessionId ? (
-								<SessionTopbarHost
-									className="relative z-chrome flex h-inspector-tabs w-full shrink-0 overflow-hidden"
-									data-testid="session-topbar-host"
-								/>
-							) : null}
 							<div className="flex min-h-0 flex-1 flex-col">
 								<Outlet />
 							</div>
@@ -682,11 +663,10 @@ function ShellLayout() {
 					</div>
 					<DaemonFailureBanner status={daemonStatus} />
 				</SidebarProvider>
-				</TicketDndProvider>
+				</AppDndProvider>
 					<CommandPalette />
 				</div>
 				</TerminalCacheProvider>
-			</SessionTopbarProvider>
 		</ShellProvider>
 	);
 }

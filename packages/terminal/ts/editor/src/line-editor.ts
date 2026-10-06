@@ -11,25 +11,32 @@ import {
 } from "@operator/terminal-core";
 import { EditorBuffer } from "./buffer.js";
 import { CompletionsDropdown } from "./completions-dropdown.js";
-import { tokenize, type TokenKind } from "./highlight.js";
-import { HistoryModel } from "./history.js";
+import { EditorHistory } from "./editor-history.js";
+import type { CommandHistorySource } from "./history.js";
 import { encodeKey } from "./encode-key.js";
-import { clipboardHasImage, planPaste } from "./paste.js";
+import { clipboardHasImage, deliverPaste, planPaste, type PasteConfirm } from "./paste.js";
 import { mapKey, type EditorCommand } from "./keymap.js";
 import { renderPromptRow } from "./prompt-row.js";
 import { ReverseSearch } from "./reverse-search.js";
-import { editorStyles } from "./styles.js";
+import { ensurePackageStyleTag, renderBufferRows } from "./line-editor-dom.js";
+import { QuickFixOffer, renderQuickFixRow } from "./quick-fix-offer.js";
+import type { QuickFixRule } from "./quick-fix.js";
+import { CLEAR_SHELL_LINE, TypeaheadGate } from "./typeahead.js";
+
+const INTERRUPT = "\x03";
 
 export type EditorHost = {
 	send(text: string): void;
 	sendRaw(data: string): void;
+	beforePassthrough?(event: KeyboardEvent): void;
 	compositionAnchor?: (parent: HTMLElement) => CompositionAnchor | null;
+	onDraftChange?(draft: string): void;
 };
 
 export class LineEditor {
 	private readonly buffer = new EditorBuffer();
-	private history = new HistoryModel();
-	private historyPrefix: string | null = null;
+	private readonly history = new EditorHistory(() => this.historyChanged());
+	private readonly quickFix = new QuickFixOffer();
 	private readonly search = new ReverseSearch();
 	private searchOpen = false;
 	private readonly dropdown = new CompletionsDropdown();
@@ -46,18 +53,27 @@ export class LineEditor {
 	private composition: CompositionTarget | null = null;
 	private unsubscribe: (() => void) | null = null;
 	private unsubscribeCompletions: (() => void) | null = null;
+	private visible = true;
+	private staleWhileHidden = false;
+	private reportedDraft = "";
+	private pasteConfirm: PasteConfirm | null = null;
+	private readonly typeahead = new TypeaheadGate();
+	private typeaheadLineState: string | null = null;
+	private textWhenOwned = "";
 
 	mount(container: HTMLElement, core: TerminalCore, host: EditorHost): void {
 		this.dispose();
 		ensurePackageStyleTag();
 		this.core = core;
 		this.host = host;
-		this.history = new HistoryModel();
-		this.historyPrefix = null;
+		this.quickFix.reset(core);
 		this.promptCwd = "";
 		this.promptBranch = "";
 		this.promptExitCode = null;
 		this.promptDurationMs = null;
+		this.reportedDraft = "";
+		this.typeahead.reset();
+		this.typeaheadLineState = null;
 		this.search.cancel();
 		this.searchOpen = false;
 		this.dropdownOpen = false;
@@ -83,6 +99,11 @@ export class LineEditor {
 		this.dropdown.mount(root);
 		this.unsubscribe = core.onChange(() => {
 			this.ingestHistory();
+			this.adoptTypeahead();
+			if (!this.visible) {
+				this.staleWhileHidden = true;
+				return;
+			}
 			this.render();
 		});
 		this.unsubscribeCompletions = core.onCompletions((result) => {
@@ -91,6 +112,7 @@ export class LineEditor {
 			this.render();
 		});
 		this.ingestHistory();
+		this.adoptTypeahead();
 		this.render();
 	}
 
@@ -120,7 +142,7 @@ export class LineEditor {
 
 	setText(text: string): void {
 		this.buffer.setText(text);
-		this.historyPrefix = null;
+		this.history.endWalk();
 		this.render();
 	}
 
@@ -129,8 +151,33 @@ export class LineEditor {
 		this.render();
 	}
 
+	setPasteConfirm(confirm: PasteConfirm | null): void {
+		this.pasteConfirm = confirm;
+	}
+
+	setHistorySource(source: CommandHistorySource | null): void {
+		this.history.setSource(source);
+		this.render();
+	}
+
+	setQuickFixRules(rules: readonly QuickFixRule[]): void {
+		this.quickFix.setRules(rules);
+		this.render();
+	}
+
+	setVisible(visible: boolean): void {
+		this.visible = visible;
+		if (!visible || !this.staleWhileHidden) return;
+		this.staleWhileHidden = false;
+		this.render();
+	}
+
 	focus(): void {
 		this.composition?.focus();
+	}
+
+	noteSent(data: string): void {
+		this.typeahead.noteSent(data);
 	}
 
 	dispose(): void {
@@ -138,6 +185,8 @@ export class LineEditor {
 		this.unsubscribe = null;
 		this.unsubscribeCompletions?.();
 		this.unsubscribeCompletions = null;
+		this.history.dispose();
+		this.quickFix.dismiss();
 		this.dropdown.dispose();
 		this.dropdownOpen = false;
 		this.composition?.dispose();
@@ -149,12 +198,17 @@ export class LineEditor {
 		}
 		this.root = null;
 		this.core = null;
+		if (this.reportedDraft !== "") this.host?.onDraftChange?.("");
+		this.reportedDraft = "";
 		this.host = null;
+		this.visible = true;
+		this.staleWhileHidden = false;
 	}
 
 	private commitComposedText(text: string): void {
 		if (this.core?.lineEditorState() !== "owned") {
 			this.host?.sendRaw(text);
+			this.typeahead.noteSent(text);
 			return;
 		}
 		this.apply({ kind: "insert", text });
@@ -209,7 +263,18 @@ export class LineEditor {
 			this.apply({ kind: "insert", text: plan.text });
 			return;
 		}
-		if (plan.kind === "send") this.host?.sendRaw(plan.data);
+		const host = this.host;
+		const root = this.root;
+		if (!host) return;
+		void deliverPaste(
+			plan,
+			(data) => {
+				if (this.root !== root) return;
+				host.sendRaw(data);
+				this.typeahead.noteSent(data);
+			},
+			this.pasteConfirm ?? undefined,
+		);
 	};
 
 	// Returns null when the editor owns the line and should edit locally, and
@@ -220,7 +285,9 @@ export class LineEditor {
 		if (!core || core.lineEditorState() === "owned") return null;
 		const data = encodeKey(event, core.snapshot().applicationCursorKeys);
 		if (data === null) return "";
+		this.host?.beforePassthrough?.(event);
 		this.host?.sendRaw(data);
+		this.typeahead.noteSent(data);
 		return data;
 	}
 
@@ -241,55 +308,57 @@ export class LineEditor {
 		if (!host) return;
 		if (command.kind === "passthrough") {
 			host.sendRaw(command.data);
+			if (command.data === INTERRUPT) this.discardLine();
 			return;
 		}
 		const wasDropdownOpen = this.dropdownOpen;
 		switch (command.kind) {
 			case "insert":
 				this.buffer.insert(command.text);
-				this.historyPrefix = null;
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "newline":
 				this.buffer.insert("\n");
-				this.historyPrefix = null;
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "submit":
 				if (wasDropdownOpen) {
 					this.applySelectedCompletion();
-					this.historyPrefix = null;
+					this.history.endWalk();
 					this.render();
 					return;
 				}
 				host.send(this.buffer.text);
 				this.buffer.clear();
-				this.historyPrefix = null;
+				this.quickFix.dismiss();
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "delete-backward":
 				this.buffer.deleteBackward();
-				this.historyPrefix = null;
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "delete-forward":
 				this.buffer.deleteForward();
-				this.historyPrefix = null;
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "delete-word-backward":
 				this.buffer.deleteWordBackward();
-				this.historyPrefix = null;
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "delete-line-backward":
 				this.buffer.deleteToLineStart();
-				this.historyPrefix = null;
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "delete-line-forward":
 				this.buffer.deleteToLineEnd();
-				this.historyPrefix = null;
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "move":
@@ -308,21 +377,18 @@ export class LineEditor {
 				this.buffer.moveEnd();
 				break;
 			case "history": {
-				this.historyPrefix ??= this.buffer.text;
-				const recalled = this.history.recall(this.historyPrefix, command.direction);
+				const recalled = this.history.recall(this.buffer.text, command.direction);
 				if (recalled !== null) this.buffer.setText(recalled);
 				break;
 			}
-			case "accept-suggestion": {
-				if (this.buffer.cursor === this.buffer.text.length) {
-					const suggestion = this.history.suggest(this.buffer.text);
-					if (suggestion !== null) this.buffer.setText(suggestion);
-					this.historyPrefix = null;
-				} else {
-					this.buffer.moveBy(1);
-				}
+			case "accept-suggestion":
+				if (this.buffer.cursor === this.buffer.text.length) this.acceptSuggestion();
+				else this.buffer.moveBy(1);
 				break;
-			}
+			case "end-or-accept-suggestion":
+				if (this.buffer.cursor === this.buffer.text.length) this.acceptSuggestion();
+				else this.buffer.moveEnd();
+				break;
 			case "complete":
 				if (wasDropdownOpen) {
 					this.applySelectedCompletion();
@@ -335,6 +401,40 @@ export class LineEditor {
 				this.searchOpen = true;
 				break;
 		}
+		this.render();
+	}
+
+	private acceptSuggestion(): void {
+		const fix = this.buffer.text.length === 0 ? this.quickFix.fix() : null;
+		const suggestion = fix?.command ?? this.history.suggest(this.buffer.text);
+		if (suggestion !== null) this.buffer.setText(suggestion);
+		if (fix) this.quickFix.dismiss();
+		this.history.endWalk();
+	}
+
+	private useQuickFix(): void {
+		const fix = this.quickFix.fix();
+		if (!fix || this.buffer.text.length > 0 || this.core?.lineEditorState() !== "owned") return;
+		this.buffer.setText(fix.command);
+		this.quickFix.dismiss();
+		this.history.endWalk();
+		this.cancelDropdownIfOpen();
+		this.render();
+		this.focus();
+	}
+
+	private historyChanged(): void {
+		if (!this.visible) {
+			this.staleWhileHidden = true;
+			return;
+		}
+		this.render();
+	}
+
+	private discardLine(): void {
+		this.buffer.clear();
+		this.history.endWalk();
+		this.cancelDropdownIfOpen();
 		this.render();
 	}
 
@@ -357,13 +457,21 @@ export class LineEditor {
 		const insertion = selected.value;
 		const cursor = before.length + insertion.length;
 		this.buffer.setText(before + insertion + after, cursor);
-		this.historyPrefix = null;
+		this.history.endWalk();
 		if (insertion.endsWith("/")) {
 			this.core?.requestCompletions(this.buffer.text, this.buffer.cursor);
 		}
 	}
 
+	private reportDraft(): void {
+		const draft = this.buffer.text;
+		if (draft === this.reportedDraft) return;
+		this.reportedDraft = draft;
+		this.host?.onDraftChange?.(draft);
+	}
+
 	private render(): void {
+		this.reportDraft();
 		const root = this.root;
 		const content = this.content;
 		if (!root || !content) return;
@@ -378,39 +486,10 @@ export class LineEditor {
 			content.replaceChildren();
 			return;
 		}
-		const cursor = this.buffer.cursor;
-		const lines = this.buffer.lines();
-		const tokens = tokenize(this.buffer.text);
-		let offset = 0;
-		const nodes: HTMLElement[] = lines.map((text) => {
-			const row = document.createElement("div");
-			row.className = "terminal-editor-line";
-			const lineStart = offset;
-			const lineEnd = lineStart + text.length;
-			let position = lineStart;
-			for (const token of tokens) {
-				const start = Math.max(token.start, lineStart);
-				const end = Math.min(token.end, lineEnd);
-				if (start >= end) continue;
-				appendRange(row, this.buffer.text, position, start, null, cursor);
-				appendRange(row, this.buffer.text, start, end, token.kind, cursor);
-				position = end;
-			}
-			appendRange(row, this.buffer.text, position, lineEnd, null, cursor);
-			if (cursor === lineEnd) row.append(createCaret());
-			else if (!row.hasChildNodes()) row.append(document.createTextNode("\u00a0"));
-			offset = lineEnd + 1;
-			return row;
-		});
-		if (cursor === this.buffer.text.length) {
-			const suggestion = this.history.suggest(this.buffer.text);
-			if (suggestion !== null) {
-				const ghost = document.createElement("span");
-				ghost.className = "terminal-editor-ghost";
-				ghost.textContent = suggestion.slice(this.buffer.text.length);
-				nodes[nodes.length - 1]?.append(ghost);
-			}
-		}
+		const text = this.buffer.text;
+		const fix = text.length === 0 ? this.quickFix.fix() : null;
+		const ghost = fix ? fix.command : (this.history.suggest(text)?.slice(text.length) ?? null);
+		const nodes = renderBufferRows(text, this.buffer.lines(), this.buffer.cursor, ghost);
 		if (this.searchOpen) {
 			const state = this.search.state();
 			const search = document.createElement("div");
@@ -432,6 +511,7 @@ export class LineEditor {
 				this.strings,
 			),
 		);
+		if (fix) nodes.unshift(renderQuickFixRow(fix, this.strings.quickFixLabel, this.strings.quickFixUse, () => this.useQuickFix()));
 		content.replaceChildren(...nodes);
 	}
 
@@ -469,64 +549,34 @@ export class LineEditor {
 		return true;
 	}
 
+	private adoptTypeahead(): void {
+		const core = this.core;
+		if (!core) return;
+		const state = core.lineEditorState();
+		if (state !== "owned" && this.typeaheadLineState === "owned") this.typeahead.reset();
+		if (state === "owned" && this.typeaheadLineState !== "owned") this.textWhenOwned = this.buffer.text;
+		this.typeaheadLineState = state;
+		const typed = this.typeahead.take(core);
+		if (typed === null) return;
+		const text = this.buffer.text;
+		const head = text.startsWith(this.textWhenOwned) ? this.textWhenOwned : text;
+		const tail = text.slice(head.length);
+		const cursor = this.buffer.cursor;
+		this.buffer.setText(head + typed + tail, cursor >= head.length ? cursor + typed.length : cursor);
+		this.history.endWalk();
+		this.host?.sendRaw(CLEAR_SHELL_LINE);
+	}
+
 	private ingestHistory(): void {
 		const core = this.core;
 		if (!core) return;
 		const blocks = decodeBlocks(core.snapshot());
-		this.history.ingest(blocks.map((block) => block.command).filter((command) => command.length > 0));
+		this.history.ingest(blocks);
+		this.quickFix.observe(core);
 		const newest = blocks.at(-1);
 		this.promptCwd = newest?.cwd ?? "";
 		this.promptBranch = newest?.gitBranch ?? "";
 		this.promptExitCode = newest?.exitCode ?? null;
 		this.promptDurationMs = newest?.durationMs ?? null;
 	}
-}
-
-function appendRange(
-	row: HTMLElement,
-	text: string,
-	start: number,
-	end: number,
-	kind: TokenKind | null,
-	cursor: number,
-): void {
-	if (start >= end) return;
-	const parent = kind ? document.createElement("span") : document.createDocumentFragment();
-	if (parent instanceof HTMLElement) {
-		parent.className = "terminal-editor-token";
-		parent.dataset.tokenKind = kind ?? undefined;
-	}
-	if (cursor >= start && cursor < end) {
-		parent.append(
-			document.createTextNode(text.slice(start, cursor)),
-			createCaret(text[cursor]),
-			document.createTextNode(text.slice(cursor + 1, end)),
-		);
-	} else {
-		parent.append(document.createTextNode(text.slice(start, end)));
-	}
-	row.append(parent);
-}
-
-function createCaret(character = "\u00a0"): HTMLElement {
-	const caret = document.createElement("span");
-	caret.className = "terminal-editor-caret";
-	caret.textContent = character;
-	return caret;
-}
-
-function ensurePackageStyleTag(): void {
-	// Refresh the tag rather than skipping it when one is already there. Under
-	// HMR the module re-evaluates with new CSS while the tag from the previous
-	// version survives, so the new rules never land and the DOM ends up running
-	// current markup against a stale stylesheet.
-	const existing = document.getElementById("operator-terminal-editor-styles");
-	if (existing) {
-		if (existing.textContent !== editorStyles) existing.textContent = editorStyles;
-		return;
-	}
-	const tag = document.createElement("style");
-	tag.id = "operator-terminal-editor-styles";
-	tag.textContent = editorStyles;
-	document.head.append(tag);
 }

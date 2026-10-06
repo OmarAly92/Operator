@@ -156,4 +156,39 @@ export const editorStyles = `.terminal-editor {
 
 .terminal-completion-description {
 	color: var(--terminal-ansi-8);
+}
+
+.terminal-editor-quick-fix {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	min-width: 0;
+	padding-bottom: 8px;
+	white-space: nowrap;
+}
+
+.terminal-editor-quick-fix-label {
+	color: var(--terminal-ansi-3);
+}
+
+.terminal-editor-quick-fix-command {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.terminal-editor-quick-fix-use {
+	padding: 2px 8px;
+	color: var(--terminal-foreground);
+	background: transparent;
+	border: 1px solid var(--terminal-block-border);
+	border-radius: 4px;
+	font: inherit;
+	cursor: pointer;
+}
+
+.terminal-editor-quick-fix-use:hover,
+.terminal-editor-quick-fix-use:focus-visible {
+	border-color: var(--terminal-ansi-3);
+	outline: none;
 }`;

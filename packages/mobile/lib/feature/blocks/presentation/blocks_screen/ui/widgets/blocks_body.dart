@@ -1,29 +1,55 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/search/text_match.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
+import 'package:operator_mobile/core/utils/working_clock.dart';
+import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
+import 'package:operator_mobile/feature/blocks/logic/background_tasks.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
+import 'package:operator_mobile/feature/blocks/logic/session_activity.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/background_tasks_sheet.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_find_bar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
-import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_nav_controls.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_selection_bar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/context_readout_chip.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/floating_working_control.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/running_tasks_bubble.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 import 'package:operator_mobile/feature/usage/logic/context_readout.dart';
 
 class BlocksBody extends StatefulWidget {
-  const BlocksBody({super.key, this.onRerun});
+  const BlocksBody({
+    super.key,
+    this.onRerun,
+    this.workingSince,
+    this.stopped = false,
+    this.showRunningTasks = false,
+    this.parentTitle,
+    this.clock,
+  });
 
   /// Fills the composer with a past prompt. Null means the screen has no
   /// composer to fill, and the re-run action is not offered at all.
   final void Function(String text)? onRerun;
+
+  final DateTime? Function()? workingSince;
+
+  final bool stopped;
+
+  final bool showRunningTasks;
+
+  final String? parentTitle;
+
+  final WorkingClock? clock;
 
   @override
   State<BlocksBody> createState() => BlocksBodyState();
@@ -43,13 +69,42 @@ class BlocksBodyState extends State<BlocksBody> {
   bool _filtering = false;
   String? _activeMatchId;
   final TextEditingController _queryController = TextEditingController();
+  final ValueNotifier<double> _coverage = ValueNotifier<double>(0);
+  final ValueNotifier<double> _bottomEdge = ValueNotifier<double>(0);
+  _ListInset? _listInset;
+
+  static const double bottomFadeExtent = 28;
+  static const Key bottomEdgeKey = ValueKey('blocks-bottom-edge');
+
+  bool _onListScroll(Notification notification) {
+    final metrics = switch (notification) {
+      ScrollNotification(:final metrics, depth: 0) => metrics,
+      ScrollMetricsNotification(:final metrics, depth: 0) => metrics,
+      _ => null,
+    };
+    if (metrics != null && metrics.axis == Axis.vertical) {
+      _bottomEdge.value = ScrollEdgeEffect.bottomVisibility(metrics);
+    }
+    return false;
+  }
 
   @override
   void dispose() {
+    _bottomEdge.dispose();
+    _listInset?.dispose();
+    _coverage.dispose();
     _sticky.dispose();
     _pinned.dispose();
     _queryController.dispose();
     super.dispose();
+  }
+
+  ValueListenable<double>? _insetFor(ValueListenable<double>? dock) {
+    if (dock == null) return null;
+    final current = _listInset;
+    if (current != null && current.dock == dock) return current;
+    current?.dispose();
+    return _listInset = _ListInset(dock, _coverage);
   }
 
   void _syncCollapsed(String sessionId) {
@@ -172,7 +227,7 @@ class BlocksBodyState extends State<BlocksBody> {
                 AppText(
                   error,
                   style: AppTextStyle.style12Regular.copyWith(
-                    color: skin.attention,
+                    color: skin.attentionText,
                   ),
                   maxLines: 3,
                   textAlign: TextAlign.center,
@@ -248,6 +303,18 @@ class BlocksBodyState extends State<BlocksBody> {
           if (index >= 0) list.scrollBlockIntoView(index);
         });
 
+        final runningTasks = widget.showRunningTasks && !_selectionMode
+            ? backgroundTasksOf(
+                cubit.blocks,
+                cubit.subagentSummaries,
+                feed: cubit.taskFeed.values,
+              ).where((task) => task.running).length
+            : 0;
+        final insets = ChatInsets.maybeOf(context);
+        final dockInset = insets?.bottom;
+        final listInset = _insetFor(dockInset);
+        final dockGap = insets?.gap ?? 0;
+        final top = insets?.top ?? 0;
         return PopScope(
           canPop: !_selectionMode,
           onPopInvokedWithResult: (didPop, _) {
@@ -258,6 +325,7 @@ class BlocksBodyState extends State<BlocksBody> {
               Positioned.fill(
                 child: Column(
                   children: [
+                    if (_findOpen) SizedBox(height: top),
                     if (_findOpen)
                       BlockFindBar(
                         queryController: _queryController,
@@ -272,68 +340,132 @@ class BlocksBodyState extends State<BlocksBody> {
                         hiddenCount: filterResult.hiddenCount,
                       ),
                     Expanded(
-                      child: BlockList(
-                        key: _listKey,
-                        sessionId: cubit.sessionId,
-                        blocks: visibleBlocks,
-                        sessionActive: cubit.active,
-                        header: _olderControl(context, cubit),
-                        sticky: _sticky,
-                        pinnedListenable: _pinned,
-                        actionContext: actionContext,
-                        onAction: _onAction,
-                        collapsedIds: collapsedIds,
-                        onToggleCollapse: (id) => setState(() {
-                          final block = visibleBlocks.firstWhere(
-                            (candidate) => candidate.id == id,
-                            orElse: () => visibleBlocks.first,
-                          );
-                          if (block.kind == BlockKind.reasoning) {
-                            if (!_expandedReasoning.add(id)) {
-                              _expandedReasoning.remove(id);
+                      child: NotificationListener<Notification>(
+                        onNotification: _onListScroll,
+                        child: BlockList(
+                          key: _listKey,
+                          sessionId: cubit.sessionId,
+                          blocks: visibleBlocks,
+                          sessionActive: cubit.active,
+                          header: _olderControl(context, cubit),
+                          sticky: _sticky,
+                          pinnedListenable: _pinned,
+                          actionContext: actionContext,
+                          onAction: _onAction,
+                          collapsedIds: collapsedIds,
+                          onToggleCollapse: (id) => setState(() {
+                            final block = visibleBlocks.firstWhere(
+                              (candidate) => candidate.id == id,
+                              orElse: () => visibleBlocks.first,
+                            );
+                            if (block.kind == BlockKind.reasoning) {
+                              if (!_expandedReasoning.add(id)) {
+                                _expandedReasoning.remove(id);
+                              }
+                              return;
                             }
-                            return;
-                          }
-                          if (!_collapsed.add(id)) _collapsed.remove(id);
-                        }),
-                        highlights: {for (final match in matches) match.blockId: match},
-                        activeMatchId: _activeMatchId,
-                        selectedIds: _selected,
-                        selectionMode: _selectionMode,
-                        onToggleSelect: _toggleSelected,
-                        onLongPressHeader: _selectionMode
-                            ? null
-                            : _enterSelectionMode,
+                            if (!_collapsed.add(id)) _collapsed.remove(id);
+                          }),
+                          highlights: {for (final match in matches) match.blockId: match},
+                          activeMatchId: _activeMatchId,
+                          selectedIds: _selected,
+                          selectionMode: _selectionMode,
+                          onToggleSelect: _toggleSelected,
+                          onLongPressHeader: _selectionMode
+                              ? null
+                              : _enterSelectionMode,
+                          bottomInset: _selectionMode ? null : listInset,
+                          bottomGap: dockInset == null || _selectionMode ? 6 : dockGap + ChatInsets.listGap,
+                          topInset: _findOpen ? 0 : top,
+                          trailingShown: runningTasks > 0,
+                          trailing: widget.showRunningTasks
+                              ? Padding(
+                                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: RunningTasksBubble(
+                                      count: runningTasks,
+                                      onTap: () => showBackgroundTasksSheet(
+                                        context,
+                                        parentTitle: widget.parentTitle,
+                                        clock: widget.clock,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : null,
+                        ),
                       ),
                     ),
                     if (_selectionMode)
-                      BlockSelectionBar(
-                        selectedIds: _selected,
-                        documentOrder: visibleBlocks,
-                        onCancel: _exitSelectionMode,
+                      _DockClearance(
+                        inset: dockInset,
+                        gap: dockGap,
+                        child: BlockSelectionBar(
+                          selectedIds: _selected,
+                          documentOrder: visibleBlocks,
+                          onCancel: _exitSelectionMode,
+                        ),
                       ),
                   ],
                 ),
               ),
+              if (dockInset != null && !_selectionMode)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: ValueListenableBuilder<double>(
+                    valueListenable: dockInset,
+                    builder: (context, dock, _) {
+                      final height = dock + dockGap;
+                      return ValueListenableBuilder<double>(
+                        valueListenable: _bottomEdge,
+                        builder: (context, visibility, _) => ScrollEdgeEffect(
+                          key: bottomEdgeKey,
+                          edge: ScrollEdge.bottom,
+                          style: ScrollEdgeStyle.soft,
+                          height: height,
+                          knee: bottomFadeExtent / height,
+                          visibility: visibility,
+                        ),
+                      );
+                    },
+                  ),
+                ),
               Positioned(
-                top: 6,
+                top: top + 6,
                 left: 0,
                 right: 0,
                 child: IgnorePointer(
                   child: _StickyHeaderWithContextReadout(sticky: _sticky),
                 ),
               ),
-              Positioned(
-                right: 12,
-                bottom: 12,
+              _DockClearance(
+                inset: dockInset,
+                gap: dockGap,
+                positioned: true,
                 child: ValueListenableBuilder<bool>(
                   valueListenable: _pinned,
-                  builder: (context, pinned, _) => _selectionMode || pinned
-                      ? const SizedBox.shrink()
-                      : BlockNavControls(
-                          onLatest: () => _listKey.currentState?.jumpToLatest(),
-                          showLatest: !pinned,
-                        ),
+                  builder: (context, pinned, _) {
+                    final workingSince = _selectionMode ? null : widget.workingSince;
+                    final showLatest = !_selectionMode && !pinned;
+                    void onLatest() => _listKey.currentState?.animateToLatest();
+                    return workingSince == null
+                        ? FloatingWorkingControl(
+                            working: false,
+                            showLatest: showLatest,
+                            coverage: _coverage,
+                            onLatest: onLatest,
+                          )
+                        : _WorkingControl(
+                            workingSince: workingSince,
+                            stopped: widget.stopped,
+                            showLatest: showLatest,
+                            coverage: _coverage,
+                            onLatest: onLatest,
+                          );
+                  },
                 ),
               ),
             ],
@@ -404,5 +536,76 @@ class _StickyHeaderWithContextReadout extends StatelessWidget {
       sticky: sticky,
       trailing: ContextReadoutChip(readout: readout),
     );
+  }
+}
+
+class _DockClearance extends StatelessWidget {
+  const _DockClearance({required this.inset, required this.child, this.gap = 0, this.positioned = false});
+
+  final ValueListenable<double>? inset;
+  final double gap;
+  final Widget child;
+  final bool positioned;
+
+  Widget _place(double bottom) => positioned
+      ? Positioned(left: 0, right: 0, bottom: FloatingWorkingControl.lift + bottom, child: Center(child: child))
+      : Padding(padding: EdgeInsets.only(bottom: bottom), child: child);
+
+  @override
+  Widget build(BuildContext context) {
+    final inset = this.inset;
+    if (inset == null) return _place(0);
+    return ValueListenableBuilder<double>(
+      valueListenable: inset,
+      builder: (context, bottom, _) => _place(bottom + gap),
+    );
+  }
+}
+
+class _WorkingControl extends StatelessWidget {
+  const _WorkingControl({
+    required this.workingSince,
+    required this.stopped,
+    required this.showLatest,
+    required this.coverage,
+    required this.onLatest,
+  });
+
+  final DateTime? Function() workingSince;
+  final bool stopped;
+  final bool showLatest;
+  final ValueNotifier<double> coverage;
+  final VoidCallback onLatest;
+
+  @override
+  Widget build(BuildContext context) {
+    final activity = context.select<SessionCommandCubit, String?>((cubit) => cubit.activity);
+    return FloatingWorkingControl(
+      working: !stopped && sessionIsWorking(activity),
+      showLatest: showLatest,
+      since: workingSince,
+      coverage: coverage,
+      onLatest: onLatest,
+    );
+  }
+}
+
+class _ListInset extends ChangeNotifier implements ValueListenable<double> {
+  _ListInset(this.dock, this.coverage) {
+    dock.addListener(notifyListeners);
+    coverage.addListener(notifyListeners);
+  }
+
+  final ValueListenable<double> dock;
+  final ValueListenable<double> coverage;
+
+  @override
+  double get value => dock.value + coverage.value;
+
+  @override
+  void dispose() {
+    dock.removeListener(notifyListeners);
+    coverage.removeListener(notifyListeners);
+    super.dispose();
   }
 }

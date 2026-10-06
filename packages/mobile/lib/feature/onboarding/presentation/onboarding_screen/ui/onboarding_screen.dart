@@ -4,6 +4,7 @@ import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/telemetry/events.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_scaffold.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
@@ -46,11 +47,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   padding: const EdgeInsets.only(top: 4),
                   child: Row(
                     children: [
-                      if (widget.fromDesktops)
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+                      if (widget.fromDesktops) ...[
+                        GlassButton.icon(
+                          icon: Icons.arrow_back_ios_new_rounded,
+                          semanticLabel: 'Back',
+                          foreground: skin.textPrimary,
                           onPressed: () => Navigator.of(context).pop(),
                         ),
+                        const HorizontalSpace(8),
+                      ],
                       ClipRRect(
                         borderRadius: BorderRadius.circular(7),
                         child: Image.asset('assets/images/app_icon_image.png', width: 28, height: 28),

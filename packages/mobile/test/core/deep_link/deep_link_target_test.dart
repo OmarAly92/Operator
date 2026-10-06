@@ -5,7 +5,7 @@ import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/lo
 
 void main() {
   test('opens a session from the scheme, host-form and path-form alike', () {
-    for (final link in ['aomobile://session/abc', 'aomobile:///session/abc']) {
+    for (final link in ['operator://session/abc', 'operator:///session/abc']) {
       final target = resolveDeepLink(Uri.parse(link));
 
       expect(target?.route, RoutesStrings.session);
@@ -15,13 +15,13 @@ void main() {
 
   test('decodes a session id that needed escaping', () {
     expect(
-      resolveDeepLink(Uri.parse('aomobile://session/a%20b'))?.arguments?['sessionId'],
+      resolveDeepLink(Uri.parse('operator://session/a%20b'))?.arguments?['sessionId'],
       'a b',
     );
   });
 
   test('sends prs to the board with the PRs tab selected', () {
-    final target = resolveDeepLink(Uri.parse('aomobile://prs'));
+    final target = resolveDeepLink(Uri.parse('operator://prs'));
 
     expect(target?.route, RoutesStrings.sessions);
     expect(target?.tabIndex, 1);
@@ -29,13 +29,13 @@ void main() {
 
   test('opens the notification history', () {
     expect(
-      resolveDeepLink(Uri.parse('aomobile://notifications'))?.route,
+      resolveDeepLink(Uri.parse('operator://notifications'))?.route,
       RoutesStrings.notifications,
     );
   });
 
   test('opens a TUI session straight into the terminal', () {
-    final target = resolveDeepLink(Uri.parse('aomobile://terminal/abc'));
+    final target = resolveDeepLink(Uri.parse('operator://terminal/abc'));
 
     expect(target?.route, RoutesStrings.terminal);
     final args = target?.arguments?['args'] as TerminalArgs?;
@@ -48,10 +48,14 @@ void main() {
     expect(resolveDeepLink(Uri.parse('https://example.com/session/abc')), isNull);
   });
 
+  test('the old aomobile scheme no longer resolves', () {
+    expect(resolveDeepLink(Uri.parse('aomobile://session/abc')), isNull);
+  });
+
   test('refuses a route it does not know, and a session with no id', () {
-    expect(resolveDeepLink(Uri.parse('aomobile://settings')), isNull);
-    expect(resolveDeepLink(Uri.parse('aomobile://session')), isNull);
-    expect(resolveDeepLink(Uri.parse('aomobile://')), isNull);
+    expect(resolveDeepLink(Uri.parse('operator://settings')), isNull);
+    expect(resolveDeepLink(Uri.parse('operator://session')), isNull);
+    expect(resolveDeepLink(Uri.parse('operator://')), isNull);
   });
 
   test('resolves the internal paths notificationTarget produces', () {
@@ -64,11 +68,11 @@ void main() {
   // legitimately escaped id into a different one.
   test('does not decode a parsed link twice', () {
     expect(
-      resolveDeepLink(Uri.parse('aomobile://session/a%2525'))?.arguments,
+      resolveDeepLink(Uri.parse('operator://session/a%2525'))?.arguments,
       {'sessionId': 'a%25'},
     );
     expect(
-      resolveDeepLink(Uri.parse('aomobile:///session/a%2Fb'))?.arguments,
+      resolveDeepLink(Uri.parse('operator:///session/a%2Fb'))?.arguments,
       {'sessionId': 'a/b'},
     );
   });
@@ -76,7 +80,7 @@ void main() {
   // A crafted link used to throw ArgumentError out of the link-stream listener.
   test('survives a truncated escape from either direction', () {
     expect(
-      resolveDeepLink(Uri.parse('aomobile:///session/a%252'))?.arguments,
+      resolveDeepLink(Uri.parse('operator:///session/a%252'))?.arguments,
       {'sessionId': 'a%2'},
     );
     expect(resolveDeepLinkPath('/session/a%2'), isNull);
@@ -89,8 +93,8 @@ void main() {
 
   test('is equal for equal links, so a repeated cold-start link is detectable', () {
     expect(
-      resolveDeepLink(Uri.parse('aomobile://session/abc')),
-      resolveDeepLink(Uri.parse('aomobile://session/abc')),
+      resolveDeepLink(Uri.parse('operator://session/abc')),
+      resolveDeepLink(Uri.parse('operator://session/abc')),
     );
   });
 }

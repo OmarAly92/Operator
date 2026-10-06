@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
@@ -26,6 +27,8 @@ abstract class SessionControlRemoteDataSource {
 }
 
 class SessionControlRemoteDataSourceImp implements SessionControlRemoteDataSource {
+  static const Duration permissionModeReceiveTimeout = Duration(seconds: 45);
+
   final ApiConsumer _apiConsumer;
 
   SessionControlRemoteDataSourceImp(this._apiConsumer);
@@ -35,10 +38,13 @@ class SessionControlRemoteDataSourceImp implements SessionControlRemoteDataSourc
     String sessionId,
     SessionCommandParams params,
   ) async {
-    final response = await _apiConsumer.post(
-      EndPoints.sessionCommand(sessionId),
-      body: params.toJson(),
-    );
+    final response = params.command == 'permission-mode'
+        ? await _apiConsumer.post(
+            EndPoints.sessionCommand(sessionId),
+            body: params.toJson(),
+            options: Options(receiveTimeout: permissionModeReceiveTimeout),
+          )
+        : await _apiConsumer.post(EndPoints.sessionCommand(sessionId), body: params.toJson());
     return GlobalResponse<SessionCommandResultModel>.fromJson(
       response.data as Map<String, dynamic>,
       withDataKey: false,

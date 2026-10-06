@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { parseOscRecords, runInPty, splitEveryByte } from "./pty.mjs";
+import { haveTmux, parseOscRecords, runInPty, runInPtySegments, splitEveryByte } from "./pty.mjs";
+import { abortedPromptsSession, commandOutputs } from "./core.mjs";
 
 const bootstrap = fileURLToPath(new URL("./fish.fish", import.meta.url));
 const haveFish = (() => {
@@ -114,4 +118,101 @@ test("emits fish lifecycle records for success and failure, records nothing for 
 	assert.deepEqual(ends, ["133;D;0", "133;D;0", "133;D;1"]);
 	const openPrompt = records.slice(-2).map((record) => record.payload);
 	assert.deepEqual(openPrompt, ["133;A;click_events=1", "133;B"]);
+});
+
+test("reports no typeahead: text typed during a command stays with fish's reader, as before", { skip: fishSkip }, () => {
+	const raw = runInPty(
+		"fish --no-config --interactive",
+		[
+			`source ${JSON.stringify(bootstrap)}`,
+			{ keys: "sleep 1", waitMs: 200 },
+			{ keys: "echo later", enter: false, waitMs: 1800 },
+			{ keys: "", waitMs: 500 },
+		],
+		{ settleMs: 300 },
+	);
+	const records = parseOscRecords(raw);
+	assert.equal(records.some((record) => record.payload.includes("typeahead=")), false);
+	const commands = records.map((record) => field(record.payload, "cmd")).filter((command) => command !== undefined);
+	assert.deepEqual(commands, ["sleep%201", "echo%20later"]);
+});
+
+test("after a width change writes nothing until the next key, then moves up by its old prompt height", { skip: fishSkip || nativeOsc133Skip }, () => {
+	const [, afterResize, afterKey] = runInPtySegments(
+		"fish --no-config --interactive",
+		[
+			"function fish_prompt; echo first-line; echo -n 'second $ '; end",
+			`source ${JSON.stringify(bootstrap)}`,
+			{ keys: "clear", waitMs: 800 },
+			{ resize: [60, 40] },
+			{ keys: "x", enter: false, cut: true },
+		],
+		{ settleMs: 800 },
+	);
+	assert.doesNotMatch(afterResize, /first-line|second \$/, JSON.stringify(afterResize));
+	const ups = afterKey.match(/\x1bM|\x1b\[1?A/g) ?? [];
+	assert.equal(ups.length, 1, JSON.stringify(afterKey));
+});
+
+const coreDist = fileURLToPath(new URL("../ts/core/dist/index.js", import.meta.url));
+const coreWasm = fileURLToPath(new URL("../ts/core/wasm/vt_core_bg.wasm", import.meta.url));
+const coreSkip = existsSync(coreDist) && existsSync(coreWasm)
+	? false
+	: "the terminal core is not built (npm run build)";
+
+test("a prompt repaint on every resize at an idle prompt adds no block", { skip: fishSkip || nativeOsc133Skip || (haveTmux() ? false : "tmux is not installed") || coreSkip }, async () => {
+	const config = mkdtempSync(join(tmpdir(), "opr-fish-config-"));
+	const widths = [60, 120, 60, 120];
+	let segments;
+	try {
+		segments = runInPtySegments(
+			`fish -C ${JSON.stringify(`source ${JSON.stringify(bootstrap)}`)}`,
+			[{ keys: "seq 1 5", waitMs: 1500 }, ...widths.map((width) => ({ resize: [width, 40], waitMs: 1500 }))],
+			{
+				settleMs: 1500,
+				env: { XDG_CONFIG_HOME: config, OPERATOR_TERMINAL_ID: "t", OPERATOR_TERMINAL_SUPPRESS_PROMPT: "1" },
+			},
+		);
+	} finally {
+		rmSync(config, { recursive: true, force: true });
+	}
+	const [start, ...repaints] = segments;
+	assert.match(start, /cmd=seq%201%205/);
+	for (const repaint of repaints) {
+		const payloads = parseOscRecords(repaint).map((record) => record.payload);
+		assert.ok(payloads.some((payload) => payload.startsWith("133;A")), JSON.stringify(repaint));
+		assert.deepEqual(
+			payloads.filter((payload) => !payload.startsWith("133;A") && payload !== "133;B"),
+			[],
+			JSON.stringify(repaint),
+		);
+	}
+	const core = await import(coreDist);
+	const bytes = readFileSync(coreWasm);
+	await core.initTerminalCore(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+	const terminal = core.createTerminalCore({ columns: 120, rows: 40, limits: { rows: 10_000, bytes: 1 << 24 } });
+	const feed = (text) => terminal.feed(Buffer.from(text, "latin1"));
+	const blocks = () => core.decodeBlocks(terminal.snapshot());
+	feed(start);
+	const before = blocks().length;
+	assert.ok(before >= 2, `expected the seq block and the open prompt block, got ${before}`);
+	repaints.forEach((repaint, index) => {
+		terminal.resize(widths[index], 40);
+		feed(repaint);
+	});
+	const after = blocks();
+	assert.equal(after.length, before, JSON.stringify(after.map((block) => [block.command, block.rowCount])));
+	terminal.dispose?.();
+});
+
+test("each command block holds only its output: no echoed command line and no partial-line mark", { skip: fishSkip || nativeOsc133Skip || (haveTmux() ? false : "tmux is not installed") || coreSkip }, async () => {
+	const { blocks } = await abortedPromptsSession("fish");
+	assert.deepEqual(commandOutputs(blocks), [["printf x", "x"], ["echo one", "one"], ["echo two", "two"]]);
+});
+
+test("Ctrl-C and an empty Enter at the prompt add no block, and every block keeps the cwd", { skip: fishSkip || nativeOsc133Skip || (haveTmux() ? false : "tmux is not installed") || coreSkip }, async () => {
+	const { blocks } = await abortedPromptsSession("fish");
+	assert.deepEqual(blocks.map((block) => block.command), ["printf x", "echo one", "echo two", ""]);
+	assert.notEqual(blocks[0].cwd, "");
+	assert.deepEqual(blocks.map((block) => block.cwd), blocks.map(() => blocks[0].cwd));
 });

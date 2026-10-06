@@ -30,6 +30,8 @@ workspace:
   - packages/expressive_sheet
   - packages/expressive_snack
   - packages/material_shapes
+  - packages/ios_liquid_glass
+  - packages/ios_liquid_glass/example
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -52,7 +54,6 @@ dependencies:
   talker_dio_logger: ^5.1.17
   talker_bloc_logger: ^5.1.17
   talker_flutter: ^5.1.17
-  shared_preferences: ^2.5.5
   flutter_secure_storage: ^11.0.0
   shimmer: ^3.0.0
   flutter_spinkit: ^5.2.2
@@ -72,11 +73,15 @@ dependencies:
   expressive_sheet:
   expressive_snack:
   material_shapes:
+  ios_liquid_glass:
   webview_flutter: ^4.14.1
   app_links: ^7.2.1
   flutter_markdown_plus: ^1.0.12
   drift: ^2.34.1
   drift_flutter: ^0.3.0
+  path_provider: ^2.1.6
+  flutter_local_notifications: ^22.3.0
+  photo_manager: ^3.12.0
 
 dev_dependencies:
   flutter_test:
@@ -195,3 +200,6 @@ flutter:
         - asset: assets/fonts/anthropic_sans/AnthropicSansDisplay-800-Italic.otf
           weight: 800
           style: italic
+
+  shaders:
+    - shaders/tab_lens.frag

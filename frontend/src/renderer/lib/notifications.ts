@@ -255,35 +255,21 @@ export function keepLatestNotificationsPage(
 	rebaseOversizedFirstPage(queryClient, queryKey);
 }
 
-/**
- * A `needs_input` toast is redundant only when the user can already see the
- * prompt, which takes three things: the agent's terminal for that session is
- * the one on screen, this window is visible, and this window has focus.
- *
- * Each check covers a way "looks visible" lies. Visibility alone is not enough
- * — on Windows and Linux an unfocused or fully covered window still
- * reports `visibilityState === "visible"`. The route alone is not enough
- * either: the session pane renders one terminal at a time, so an open shell or
- * reviewer tab hides the agent while the URL still names that session. The
- * caller resolves that, passing the session only while its agent pane shows.
- *
- * Only `needs_input` is suppressed. PR outcomes (`ready_to_merge`,
- * `pr_merged`, `pr_closed_unmerged`) are not visible in the terminal pane, so
- * they still deserve a toast even for the session in the foreground.
- */
-function suppressToastForWatchedSession(
+const SESSION_SCOPED_TYPES = new Set(["needs_input", "turn_finished", "agent_exited"]);
+
+export function shouldToast(
 	notification: NotificationDTO,
-	visibleAgentSessionId: string | undefined,
+	isWatchingSession: (sessionId: string) => boolean,
 ): boolean {
-	if (notification.type !== "needs_input") return false;
-	if (!notification.sessionId || notification.sessionId !== visibleAgentSessionId) return false;
-	return document.visibilityState === "visible" && document.hasFocus();
+	if (notification.quiet) return false;
+	if (!SESSION_SCOPED_TYPES.has(notification.type) || !notification.sessionId) return true;
+	if (!isWatchingSession(notification.sessionId)) return true;
+	return !(document.visibilityState === "visible" && document.hasFocus());
 }
 
 export function createNotificationsTransport(
 	queryClient: QueryClient,
-	/** The session whose agent terminal is currently on screen, if any. */
-	getVisibleAgentSessionId: () => string | undefined = () => undefined,
+	isWatchingSession: (sessionId: string) => boolean = () => false,
 ) {
 	return {
 		connect() {
@@ -322,13 +308,17 @@ export function createNotificationsTransport(
 						if (!notification) return;
 						const inserted = mergeUnreadNotification(queryClient, notification);
 						mergeRecentNotification(queryClient, notification);
-						if (inserted && !suppressToastForWatchedSession(notification, getVisibleAgentSessionId())) {
-							void operatorBridge.notifications.show({
-								id: notification.id,
-								title: notification.title,
-								body: notification.body || undefined,
-								type: notification.type,
-							});
+						if (inserted && shouldToast(notification, isWatchingSession)) {
+							operatorBridge.notifications
+								.show({
+									id: notification.id,
+									title: notification.title,
+									body: notification.body || undefined,
+									type: notification.type,
+								})
+								.catch((error: unknown) => {
+									console.warn("Unable to show notification toast", error);
+								});
 						}
 					});
 					// Operator closed the underlying issue (the session got its input, the

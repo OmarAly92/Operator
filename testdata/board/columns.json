@@ -1,0 +1,22 @@
+{
+  "live": {
+    "working": "working",
+    "idle": "working",
+    "pr_open": "in_review",
+    "draft": "in_review",
+    "review_pending": "in_review",
+    "ci_failed": "needs_you",
+    "changes_requested": "needs_you",
+    "needs_input": "needs_you",
+    "exited": "needs_you",
+    "no_signal": "needs_you",
+    "approved": "ready_to_merge",
+    "mergeable": "ready_to_merge",
+    "merged": "ready_to_merge",
+    "terminated": "archive"
+  },
+  "terminated": {
+    "merged": "archive",
+    "terminated": "archive"
+  }
+}

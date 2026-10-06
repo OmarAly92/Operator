@@ -100,7 +100,7 @@ fn window_submenu() -> MenuTemplateSubmenu {
         label: "Window",
         items: vec![
             MenuTemplateItem::action("window.minimize", "Minimize", "CmdOrCtrl+M"),
-            MenuTemplateItem::action("window.close", "Close", "CmdOrCtrl+W"),
+            MenuTemplateItem::action("window.close", "Close", "CmdOrCtrl+Shift+W"),
         ],
     }
 }

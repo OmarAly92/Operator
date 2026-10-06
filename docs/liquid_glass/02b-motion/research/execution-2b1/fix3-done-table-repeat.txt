@@ -1,0 +1,8 @@
+material.materialize.snappy dark-photo: progress measures 10 pass / 14 judged / 14 expected; events and touches 5/5; events [2, 2] unpaired {'native': 0, 'flutter': 0} touches [2, 2] of 2; stalls native [] flutter []
+   step1e0 block: delay 43/17 ms, first frame 0.03@43ms/0.05@17ms; t10_90 117/117 settle 192/175 overshoot 0.0/0.0 spring 0.26/0.91 vs 0.25/0.87 rms 0.019 sharp -1.08/-2.59
+   step3e0 block: delay 95/28 ms, first frame 0.01@15ms/0.05@15ms; t10_90 192/192 settle 308/308 overshoot 0.3/0.1 spring 0.51/0.81 vs 0.33/1.05 rms 0.016 sharp -1.06/-2.34
+   FAIL block.step1e0.progress.sharpness 1.512 > 1.000
+   FAIL block.step3e0.progress.damping 0.240 > 0.105
+   FAIL block.step3e0.progress.response_pct 35.294 > 20.588
+   FAIL block.step3e0.progress.sharpness 1.281 > 1.000
+total: progress measures 10 pass / 14 judged / 14 expected; events and touches 5/5

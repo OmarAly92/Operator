@@ -21,7 +21,8 @@ function createBrowserPreviewBridge(): OperatorBridge {
 				window.open(url, "_blank", "noopener,noreferrer");
 			},
 			resolvePath: async () => null,
-			openPath: async () => undefined,
+			resolveFirstPath: async () => null,
+			openPath: async () => ({ cliMissing: false }),
 			scanImportFolder: async ({ path }) => ({ path, repos: [] }),
 			checkAncestorRepo: async () => undefined,
 			onNewSessionShortcut: () => () => undefined,
@@ -95,6 +96,9 @@ function createBrowserPreviewBridge(): OperatorBridge {
 			setBadge: async () => undefined,
 			devBounce: async () => undefined,
 			onClick: () => () => undefined,
+			permission: async () => "unsupported" as const,
+			requestPermission: async () => "unsupported" as const,
+			openSettings: async () => undefined,
 		},
 		tray: {
 			setAttentionState: () => undefined,

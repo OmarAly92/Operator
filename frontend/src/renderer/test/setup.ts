@@ -41,6 +41,9 @@ vi.mock("@operator/terminal-react", () => {
 				dispose: () => element.remove(),
 			};
 		},
+		markRegexValid: vi.fn((_pattern: string): boolean | null => null),
+		DEFAULT_QUICK_FIX_RULES: Object.freeze([]),
+		initTerminalCoreFromUrl: vi.fn(async () => undefined),
 		warpDarkTheme: {
 			ansi: new Array(16).fill("#000000"),
 			foreground: "#ffffff",
@@ -159,7 +162,8 @@ if (typeof window !== "undefined") {
 			chooseDirectory: async () => null,
 			openExternal: async () => undefined,
 			resolvePath: async () => null,
-			openPath: async () => undefined,
+			resolveFirstPath: async () => null,
+			openPath: async () => ({ cliMissing: false }),
 			scanImportFolder: async ({ path }: { path: string }) => ({ path, repos: [] }),
 			checkAncestorRepo: async () => undefined,
 			onNewSessionShortcut: () => () => undefined,
@@ -211,6 +215,9 @@ if (typeof window !== "undefined") {
 			setBadge: async () => undefined,
 			devBounce: async () => undefined,
 			onClick: () => () => undefined,
+			permission: async () => "unsupported" as const,
+			requestPermission: async () => "unsupported" as const,
+			openSettings: async () => undefined,
 		},
 		tray: {
 			setAttentionState: () => undefined,

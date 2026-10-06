@@ -882,9 +882,10 @@ func (e *Engine) TerminateReviewer(ctx stdctx.Context, workerID domain.SessionID
 
 // reviewerHarness resolves which harness reviews the worker's PR: a persisted
 // session preference wins, then project configuration, then the worker's own
-// harness when supported, otherwise claude-code.
+// harness when supported, otherwise claude-code. A preference for a reviewer
+// Operator no longer offers is skipped rather than failing the review.
 func (e *Engine) reviewerHarness(ctx stdctx.Context, worker domain.SessionRecord) (domain.ReviewerHarness, error) {
-	if worker.ReviewerHarness != "" {
+	if worker.ReviewerHarness.IsKnown() {
 		return worker.ReviewerHarness, nil
 	}
 	var cfg domain.ProjectConfig

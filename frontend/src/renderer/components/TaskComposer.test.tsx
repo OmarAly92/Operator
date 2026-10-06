@@ -709,3 +709,140 @@ describe("TaskComposer", () => {
 		);
 	});
 });
+
+describe("TaskComposer branch picker", () => {
+	const listing = {
+		current: "logic/home",
+		branches: [
+			{ name: "feat/x", isMainCheckout: false },
+			{ name: "logic/home", checkedOutAt: "/Users/u/rafeeq", isMainCheckout: true },
+			{ name: "session/rafeeq-3/root", checkedOutAt: "/Users/u/.operator/worktrees/rafeeq/rafeeq-3", isMainCheckout: false },
+			{ name: "main", isMainCheckout: false },
+		],
+	};
+
+	function renderWithBranches(branches: unknown = listing, branchesError = false) {
+		h.get.mockImplementation(async (path: string) => {
+			if (path.includes("/branches")) {
+				return branchesError ? { error: { code: "BRANCHES_LOAD_FAILED", message: "boom" } } : { data: branches };
+			}
+			if (path.includes("/models")) {
+				return { data: { agent: "codex", selectionMode: "text", models: [], allowCustom: true, refreshRecommended: false } };
+			}
+			return { data: { status: "ok", project: { kind: "single_repo", agent: "codex", config: {} } } };
+		});
+		render(
+			<Wrap>
+				<TaskComposer projectId="proj-1" onCreated={vi.fn()} />
+			</Wrap>,
+		);
+	}
+
+	const branchTrigger = () => screen.findByRole("button", { name: "Branch" });
+	const worktreeBox = () => screen.findByRole("checkbox", { name: /worktree/i });
+
+	async function submit() {
+		await userEvent.type(task(), "do the thing");
+		await userEvent.click(screen.getByRole("button", { name: /start task/i }));
+		await waitFor(() => expect(h.post).toHaveBeenCalled());
+		return h.post.mock.calls[0][1].body as Record<string, unknown>;
+	}
+
+	it("locks to the project folder's branch without a worktree and sends it for the daemon to check", async () => {
+		h.post.mockResolvedValueOnce({ data: { workerId: "sess-in-place" } });
+		renderWithBranches();
+
+		await waitFor(async () => expect(await branchTrigger()).toHaveTextContent("logic/home"));
+		expect(await branchTrigger()).toBeDisabled();
+		const body = await submit();
+		expect(body).toMatchObject({ workspaceMode: "in_place", branch: "logic/home" });
+	});
+
+	it("defaults to a new branch with a worktree and sends no branch", async () => {
+		h.post.mockResolvedValueOnce({ data: { workerId: "sess-new" } });
+		renderWithBranches();
+
+		await userEvent.click(await worktreeBox());
+		expect(await branchTrigger()).toHaveTextContent("New branch");
+		const body = await submit();
+		expect(body.workspaceMode).toBe("worktree");
+		expect(body.branch).toBeUndefined();
+	});
+
+	it("disables branches that are checked out and says where", async () => {
+		renderWithBranches();
+		await userEvent.click(await worktreeBox());
+		await waitFor(async () => expect(await branchTrigger()).toBeEnabled());
+		await userEvent.click(await branchTrigger());
+
+		const home = await screen.findByRole("menuitem", { name: /logic\/home/ });
+		expect(home).toHaveAttribute("aria-disabled", "true");
+		expect(home).toHaveTextContent("Checked out in your project folder — turn off worktree to work on it");
+		const session = screen.getByRole("menuitem", { name: /session\/rafeeq-3\/root/ });
+		expect(session).toHaveAttribute("aria-disabled", "true");
+		expect(session).toHaveTextContent("In use by rafeeq-3");
+		expect(screen.getByRole("menuitem", { name: "feat/x" })).not.toHaveAttribute("aria-disabled", "true");
+	});
+
+	it("starts the worktree on a picked branch", async () => {
+		h.post.mockResolvedValueOnce({ data: { workerId: "sess-feat" } });
+		renderWithBranches();
+		await userEvent.click(await worktreeBox());
+		await userEvent.click(await branchTrigger());
+		await userEvent.click(await screen.findByRole("menuitem", { name: "feat/x" }));
+
+		expect(await branchTrigger()).toHaveTextContent("feat/x");
+		const body = await submit();
+		expect(body).toMatchObject({ workspaceMode: "worktree", branch: "feat/x" });
+	});
+
+	it("forgets the pick when the worktree box is toggled", async () => {
+		renderWithBranches();
+		await userEvent.click(await worktreeBox());
+		await userEvent.click(await branchTrigger());
+		await userEvent.click(await screen.findByRole("menuitem", { name: "feat/x" }));
+		await userEvent.click(await worktreeBox());
+		await userEvent.click(await worktreeBox());
+
+		expect(await branchTrigger()).toHaveTextContent("New branch");
+	});
+
+	it("shows search only for long branch lists", async () => {
+		const many = { current: "main", branches: Array.from({ length: 11 }, (_, i) => ({ name: `b${i}`, isMainCheckout: false })) };
+		renderWithBranches(many);
+		await userEvent.click(await worktreeBox());
+		await userEvent.click(await branchTrigger());
+		await userEvent.type(await screen.findByRole("searchbox", { name: "Search branches" }), "b7");
+
+		expect(screen.getByRole("menuitem", { name: "b7" })).toBeInTheDocument();
+		expect(screen.queryByRole("menuitem", { name: "b1" })).toBeNull();
+		expect(screen.queryByRole("menuitem", { name: "New branch" })).toBeNull();
+	});
+
+	it("keeps New branch usable when branches fail to load", async () => {
+		h.post.mockResolvedValueOnce({ data: { workerId: "sess-fallback" } });
+		renderWithBranches(listing, true);
+		await userEvent.click(await worktreeBox());
+		await userEvent.click(await branchTrigger());
+
+		expect(await screen.findByText("Couldn't load branches")).toBeInTheDocument();
+		await userEvent.click(screen.getByRole("menuitem", { name: "New branch" }));
+		const body = await submit();
+		expect(body.workspaceMode).toBe("worktree");
+		expect(body.branch).toBeUndefined();
+	});
+
+	it("explains a branch that is checked out somewhere else and keeps the task", async () => {
+		h.post.mockResolvedValueOnce({ error: { code: "BRANCH_CHECKED_OUT_ELSEWHERE", message: "raw" } });
+		renderWithBranches();
+		await userEvent.click(await worktreeBox());
+		await userEvent.click(await branchTrigger());
+		await userEvent.click(await screen.findByRole("menuitem", { name: "feat/x" }));
+		await submit();
+
+		expect(
+			await screen.findByText("That branch is checked out somewhere else. Pick another branch or New branch."),
+		).toBeInTheDocument();
+		expect(task()).toHaveValue("do the thing");
+	});
+});

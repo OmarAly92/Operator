@@ -19,6 +19,16 @@ NotificationVisual notificationVisual(AppSkin skin, String type) => switch (type
     color: skin.amber,
     label: 'Needs input',
   ),
+  'turn_finished' => NotificationVisual(
+    icon: Icons.check_circle_outline,
+    color: skin.green,
+    label: 'Finished',
+  ),
+  'agent_exited' => NotificationVisual(
+    icon: Icons.stop_circle_outlined,
+    color: skin.red,
+    label: 'Exited',
+  ),
   'ready_to_merge' => NotificationVisual(
     icon: Icons.merge_outlined,
     color: skin.green,
@@ -41,11 +51,13 @@ NotificationVisual notificationVisual(AppSkin skin, String type) => switch (type
   ),
 };
 
+const _sessionTypes = {'needs_input', 'turn_finished', 'agent_exited'};
+
 /// The id is escaped because the consumer (`resolveDeepLinkPath`) decodes it —
 /// leaving it raw makes a `%` or a `/` in an id either mangle the path or fail
 /// to resolve.
 String notificationTarget({required String type, String? sessionId}) =>
-    type == 'needs_input' && (sessionId ?? '').isNotEmpty
+    _sessionTypes.contains(type) && (sessionId ?? '').isNotEmpty
     ? '/session/${Uri.encodeComponent(sessionId!)}'
     : '/prs';
 
@@ -63,3 +75,32 @@ String relativeTime(String iso, [DateTime? now]) {
   if (days < 7) return '${days}d';
   return '${days ~/ 7}w';
 }
+
+final _fence = RegExp(r'```[^\n]*');
+final _image = RegExp(r'!\[([^\]]*)\]\((?:[^()\s]|\([^()]*\))*\)');
+final _link = RegExp(r'\[([^\]]+)\]\((?:[^()\s]|\([^()]*\))*\)');
+final _heading = RegExp(r'^\s{0,3}#{1,6}[ \t]+', multiLine: true);
+final _quote = RegExp(r'^\s{0,3}>\s?', multiLine: true);
+final _bullet = RegExp(r'^\s*(?:[-*+]|\d+[.)])\s+', multiLine: true);
+final _strong = RegExp(r'(?<![\w*])\*\*(?!\s)(.+?)(?<!\s)\*\*(?![\w*])');
+final _strongUnderscore = RegExp(r'(?<![\w.])__(?!\s)(.+?)(?<!\s)__(?=$|[\s,;:!?)])');
+final _emphasis = RegExp(r'(?<![\w*])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![\w*])');
+final _strike = RegExp(r'~~(.+?)~~');
+final _strayStars = RegExp(r'(?<![\w*])\*\*(?!\*)|(?<!\*)\*\*(?![\w*])');
+final _whitespace = RegExp(r'\s+');
+
+String plainPreview(String markdown) => markdown
+    .replaceAll(_fence, ' ')
+    .replaceAllMapped(_image, (m) => m[1]!)
+    .replaceAllMapped(_link, (m) => m[1]!)
+    .replaceAll(_heading, '')
+    .replaceAll(_quote, '')
+    .replaceAll(_bullet, '')
+    .replaceAllMapped(_strong, (m) => m[1]!)
+    .replaceAllMapped(_strongUnderscore, (m) => m[1]!)
+    .replaceAllMapped(_strike, (m) => m[1]!)
+    .replaceAllMapped(_emphasis, (m) => m[1]!)
+    .replaceAll(_strayStars, '')
+    .replaceAll('`', '')
+    .replaceAll(_whitespace, ' ')
+    .trim();

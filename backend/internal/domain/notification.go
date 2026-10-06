@@ -17,12 +17,15 @@ const (
 	NotificationPRMerged NotificationType = "pr_merged"
 	// NotificationPRClosedUnmerged means a tracked PR closed without merging.
 	NotificationPRClosedUnmerged NotificationType = "pr_closed_unmerged"
+	NotificationTurnFinished     NotificationType = "turn_finished"
+	NotificationAgentExited      NotificationType = "agent_exited"
 )
 
 // Valid reports whether t is one of the v1 notification kinds.
 func (t NotificationType) Valid() bool {
 	switch t {
-	case NotificationNeedsInput, NotificationReadyToMerge, NotificationPRMerged, NotificationPRClosedUnmerged:
+	case NotificationNeedsInput, NotificationReadyToMerge, NotificationPRMerged, NotificationPRClosedUnmerged,
+		NotificationTurnFinished, NotificationAgentExited:
 		return true
 	default:
 		return false
@@ -34,7 +37,16 @@ func (t NotificationType) Valid() bool {
 // Terminal facts — a PR that merged or closed — describe something that already
 // happened, so they are surfaced once as unseen and never held as unresolved.
 func (t NotificationType) NeedsResolution() bool {
-	return t == NotificationNeedsInput || t == NotificationReadyToMerge
+	switch t {
+	case NotificationNeedsInput, NotificationReadyToMerge, NotificationTurnFinished, NotificationAgentExited:
+		return true
+	default:
+		return false
+	}
+}
+
+func (t NotificationType) SessionScoped() bool {
+	return t == NotificationNeedsInput || t == NotificationTurnFinished || t == NotificationAgentExited
 }
 
 // NotificationStatus is the seen state for a stored notification. The stored
@@ -97,6 +109,7 @@ type NotificationRecord struct {
 	// its input, or the PR stopped waiting on a merge. Zero means still open.
 	// Only Operator writes it; there is no user-facing "resolve" action.
 	ResolvedAt time.Time
+	Quiet      bool
 }
 
 // Resolved reports whether the issue behind this notification is closed.

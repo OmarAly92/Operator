@@ -571,16 +571,870 @@ class DesktopsCompanion extends UpdateCompanion<DesktopEntity> {
   }
 }
 
+class $SettingsTable extends Settings
+    with TableInfo<$SettingsTable, SettingEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SettingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<String> value = GeneratedColumn<String>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [key, value];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'settings';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SettingEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('key')) {
+      context.handle(
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_keyMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_valueMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {key};
+  @override
+  SettingEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SettingEntity(
+      key: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}value'],
+      )!,
+    );
+  }
+
+  @override
+  $SettingsTable createAlias(String alias) {
+    return $SettingsTable(attachedDatabase, alias);
+  }
+}
+
+class SettingEntity extends DataClass implements Insertable<SettingEntity> {
+  final String key;
+  final String value;
+  const SettingEntity({required this.key, required this.value});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['key'] = Variable<String>(key);
+    map['value'] = Variable<String>(value);
+    return map;
+  }
+
+  SettingsCompanion toCompanion(bool nullToAbsent) {
+    return SettingsCompanion(key: Value(key), value: Value(value));
+  }
+
+  factory SettingEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SettingEntity(
+      key: serializer.fromJson<String>(json['key']),
+      value: serializer.fromJson<String>(json['value']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'key': serializer.toJson<String>(key),
+      'value': serializer.toJson<String>(value),
+    };
+  }
+
+  SettingEntity copyWith({String? key, String? value}) =>
+      SettingEntity(key: key ?? this.key, value: value ?? this.value);
+  SettingEntity copyWithCompanion(SettingsCompanion data) {
+    return SettingEntity(
+      key: data.key.present ? data.key.value : this.key,
+      value: data.value.present ? data.value.value : this.value,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SettingEntity(')
+          ..write('key: $key, ')
+          ..write('value: $value')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(key, value);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SettingEntity &&
+          other.key == this.key &&
+          other.value == this.value);
+}
+
+class SettingsCompanion extends UpdateCompanion<SettingEntity> {
+  final Value<String> key;
+  final Value<String> value;
+  final Value<int> rowid;
+  const SettingsCompanion({
+    this.key = const Value.absent(),
+    this.value = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SettingsCompanion.insert({
+    required String key,
+    required String value,
+    this.rowid = const Value.absent(),
+  }) : key = Value(key),
+       value = Value(value);
+  static Insertable<SettingEntity> custom({
+    Expression<String>? key,
+    Expression<String>? value,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (key != null) 'key': key,
+      if (value != null) 'value': value,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SettingsCompanion copyWith({
+    Value<String>? key,
+    Value<String>? value,
+    Value<int>? rowid,
+  }) {
+    return SettingsCompanion(
+      key: key ?? this.key,
+      value: value ?? this.value,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<String>(value.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SettingsCompanion(')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ReplicaDocumentsTable extends ReplicaDocuments
+    with TableInfo<$ReplicaDocumentsTable, ReplicaDocumentEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ReplicaDocumentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _desktopIdMeta = const VerificationMeta(
+    'desktopId',
+  );
+  @override
+  late final GeneratedColumn<String> desktopId = GeneratedColumn<String>(
+    'desktop_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+    'body',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fetchedAtMeta = const VerificationMeta(
+    'fetchedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> fetchedAt = GeneratedColumn<DateTime>(
+    'fetched_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [desktopId, key, body, fetchedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'replica_documents';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ReplicaDocumentEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('desktop_id')) {
+      context.handle(
+        _desktopIdMeta,
+        desktopId.isAcceptableOrUnknown(data['desktop_id']!, _desktopIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_desktopIdMeta);
+    }
+    if (data.containsKey('key')) {
+      context.handle(
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_keyMeta);
+    }
+    if (data.containsKey('body')) {
+      context.handle(
+        _bodyMeta,
+        body.isAcceptableOrUnknown(data['body']!, _bodyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bodyMeta);
+    }
+    if (data.containsKey('fetched_at')) {
+      context.handle(
+        _fetchedAtMeta,
+        fetchedAt.isAcceptableOrUnknown(data['fetched_at']!, _fetchedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fetchedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {desktopId, key};
+  @override
+  ReplicaDocumentEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ReplicaDocumentEntity(
+      desktopId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}desktop_id'],
+      )!,
+      key: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key'],
+      )!,
+      body: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}body'],
+      )!,
+      fetchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}fetched_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ReplicaDocumentsTable createAlias(String alias) {
+    return $ReplicaDocumentsTable(attachedDatabase, alias);
+  }
+}
+
+class ReplicaDocumentEntity extends DataClass
+    implements Insertable<ReplicaDocumentEntity> {
+  final String desktopId;
+  final String key;
+  final String body;
+  final DateTime fetchedAt;
+  const ReplicaDocumentEntity({
+    required this.desktopId,
+    required this.key,
+    required this.body,
+    required this.fetchedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['desktop_id'] = Variable<String>(desktopId);
+    map['key'] = Variable<String>(key);
+    map['body'] = Variable<String>(body);
+    map['fetched_at'] = Variable<DateTime>(fetchedAt);
+    return map;
+  }
+
+  ReplicaDocumentsCompanion toCompanion(bool nullToAbsent) {
+    return ReplicaDocumentsCompanion(
+      desktopId: Value(desktopId),
+      key: Value(key),
+      body: Value(body),
+      fetchedAt: Value(fetchedAt),
+    );
+  }
+
+  factory ReplicaDocumentEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ReplicaDocumentEntity(
+      desktopId: serializer.fromJson<String>(json['desktopId']),
+      key: serializer.fromJson<String>(json['key']),
+      body: serializer.fromJson<String>(json['body']),
+      fetchedAt: serializer.fromJson<DateTime>(json['fetchedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'desktopId': serializer.toJson<String>(desktopId),
+      'key': serializer.toJson<String>(key),
+      'body': serializer.toJson<String>(body),
+      'fetchedAt': serializer.toJson<DateTime>(fetchedAt),
+    };
+  }
+
+  ReplicaDocumentEntity copyWith({
+    String? desktopId,
+    String? key,
+    String? body,
+    DateTime? fetchedAt,
+  }) => ReplicaDocumentEntity(
+    desktopId: desktopId ?? this.desktopId,
+    key: key ?? this.key,
+    body: body ?? this.body,
+    fetchedAt: fetchedAt ?? this.fetchedAt,
+  );
+  ReplicaDocumentEntity copyWithCompanion(ReplicaDocumentsCompanion data) {
+    return ReplicaDocumentEntity(
+      desktopId: data.desktopId.present ? data.desktopId.value : this.desktopId,
+      key: data.key.present ? data.key.value : this.key,
+      body: data.body.present ? data.body.value : this.body,
+      fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReplicaDocumentEntity(')
+          ..write('desktopId: $desktopId, ')
+          ..write('key: $key, ')
+          ..write('body: $body, ')
+          ..write('fetchedAt: $fetchedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(desktopId, key, body, fetchedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ReplicaDocumentEntity &&
+          other.desktopId == this.desktopId &&
+          other.key == this.key &&
+          other.body == this.body &&
+          other.fetchedAt == this.fetchedAt);
+}
+
+class ReplicaDocumentsCompanion extends UpdateCompanion<ReplicaDocumentEntity> {
+  final Value<String> desktopId;
+  final Value<String> key;
+  final Value<String> body;
+  final Value<DateTime> fetchedAt;
+  final Value<int> rowid;
+  const ReplicaDocumentsCompanion({
+    this.desktopId = const Value.absent(),
+    this.key = const Value.absent(),
+    this.body = const Value.absent(),
+    this.fetchedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ReplicaDocumentsCompanion.insert({
+    required String desktopId,
+    required String key,
+    required String body,
+    required DateTime fetchedAt,
+    this.rowid = const Value.absent(),
+  }) : desktopId = Value(desktopId),
+       key = Value(key),
+       body = Value(body),
+       fetchedAt = Value(fetchedAt);
+  static Insertable<ReplicaDocumentEntity> custom({
+    Expression<String>? desktopId,
+    Expression<String>? key,
+    Expression<String>? body,
+    Expression<DateTime>? fetchedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (desktopId != null) 'desktop_id': desktopId,
+      if (key != null) 'key': key,
+      if (body != null) 'body': body,
+      if (fetchedAt != null) 'fetched_at': fetchedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ReplicaDocumentsCompanion copyWith({
+    Value<String>? desktopId,
+    Value<String>? key,
+    Value<String>? body,
+    Value<DateTime>? fetchedAt,
+    Value<int>? rowid,
+  }) {
+    return ReplicaDocumentsCompanion(
+      desktopId: desktopId ?? this.desktopId,
+      key: key ?? this.key,
+      body: body ?? this.body,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (desktopId.present) {
+      map['desktop_id'] = Variable<String>(desktopId.value);
+    }
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (body.present) {
+      map['body'] = Variable<String>(body.value);
+    }
+    if (fetchedAt.present) {
+      map['fetched_at'] = Variable<DateTime>(fetchedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReplicaDocumentsCompanion(')
+          ..write('desktopId: $desktopId, ')
+          ..write('key: $key, ')
+          ..write('body: $body, ')
+          ..write('fetchedAt: $fetchedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ReplicaBlockEventsTable extends ReplicaBlockEvents
+    with TableInfo<$ReplicaBlockEventsTable, ReplicaBlockEventEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ReplicaBlockEventsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _desktopIdMeta = const VerificationMeta(
+    'desktopId',
+  );
+  @override
+  late final GeneratedColumn<String> desktopId = GeneratedColumn<String>(
+    'desktop_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+    'session_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _seqMeta = const VerificationMeta('seq');
+  @override
+  late final GeneratedColumn<int> seq = GeneratedColumn<int>(
+    'seq',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+    'body',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [desktopId, sessionId, seq, body];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'replica_block_events';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ReplicaBlockEventEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('desktop_id')) {
+      context.handle(
+        _desktopIdMeta,
+        desktopId.isAcceptableOrUnknown(data['desktop_id']!, _desktopIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_desktopIdMeta);
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sessionIdMeta);
+    }
+    if (data.containsKey('seq')) {
+      context.handle(
+        _seqMeta,
+        seq.isAcceptableOrUnknown(data['seq']!, _seqMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_seqMeta);
+    }
+    if (data.containsKey('body')) {
+      context.handle(
+        _bodyMeta,
+        body.isAcceptableOrUnknown(data['body']!, _bodyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bodyMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {desktopId, sessionId, seq};
+  @override
+  ReplicaBlockEventEntity map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ReplicaBlockEventEntity(
+      desktopId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}desktop_id'],
+      )!,
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}session_id'],
+      )!,
+      seq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seq'],
+      )!,
+      body: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}body'],
+      )!,
+    );
+  }
+
+  @override
+  $ReplicaBlockEventsTable createAlias(String alias) {
+    return $ReplicaBlockEventsTable(attachedDatabase, alias);
+  }
+}
+
+class ReplicaBlockEventEntity extends DataClass
+    implements Insertable<ReplicaBlockEventEntity> {
+  final String desktopId;
+  final String sessionId;
+  final int seq;
+  final String body;
+  const ReplicaBlockEventEntity({
+    required this.desktopId,
+    required this.sessionId,
+    required this.seq,
+    required this.body,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['desktop_id'] = Variable<String>(desktopId);
+    map['session_id'] = Variable<String>(sessionId);
+    map['seq'] = Variable<int>(seq);
+    map['body'] = Variable<String>(body);
+    return map;
+  }
+
+  ReplicaBlockEventsCompanion toCompanion(bool nullToAbsent) {
+    return ReplicaBlockEventsCompanion(
+      desktopId: Value(desktopId),
+      sessionId: Value(sessionId),
+      seq: Value(seq),
+      body: Value(body),
+    );
+  }
+
+  factory ReplicaBlockEventEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ReplicaBlockEventEntity(
+      desktopId: serializer.fromJson<String>(json['desktopId']),
+      sessionId: serializer.fromJson<String>(json['sessionId']),
+      seq: serializer.fromJson<int>(json['seq']),
+      body: serializer.fromJson<String>(json['body']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'desktopId': serializer.toJson<String>(desktopId),
+      'sessionId': serializer.toJson<String>(sessionId),
+      'seq': serializer.toJson<int>(seq),
+      'body': serializer.toJson<String>(body),
+    };
+  }
+
+  ReplicaBlockEventEntity copyWith({
+    String? desktopId,
+    String? sessionId,
+    int? seq,
+    String? body,
+  }) => ReplicaBlockEventEntity(
+    desktopId: desktopId ?? this.desktopId,
+    sessionId: sessionId ?? this.sessionId,
+    seq: seq ?? this.seq,
+    body: body ?? this.body,
+  );
+  ReplicaBlockEventEntity copyWithCompanion(ReplicaBlockEventsCompanion data) {
+    return ReplicaBlockEventEntity(
+      desktopId: data.desktopId.present ? data.desktopId.value : this.desktopId,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      seq: data.seq.present ? data.seq.value : this.seq,
+      body: data.body.present ? data.body.value : this.body,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReplicaBlockEventEntity(')
+          ..write('desktopId: $desktopId, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('seq: $seq, ')
+          ..write('body: $body')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(desktopId, sessionId, seq, body);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ReplicaBlockEventEntity &&
+          other.desktopId == this.desktopId &&
+          other.sessionId == this.sessionId &&
+          other.seq == this.seq &&
+          other.body == this.body);
+}
+
+class ReplicaBlockEventsCompanion
+    extends UpdateCompanion<ReplicaBlockEventEntity> {
+  final Value<String> desktopId;
+  final Value<String> sessionId;
+  final Value<int> seq;
+  final Value<String> body;
+  final Value<int> rowid;
+  const ReplicaBlockEventsCompanion({
+    this.desktopId = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.seq = const Value.absent(),
+    this.body = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ReplicaBlockEventsCompanion.insert({
+    required String desktopId,
+    required String sessionId,
+    required int seq,
+    required String body,
+    this.rowid = const Value.absent(),
+  }) : desktopId = Value(desktopId),
+       sessionId = Value(sessionId),
+       seq = Value(seq),
+       body = Value(body);
+  static Insertable<ReplicaBlockEventEntity> custom({
+    Expression<String>? desktopId,
+    Expression<String>? sessionId,
+    Expression<int>? seq,
+    Expression<String>? body,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (desktopId != null) 'desktop_id': desktopId,
+      if (sessionId != null) 'session_id': sessionId,
+      if (seq != null) 'seq': seq,
+      if (body != null) 'body': body,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ReplicaBlockEventsCompanion copyWith({
+    Value<String>? desktopId,
+    Value<String>? sessionId,
+    Value<int>? seq,
+    Value<String>? body,
+    Value<int>? rowid,
+  }) {
+    return ReplicaBlockEventsCompanion(
+      desktopId: desktopId ?? this.desktopId,
+      sessionId: sessionId ?? this.sessionId,
+      seq: seq ?? this.seq,
+      body: body ?? this.body,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (desktopId.present) {
+      map['desktop_id'] = Variable<String>(desktopId.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
+    if (seq.present) {
+      map['seq'] = Variable<int>(seq.value);
+    }
+    if (body.present) {
+      map['body'] = Variable<String>(body.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReplicaBlockEventsCompanion(')
+          ..write('desktopId: $desktopId, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('seq: $seq, ')
+          ..write('body: $body, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $DesktopsTable desktops = $DesktopsTable(this);
+  late final $SettingsTable settings = $SettingsTable(this);
+  late final $ReplicaDocumentsTable replicaDocuments = $ReplicaDocumentsTable(
+    this,
+  );
+  late final $ReplicaBlockEventsTable replicaBlockEvents =
+      $ReplicaBlockEventsTable(this);
   late final DesktopDao desktopDao = DesktopDao(this as AppDatabase);
+  late final SettingsDao settingsDao = SettingsDao(this as AppDatabase);
+  late final ReplicaDocumentDao replicaDocumentDao = ReplicaDocumentDao(
+    this as AppDatabase,
+  );
+  late final ReplicaBlockEventDao replicaBlockEventDao = ReplicaBlockEventDao(
+    this as AppDatabase,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities => [desktops];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+    desktops,
+    settings,
+    replicaDocuments,
+    replicaBlockEvents,
+  ];
 }
 
 typedef $$DesktopsTableCreateCompanionBuilder =
@@ -861,10 +1715,540 @@ typedef $$DesktopsTableProcessedTableManager =
       DesktopEntity,
       PrefetchHooks Function()
     >;
+typedef $$SettingsTableCreateCompanionBuilder =
+    SettingsCompanion Function({
+      required String key,
+      required String value,
+      Value<int> rowid,
+    });
+typedef $$SettingsTableUpdateCompanionBuilder =
+    SettingsCompanion Function({
+      Value<String> key,
+      Value<String> value,
+      Value<int> rowid,
+    });
+
+class $$SettingsTableFilterComposer
+    extends Composer<_$AppDatabase, $SettingsTable> {
+  $$SettingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SettingsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SettingsTable> {
+  $$SettingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SettingsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SettingsTable> {
+  $$SettingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<String> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+}
+
+class $$SettingsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SettingsTable,
+          SettingEntity,
+          $$SettingsTableFilterComposer,
+          $$SettingsTableOrderingComposer,
+          $$SettingsTableAnnotationComposer,
+          $$SettingsTableCreateCompanionBuilder,
+          $$SettingsTableUpdateCompanionBuilder,
+          (
+            SettingEntity,
+            BaseReferences<_$AppDatabase, $SettingsTable, SettingEntity>,
+          ),
+          SettingEntity,
+          PrefetchHooks Function()
+        > {
+  $$SettingsTableTableManager(_$AppDatabase db, $SettingsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SettingsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SettingsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SettingsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> key = const Value.absent(),
+                Value<String> value = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SettingsCompanion(key: key, value: value, rowid: rowid),
+          createCompanionCallback:
+              ({
+                required String key,
+                required String value,
+                Value<int> rowid = const Value.absent(),
+              }) => SettingsCompanion.insert(
+                key: key,
+                value: value,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SettingsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SettingsTable,
+      SettingEntity,
+      $$SettingsTableFilterComposer,
+      $$SettingsTableOrderingComposer,
+      $$SettingsTableAnnotationComposer,
+      $$SettingsTableCreateCompanionBuilder,
+      $$SettingsTableUpdateCompanionBuilder,
+      (
+        SettingEntity,
+        BaseReferences<_$AppDatabase, $SettingsTable, SettingEntity>,
+      ),
+      SettingEntity,
+      PrefetchHooks Function()
+    >;
+typedef $$ReplicaDocumentsTableCreateCompanionBuilder =
+    ReplicaDocumentsCompanion Function({
+      required String desktopId,
+      required String key,
+      required String body,
+      required DateTime fetchedAt,
+      Value<int> rowid,
+    });
+typedef $$ReplicaDocumentsTableUpdateCompanionBuilder =
+    ReplicaDocumentsCompanion Function({
+      Value<String> desktopId,
+      Value<String> key,
+      Value<String> body,
+      Value<DateTime> fetchedAt,
+      Value<int> rowid,
+    });
+
+class $$ReplicaDocumentsTableFilterComposer
+    extends Composer<_$AppDatabase, $ReplicaDocumentsTable> {
+  $$ReplicaDocumentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get desktopId => $composableBuilder(
+    column: $table.desktopId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ReplicaDocumentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ReplicaDocumentsTable> {
+  $$ReplicaDocumentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get desktopId => $composableBuilder(
+    column: $table.desktopId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ReplicaDocumentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ReplicaDocumentsTable> {
+  $$ReplicaDocumentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get desktopId =>
+      $composableBuilder(column: $table.desktopId, builder: (column) => column);
+
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get fetchedAt =>
+      $composableBuilder(column: $table.fetchedAt, builder: (column) => column);
+}
+
+class $$ReplicaDocumentsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ReplicaDocumentsTable,
+          ReplicaDocumentEntity,
+          $$ReplicaDocumentsTableFilterComposer,
+          $$ReplicaDocumentsTableOrderingComposer,
+          $$ReplicaDocumentsTableAnnotationComposer,
+          $$ReplicaDocumentsTableCreateCompanionBuilder,
+          $$ReplicaDocumentsTableUpdateCompanionBuilder,
+          (
+            ReplicaDocumentEntity,
+            BaseReferences<
+              _$AppDatabase,
+              $ReplicaDocumentsTable,
+              ReplicaDocumentEntity
+            >,
+          ),
+          ReplicaDocumentEntity,
+          PrefetchHooks Function()
+        > {
+  $$ReplicaDocumentsTableTableManager(
+    _$AppDatabase db,
+    $ReplicaDocumentsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ReplicaDocumentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ReplicaDocumentsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ReplicaDocumentsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> desktopId = const Value.absent(),
+                Value<String> key = const Value.absent(),
+                Value<String> body = const Value.absent(),
+                Value<DateTime> fetchedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ReplicaDocumentsCompanion(
+                desktopId: desktopId,
+                key: key,
+                body: body,
+                fetchedAt: fetchedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String desktopId,
+                required String key,
+                required String body,
+                required DateTime fetchedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ReplicaDocumentsCompanion.insert(
+                desktopId: desktopId,
+                key: key,
+                body: body,
+                fetchedAt: fetchedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ReplicaDocumentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ReplicaDocumentsTable,
+      ReplicaDocumentEntity,
+      $$ReplicaDocumentsTableFilterComposer,
+      $$ReplicaDocumentsTableOrderingComposer,
+      $$ReplicaDocumentsTableAnnotationComposer,
+      $$ReplicaDocumentsTableCreateCompanionBuilder,
+      $$ReplicaDocumentsTableUpdateCompanionBuilder,
+      (
+        ReplicaDocumentEntity,
+        BaseReferences<
+          _$AppDatabase,
+          $ReplicaDocumentsTable,
+          ReplicaDocumentEntity
+        >,
+      ),
+      ReplicaDocumentEntity,
+      PrefetchHooks Function()
+    >;
+typedef $$ReplicaBlockEventsTableCreateCompanionBuilder =
+    ReplicaBlockEventsCompanion Function({
+      required String desktopId,
+      required String sessionId,
+      required int seq,
+      required String body,
+      Value<int> rowid,
+    });
+typedef $$ReplicaBlockEventsTableUpdateCompanionBuilder =
+    ReplicaBlockEventsCompanion Function({
+      Value<String> desktopId,
+      Value<String> sessionId,
+      Value<int> seq,
+      Value<String> body,
+      Value<int> rowid,
+    });
+
+class $$ReplicaBlockEventsTableFilterComposer
+    extends Composer<_$AppDatabase, $ReplicaBlockEventsTable> {
+  $$ReplicaBlockEventsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get desktopId => $composableBuilder(
+    column: $table.desktopId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seq => $composableBuilder(
+    column: $table.seq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ReplicaBlockEventsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ReplicaBlockEventsTable> {
+  $$ReplicaBlockEventsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get desktopId => $composableBuilder(
+    column: $table.desktopId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seq => $composableBuilder(
+    column: $table.seq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ReplicaBlockEventsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ReplicaBlockEventsTable> {
+  $$ReplicaBlockEventsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get desktopId =>
+      $composableBuilder(column: $table.desktopId, builder: (column) => column);
+
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
+
+  GeneratedColumn<int> get seq =>
+      $composableBuilder(column: $table.seq, builder: (column) => column);
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+}
+
+class $$ReplicaBlockEventsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ReplicaBlockEventsTable,
+          ReplicaBlockEventEntity,
+          $$ReplicaBlockEventsTableFilterComposer,
+          $$ReplicaBlockEventsTableOrderingComposer,
+          $$ReplicaBlockEventsTableAnnotationComposer,
+          $$ReplicaBlockEventsTableCreateCompanionBuilder,
+          $$ReplicaBlockEventsTableUpdateCompanionBuilder,
+          (
+            ReplicaBlockEventEntity,
+            BaseReferences<
+              _$AppDatabase,
+              $ReplicaBlockEventsTable,
+              ReplicaBlockEventEntity
+            >,
+          ),
+          ReplicaBlockEventEntity,
+          PrefetchHooks Function()
+        > {
+  $$ReplicaBlockEventsTableTableManager(
+    _$AppDatabase db,
+    $ReplicaBlockEventsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ReplicaBlockEventsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ReplicaBlockEventsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ReplicaBlockEventsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> desktopId = const Value.absent(),
+                Value<String> sessionId = const Value.absent(),
+                Value<int> seq = const Value.absent(),
+                Value<String> body = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ReplicaBlockEventsCompanion(
+                desktopId: desktopId,
+                sessionId: sessionId,
+                seq: seq,
+                body: body,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String desktopId,
+                required String sessionId,
+                required int seq,
+                required String body,
+                Value<int> rowid = const Value.absent(),
+              }) => ReplicaBlockEventsCompanion.insert(
+                desktopId: desktopId,
+                sessionId: sessionId,
+                seq: seq,
+                body: body,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ReplicaBlockEventsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ReplicaBlockEventsTable,
+      ReplicaBlockEventEntity,
+      $$ReplicaBlockEventsTableFilterComposer,
+      $$ReplicaBlockEventsTableOrderingComposer,
+      $$ReplicaBlockEventsTableAnnotationComposer,
+      $$ReplicaBlockEventsTableCreateCompanionBuilder,
+      $$ReplicaBlockEventsTableUpdateCompanionBuilder,
+      (
+        ReplicaBlockEventEntity,
+        BaseReferences<
+          _$AppDatabase,
+          $ReplicaBlockEventsTable,
+          ReplicaBlockEventEntity
+        >,
+      ),
+      ReplicaBlockEventEntity,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
   $AppDatabaseManager(this._db);
   $$DesktopsTableTableManager get desktops =>
       $$DesktopsTableTableManager(_db, _db.desktops);
+  $$SettingsTableTableManager get settings =>
+      $$SettingsTableTableManager(_db, _db.settings);
+  $$ReplicaDocumentsTableTableManager get replicaDocuments =>
+      $$ReplicaDocumentsTableTableManager(_db, _db.replicaDocuments);
+  $$ReplicaBlockEventsTableTableManager get replicaBlockEvents =>
+      $$ReplicaBlockEventsTableTableManager(_db, _db.replicaBlockEvents);
 }

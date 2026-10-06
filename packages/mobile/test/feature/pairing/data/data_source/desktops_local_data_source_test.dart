@@ -107,4 +107,16 @@ void main() {
     await source.rename(RenameDesktopParams(id: saved.id!, name: 'Studio'));
     expect((await source.watchAll().first).single.name, 'Studio');
   });
+
+  test('purgePasswords deletes every saved desktop password and nothing else', () async {
+    when(() => storage.readAll()).thenAnswer(
+      (_) async => {'server.password.a': 'x', 'server.password.b': 'y', 'other': 'z'},
+    );
+
+    await DesktopsLocalDataSourceImp.purgePasswords(storage);
+
+    verify(() => storage.delete(key: 'server.password.a')).called(1);
+    verify(() => storage.delete(key: 'server.password.b')).called(1);
+    verifyNever(() => storage.delete(key: 'other'));
+  });
 }

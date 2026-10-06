@@ -172,6 +172,12 @@ title = "gitleaks config"
     files = ['''^\.?gitleaks.toml$''',
     '''(.*?)(png|jpg|gif|doc|docx|pdf|bin|xls|pyc|zip)$''',
     '''(go.mod|go.sum)$''']
+    # The terminal package's act-probe recording is a byte capture of the
+    # secret-redaction affordance fed placeholder tokens (ghp_AAAA…,
+    # AKIABBBB…), never real credentials.
+    paths = [
+        '''^packages/terminal/bench/agent-session/probes/act-probe/''',
+    ]
     # Ignore false positives on public company URLs (rule matches brand name +
     # nearby alnum). Any company slug, not just this project's: the push-event
     # scan walks full history, which still carries the pre-rebrand handles.

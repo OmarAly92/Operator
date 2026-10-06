@@ -28,6 +28,8 @@ const (
 	BlockEventCompaction        BlockEventKind = "compaction"
 	BlockEventAgentStart        BlockEventKind = "agent_start"
 	BlockEventAgentStop         BlockEventKind = "agent_stop"
+	BlockEventTaskUpdate        BlockEventKind = "task_update"
+	BlockEventPermissionMode    BlockEventKind = "permission_mode"
 	BlockEventUnknown           BlockEventKind = "unknown"
 )
 
@@ -40,7 +42,7 @@ func ParseBlockEventKind(s string) (BlockEventKind, bool) {
 		BlockEventPermissionReplied, BlockEventQuestionAsked, BlockEventIdlePrompt,
 		BlockEventAssistantText, BlockEventReasoning, BlockEventToolStart,
 		BlockEventToolResult, BlockEventTodo, BlockEventTurnModel, BlockEventCompaction,
-		BlockEventAgentStart, BlockEventAgentStop:
+		BlockEventAgentStart, BlockEventAgentStop, BlockEventTaskUpdate, BlockEventPermissionMode:
 		return BlockEventKind(s), true
 	default:
 		return BlockEventUnknown, false

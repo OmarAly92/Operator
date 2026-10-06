@@ -1,6 +1,6 @@
 # Plan 9 — Mobile replica cache (drift)
 
-Status: written
+Status: superseded, never built. Replaced by `docs/superpowers/specs/2026-09-25-mobile-start-flow-and-local-store-design.md` and its plan `docs/superpowers/plans/2026-09-25-mobile-start-flow-and-local-store.md`.
 Date: 2026-08-28
 Spec: `docs/superpowers/specs/2026-08-27-session-blocks-design.md`
 Scope: `packages/mobile` only. No backend change, no desktop change, no API change.

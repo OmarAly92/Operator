@@ -1,0 +1,15 @@
+{"harness": "claude-code", "agentVersion": "2.1.280", "steps": [
+ {"type": "expect", "pattern": "\\? for shortcuts", "state": "settled", "timeout": 90},
+ {"type": "text", "text": "Run these as two separate Bash tool calls, one after the other: `touch first-call.txt` and then `touch second-call.txt`. Do not combine them."},
+ {"type": "submit"},
+ {"type": "expect", "pattern": "Do you want to proceed\\?", "state": "asking", "question": "touch first-call.txt", "timeout": 180},
+ {"type": "wait", "seconds": 3},
+ {"type": "resize", "cols": 100, "rows": 40},
+ {"type": "wait", "seconds": 4},
+ {"type": "answer", "keys": "\r"},
+ {"type": "expect", "pattern": "Do you want to proceed\\?", "state": "asking", "question": "touch second-call.txt", "timeout": 180},
+ {"type": "wait", "seconds": 5},
+ {"type": "answer", "keys": "\r"},
+ {"type": "expect", "pattern": "·[a-z ]{0,6}\\d{1,2}:\\d{2}", "state": "settled", "timeout": 300},
+ {"type": "wait", "seconds": 12}
+]}

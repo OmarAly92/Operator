@@ -55,3 +55,33 @@ func TestBuildSystemPromptTextAppendsWorkspaceSection(t *testing.T) {
 		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
 	}
 }
+
+// TestWorkerMultiPRPromptNamesOnlyCreatableBranches pins the branch shapes the
+// prompt asks for to ones Git accepts. Git refuses refs/heads/a/b/c while
+// refs/heads/a/b exists, so any "<current-branch>/<topic>" or
+// "<parent-branch>/<topic>" instruction sends the agent into a failing
+// `git checkout -b` and a PR Operator cannot attribute.
+func TestWorkerMultiPRPromptNamesOnlyCreatableBranches(t *testing.T) {
+	got := workerMultiPRPrompt()
+	for _, want := range []string{
+		"Open the first PR directly from the current branch",
+		"`<namespace>/<topic>`",
+		"target the parent branch in the PR",
+		"never name a branch `<existing-branch>/<topic>`",
+		"open PRs from the current branch only",
+		"If the user or project instructions require a different branch name, follow them",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("PR prompt missing %q:\n%s", want, got)
+		}
+	}
+	for _, banned := range []string{
+		"`<current-branch>/<topic>`",
+		"`<parent-branch>/<topic>`",
+		"child of this session branch",
+	} {
+		if strings.Contains(got, banned) {
+			t.Errorf("PR prompt still asks for an uncreatable branch shape %q:\n%s", banned, got)
+		}
+	}
+}

@@ -24,7 +24,7 @@ class _MockStore extends Mock implements ServerConfigStore {}
 
 const _a = DesktopModel(id: 'a', name: 'Mac', host: '10.0.0.5', port: '3011', secure: false, isActive: false);
 const _b = DesktopModel(id: 'b', name: 'iMac', host: '10.0.0.6', port: '3011', secure: false, isActive: false);
-const _config = ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'pw');
+const _config = ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'pw', desktopId: 'a');
 
 void main() {
   late _MockDesktops desktops;

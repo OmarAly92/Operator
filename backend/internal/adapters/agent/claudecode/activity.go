@@ -2,6 +2,7 @@ package claudecode
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 )
@@ -37,10 +38,11 @@ func DeriveActivityState(event string, payload []byte) (domain.ActivityState, bo
 		// tool, which lifecycle snapshots for the correlated clear above.
 		return domain.ActivityBlocked, true
 	case "stop":
-		// End of a turn (including a user interrupt): the agent is idle but
-		// alive (not exited). A following Notification(idle_prompt) also maps to
-		// idle, so an interrupted or finished turn reads Idle until the next
-		// prompt — only a real permission request flips it to waiting_input.
+		// End of a turn: the agent is idle but alive (not exited). A following
+		// Notification(idle_prompt) also maps to idle, so a finished turn reads
+		// Idle until the next prompt — only a real permission request flips it
+		// to waiting_input. Claude Code skips Stop on a user interrupt;
+		// TranscriptInterrupt covers that case.
 		return domain.ActivityIdle, true
 	case "notification":
 		return notificationState(payload)
@@ -104,5 +106,41 @@ func sessionEndState(payload []byte) (domain.ActivityState, bool) {
 		return "", false
 	default:
 		return domain.ActivityExited, true
+	}
+}
+
+// claudeInterruptMarker prefixes the user record Claude Code appends to the
+// transcript when the user interrupts a turn: "[Request interrupted by user]"
+// mid-response, "... for tool use" at a tool or permission dialog.
+const claudeInterruptMarker = "[Request interrupted by user"
+
+// TranscriptInterrupt classifies one line of the main transcript for turn
+// state. interrupted is true for the interrupt marker; turn is true for any
+// main-chain user or assistant record, which a later one uses to supersede an
+// earlier interrupt.
+//
+// The transcript is the only signal for an interrupt: Claude Code does not run
+// the Stop hook when the user interrupts, so without it the session stays
+// active until the next prompt.
+func TranscriptInterrupt(line []byte) (interrupted, turn bool) {
+	var rec struct {
+		Type        string `json:"type"`
+		IsSidechain bool   `json:"isSidechain"`
+		IsMeta      bool   `json:"isMeta"`
+		Message     struct {
+			Content json.RawMessage `json:"content"`
+		} `json:"message"`
+	}
+	if err := json.Unmarshal(line, &rec); err != nil || rec.IsSidechain || rec.IsMeta {
+		return false, false
+	}
+	switch rec.Type {
+	case "assistant":
+		return false, true
+	case "user":
+		text := strings.TrimSpace(claudeFlattenText(rec.Message.Content))
+		return strings.HasPrefix(text, claudeInterruptMarker), true
+	default:
+		return false, false
 	}
 }

@@ -1,0 +1,2882 @@
+[
+  {
+    "id": "material.regular",
+    "group": "material",
+    "title": "Regular glass at three sizes",
+    "inventory": "2.1",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo",
+      "white",
+      "black",
+      "text"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "s44": [
+        126,
+        237,
+        150,
+        44
+      ],
+      "s88": [
+        76,
+        329,
+        250,
+        88
+      ],
+      "s200": [
+        21,
+        465,
+        360,
+        200
+      ]
+    }
+  },
+  {
+    "id": "material.clear",
+    "group": "material",
+    "title": "Clear glass with and without the dimming layer",
+    "inventory": "2.2",
+    "app": "lab",
+    "backdrops": [
+      "photo",
+      "white"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "plain": [
+        76,
+        331,
+        250,
+        88
+      ],
+      "dimmed": [
+        76,
+        483,
+        250,
+        88
+      ]
+    }
+  },
+  {
+    "id": "material.tinted",
+    "group": "material",
+    "title": "Tinted glass and a prominent button",
+    "inventory": "2.4",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "white",
+      "black"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "block": [
+        76,
+        365,
+        250,
+        88
+      ],
+      "run": [
+        162,
+        501,
+        78,
+        37
+      ]
+    }
+  },
+  {
+    "id": "material.interactive",
+    "group": "material",
+    "title": "Interactive glass press and drag",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "pressDrag": {
+          "from": "glass",
+          "to": {
+            "element": "glass",
+            "dx": 60
+          },
+          "pressDuration": 0.3,
+          "velocity": 120,
+          "hold": 0.5
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        46,
+        377,
+        310,
+        148
+      ]
+    },
+    "track": [
+      "glass"
+    ]
+  },
+  {
+    "id": "material.press.circle58",
+    "group": "material",
+    "title": "Interactive glass press, 58 pt circle",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        142,
+        392,
+        118,
+        118
+      ]
+    },
+    "track": [
+      "glass"
+    ]
+  },
+  {
+    "id": "material.press.138x53",
+    "group": "material",
+    "title": "Interactive glass press, 138 by 53 capsule",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        102,
+        394,
+        198,
+        114
+      ]
+    },
+    "track": [
+      "glass"
+    ]
+  },
+  {
+    "id": "material.press.250x44",
+    "group": "material",
+    "title": "Interactive glass press, 250 by 44 capsule",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        46,
+        399,
+        310,
+        104
+      ]
+    },
+    "track": [
+      "glass"
+    ]
+  },
+  {
+    "id": "material.press.300x120",
+    "group": "material",
+    "title": "Interactive glass press, 300 by 120 capsule",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        21,
+        361,
+        360,
+        180
+      ]
+    },
+    "track": [
+      "glass"
+    ]
+  },
+  {
+    "id": "material.press.360x200",
+    "group": "material",
+    "title": "Interactive glass press, 360 by 200 rounded rectangle",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        1,
+        321,
+        400,
+        260
+      ]
+    },
+    "track": [
+      "glass"
+    ]
+  },
+  {
+    "id": "material.flip",
+    "group": "material",
+    "title": "Small and large glass over content that turns white then black",
+    "inventory": "2.9",
+    "app": "lab",
+    "backdrops": [
+      "scroll"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            700
+          ],
+          "to": [
+            201,
+            150
+          ],
+          "pressDuration": 0.05,
+          "velocity": 400,
+          "hold": 0.5
+        }
+      },
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            700
+          ],
+          "to": [
+            201,
+            150
+          ],
+          "pressDuration": 0.05,
+          "velocity": 400,
+          "hold": 0.5
+        }
+      },
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            700
+          ],
+          "to": [
+            201,
+            150
+          ],
+          "pressDuration": 0.05,
+          "velocity": 400,
+          "hold": 0.5
+        }
+      },
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            700
+          ],
+          "to": [
+            201,
+            150
+          ],
+          "pressDuration": 0.05,
+          "velocity": 400,
+          "hold": 0.5
+        }
+      },
+      {
+        "wait": 0.5
+      }
+    ]
+  },
+  {
+    "id": "material.materialize",
+    "group": "material",
+    "title": "Glass materializes in and out",
+    "inventory": "2.13",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "toggle"
+      },
+      {
+        "wait": 1.2
+      },
+      {
+        "tap": "toggle"
+      },
+      {
+        "wait": 1.2
+      }
+    ],
+    "regions": {
+      "block": [
+        70,
+        400,
+        262,
+        104
+      ]
+    },
+    "track": [
+      "block"
+    ],
+    "motion": [
+      "progress.t10_90_ms",
+      "progress.settle_ms",
+      "progress.overshoot_pct",
+      "progress.response_pct",
+      "progress.damping",
+      "progress.rms",
+      "progress.sharpness"
+    ]
+  },
+  {
+    "id": "material.materialize.snappy",
+    "group": "material",
+    "title": "Glass materializes in and out under withAnimation(.snappy)",
+    "inventory": "2.13",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "toggle"
+      },
+      {
+        "wait": 1.2
+      },
+      {
+        "tap": "toggle"
+      },
+      {
+        "wait": 1.2
+      }
+    ],
+    "regions": {
+      "block": [
+        70,
+        400,
+        262,
+        104
+      ]
+    },
+    "track": [
+      "block"
+    ],
+    "motion": [
+      "progress.t10_90_ms",
+      "progress.settle_ms",
+      "progress.overshoot_pct",
+      "progress.response_pct",
+      "progress.damping",
+      "progress.rms",
+      "progress.sharpness"
+    ]
+  },
+  {
+    "id": "material.materialize.bouncy",
+    "group": "material",
+    "title": "Glass materializes in and out under withAnimation(.bouncy)",
+    "inventory": "2.13",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "toggle"
+      },
+      {
+        "wait": 1.2
+      },
+      {
+        "tap": "toggle"
+      },
+      {
+        "wait": 1.2
+      }
+    ],
+    "regions": {
+      "block": [
+        70,
+        400,
+        262,
+        104
+      ]
+    },
+    "track": [
+      "block"
+    ],
+    "motion": [
+      "progress.t10_90_ms",
+      "progress.settle_ms",
+      "progress.overshoot_pct",
+      "progress.response_pct",
+      "progress.damping",
+      "progress.rms",
+      "progress.sharpness"
+    ]
+  },
+  {
+    "id": "material.merge",
+    "group": "material",
+    "title": "Two circles merge and split in a container",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "merge"
+      },
+      {
+        "wait": 1.5
+      },
+      {
+        "tap": "split"
+      },
+      {
+        "wait": 1.5
+      }
+    ]
+  },
+  {
+    "id": "material.union",
+    "group": "material",
+    "title": "Glass union of four items in two groups",
+    "inventory": "2.15",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": []
+  },
+  {
+    "id": "material.morph",
+    "group": "material",
+    "title": "Button morphs into a badge stack",
+    "inventory": "2.16",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "morph"
+      },
+      {
+        "wait": 1.5
+      },
+      {
+        "tap": "morph"
+      },
+      {
+        "wait": 1.5
+      }
+    ]
+  },
+  {
+    "id": "material.spacing.default.a",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 0, 4, 8, 12 pt in the default GlassEffectContainer()",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g0": [
+        109,
+        129,
+        184,
+        104
+      ],
+      "g4": [
+        107,
+        309,
+        188,
+        104
+      ],
+      "g8": [
+        105,
+        489,
+        192,
+        104
+      ],
+      "g12": [
+        103,
+        669,
+        196,
+        104
+      ]
+    },
+    "topology": [
+      "g0",
+      "g4",
+      "g8",
+      "g12"
+    ]
+  },
+  {
+    "id": "material.spacing.default.b",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 16, 20, 24, 32 pt in the default GlassEffectContainer()",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g16": [
+        101,
+        129,
+        200,
+        104
+      ],
+      "g20": [
+        99,
+        309,
+        204,
+        104
+      ],
+      "g24": [
+        97,
+        489,
+        208,
+        104
+      ],
+      "g32": [
+        93,
+        669,
+        216,
+        104
+      ]
+    },
+    "topology": [
+      "g16",
+      "g20",
+      "g24",
+      "g32"
+    ]
+  },
+  {
+    "id": "material.spacing.default.c",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 40, 48, 60 pt in the default GlassEffectContainer()",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g40": [
+        89,
+        219,
+        224,
+        104
+      ],
+      "g48": [
+        85,
+        399,
+        232,
+        104
+      ],
+      "g60": [
+        79,
+        579,
+        244,
+        104
+      ]
+    },
+    "topology": [
+      "g40",
+      "g48",
+      "g60"
+    ]
+  },
+  {
+    "id": "material.spacing.40.a",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 0, 4, 8, 12 pt in GlassEffectContainer(spacing: 40)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g0": [
+        109,
+        129,
+        184,
+        104
+      ],
+      "g4": [
+        107,
+        309,
+        188,
+        104
+      ],
+      "g8": [
+        105,
+        489,
+        192,
+        104
+      ],
+      "g12": [
+        103,
+        669,
+        196,
+        104
+      ]
+    },
+    "topology": [
+      "g0",
+      "g4",
+      "g8",
+      "g12"
+    ]
+  },
+  {
+    "id": "material.spacing.40.b",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 16, 20, 24, 32 pt in GlassEffectContainer(spacing: 40)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g16": [
+        101,
+        129,
+        200,
+        104
+      ],
+      "g20": [
+        99,
+        309,
+        204,
+        104
+      ],
+      "g24": [
+        97,
+        489,
+        208,
+        104
+      ],
+      "g32": [
+        93,
+        669,
+        216,
+        104
+      ]
+    },
+    "topology": [
+      "g16",
+      "g20",
+      "g24",
+      "g32"
+    ]
+  },
+  {
+    "id": "material.spacing.40.c",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 40, 48, 60 pt in GlassEffectContainer(spacing: 40)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g40": [
+        89,
+        219,
+        224,
+        104
+      ],
+      "g48": [
+        85,
+        399,
+        232,
+        104
+      ],
+      "g60": [
+        79,
+        579,
+        244,
+        104
+      ]
+    },
+    "topology": [
+      "g40",
+      "g48",
+      "g60"
+    ]
+  },
+  {
+    "id": "material.shapes",
+    "group": "material",
+    "title": "Capsule, fixed radius and concentric shapes",
+    "inventory": "2.17",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": []
+  },
+  {
+    "id": "material.edge.soft",
+    "group": "material",
+    "title": "Soft scroll edge effect under an inline bar",
+    "inventory": "2.19",
+    "app": "lab",
+    "backdrops": [
+      "scroll"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "edge": [
+        0,
+        0,
+        402,
+        240
+      ]
+    },
+    "track": "edge",
+    "measures": [
+      "mad",
+      "luminance"
+    ]
+  },
+  {
+    "id": "material.edge.hard",
+    "group": "material",
+    "title": "Hard scroll edge effect under an inline bar",
+    "inventory": "2.19",
+    "app": "lab",
+    "backdrops": [
+      "scroll"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "edge": [
+        0,
+        0,
+        402,
+        240
+      ]
+    },
+    "track": "edge",
+    "measures": [
+      "mad",
+      "luminance"
+    ]
+  },
+  {
+    "id": "material.edge.automatic",
+    "group": "material",
+    "title": "Automatic scroll edge effect under an inline bar",
+    "inventory": "2.19",
+    "app": "lab",
+    "backdrops": [
+      "scroll"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "edge": [
+        0,
+        0,
+        402,
+        240
+      ]
+    },
+    "track": "edge",
+    "measures": [
+      "mad",
+      "luminance"
+    ]
+  },
+  {
+    "id": "material.content",
+    "group": "material",
+    "title": "Content layer materials",
+    "inventory": "2.22",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": []
+  },
+  {
+    "id": "tabbar.rest",
+    "group": "navigation",
+    "title": "Tab bar with a search tab",
+    "inventory": "3.1",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo",
+      "white",
+      "black"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": []
+  },
+  {
+    "id": "tabbar.press",
+    "group": "navigation",
+    "title": "Tab bar press and hold",
+    "inventory": "3.2",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "PRs",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "tabbar.drag",
+    "group": "navigation",
+    "title": "Tab selection lens dragged across tabs",
+    "inventory": "3.2",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": "Agents",
+          "to": "Settings",
+          "pressDuration": 0.3,
+          "velocity": 300,
+          "hold": 0.4
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "tabbar.minimize",
+    "group": "navigation",
+    "title": "Tab bar minimizes on scroll",
+    "inventory": "3.3",
+    "app": "lab",
+    "backdrops": [
+      "scroll"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            650
+          ],
+          "to": [
+            201,
+            250
+          ],
+          "pressDuration": 0.05,
+          "velocity": 800,
+          "hold": 0.2
+        }
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            250
+          ],
+          "to": [
+            201,
+            650
+          ],
+          "pressDuration": 0.05,
+          "velocity": 800,
+          "hold": 0.2
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "tabbar.accessory",
+    "group": "navigation",
+    "title": "Tab bar bottom accessory, expanded then inline",
+    "inventory": "3.4",
+    "app": "lab",
+    "backdrops": [
+      "scroll"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            650
+          ],
+          "to": [
+            201,
+            250
+          ],
+          "pressDuration": 0.05,
+          "velocity": 800,
+          "hold": 0.2
+        }
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            250
+          ],
+          "to": [
+            201,
+            650
+          ],
+          "pressDuration": 0.05,
+          "velocity": 800,
+          "hold": 0.2
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "tabbar.search",
+    "group": "navigation",
+    "title": "Search tab morphs into a field",
+    "inventory": "3.5",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "Search"
+      },
+      {
+        "wait": 1.5
+      },
+      {
+        "tap": "Agents"
+      },
+      {
+        "wait": 1.5
+      }
+    ]
+  },
+  {
+    "id": "tabbar.prominent",
+    "group": "navigation",
+    "title": "Prominent tab",
+    "inventory": "3.6",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "Run"
+      },
+      {
+        "wait": 1.2
+      }
+    ]
+  },
+  {
+    "id": "tabbar.badge",
+    "group": "navigation",
+    "title": "Tab badge",
+    "inventory": "3.7",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": []
+  },
+  {
+    "id": "navbar.inline",
+    "group": "navigation",
+    "title": "Inline title, back button and trailing group",
+    "inventory": "3.10",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "white",
+      "black"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": []
+  },
+  {
+    "id": "navbar.large",
+    "group": "navigation",
+    "title": "Large title with subtitle scrolling under the bar",
+    "inventory": "3.12",
+    "app": "lab",
+    "backdrops": [
+      "scroll"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            600
+          ],
+          "to": [
+            201,
+            300
+          ],
+          "pressDuration": 0.05,
+          "velocity": 600,
+          "hold": 1.0
+        }
+      },
+      {
+        "wait": 0.5
+      }
+    ]
+  },
+  {
+    "id": "navbar.groups",
+    "group": "navigation",
+    "title": "Toolbar groups, spacer and prominent action",
+    "inventory": "3.13",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "nav.bell",
+          "duration": 0.8
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "navbar.minimize",
+    "group": "navigation",
+    "title": "Navigation bar minimizes on scroll",
+    "inventory": "3.18",
+    "app": "lab",
+    "backdrops": [
+      "scroll"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            650
+          ],
+          "to": [
+            201,
+            250
+          ],
+          "pressDuration": 0.05,
+          "velocity": 800,
+          "hold": 0.2
+        }
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            250
+          ],
+          "to": [
+            201,
+            650
+          ],
+          "pressDuration": 0.05,
+          "velocity": 800,
+          "hold": 0.2
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "navbar.push",
+    "group": "navigation",
+    "title": "Toolbar items across push and pop",
+    "inventory": "3.16",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "row.1"
+      },
+      {
+        "wait": 1.2
+      },
+      {
+        "tap": "BackButton"
+      },
+      {
+        "wait": 1.2
+      }
+    ]
+  },
+  {
+    "id": "navbar.badge",
+    "group": "navigation",
+    "title": "Badge on a bar button",
+    "inventory": "3.17",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": []
+  },
+  {
+    "id": "toolbar.bottom",
+    "group": "navigation",
+    "title": "Bottom toolbar with groups",
+    "inventory": "3.15",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": []
+  },
+  {
+    "id": "search.bottom",
+    "group": "navigation",
+    "title": "Bottom search field above the keyboard",
+    "inventory": "3.20",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": [
+          201,
+          822
+        ]
+      },
+      {
+        "wait": 1.5
+      },
+      {
+        "tap": "close"
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "search.minimized",
+    "group": "navigation",
+    "title": "Minimized search button",
+    "inventory": "3.20",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": [
+          201,
+          822
+        ]
+      },
+      {
+        "wait": 1.5
+      },
+      {
+        "tap": "close"
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "search.scopes",
+    "group": "navigation",
+    "title": "Search scopes",
+    "inventory": "3.21",
+    "app": "lab",
+    "backdrops": [
+      "white"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": [
+          201,
+          822
+        ]
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "sheet.detents",
+    "group": "presentations",
+    "title": "Sheet moved between its detents",
+    "inventory": "4.1",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": "sheet.top",
+          "to": [
+            201,
+            80
+          ],
+          "pressDuration": 0.05,
+          "velocity": 600,
+          "hold": 0.3
+        }
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "pressDrag": {
+          "from": "sheet.top",
+          "to": [
+            201,
+            850
+          ],
+          "pressDuration": 0.05,
+          "velocity": 600,
+          "hold": 0.3
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "sheet.scroll",
+    "group": "presentations",
+    "title": "Large sheet with scrolling content",
+    "inventory": "4.1",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            600
+          ],
+          "to": [
+            201,
+            300
+          ],
+          "pressDuration": 0.05,
+          "velocity": 600,
+          "hold": 1.0
+        }
+      },
+      {
+        "wait": 0.5
+      }
+    ]
+  },
+  {
+    "id": "sheet.zoom",
+    "group": "presentations",
+    "title": "Sheet zooms out of a toolbar button",
+    "inventory": "4.3",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "zoom.source"
+      },
+      {
+        "wait": 1.5
+      },
+      {
+        "pressDrag": {
+          "from": "sheet.top",
+          "to": [
+            201,
+            860
+          ],
+          "pressDuration": 0.05,
+          "velocity": 900,
+          "hold": 0.0
+        }
+      },
+      {
+        "wait": 1.2
+      }
+    ]
+  },
+  {
+    "id": "sheet.crossfade",
+    "group": "presentations",
+    "title": "Cross-fade sheet presentation",
+    "inventory": "4.4",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "sheet.present"
+      },
+      {
+        "wait": 1.2
+      },
+      {
+        "tap": "sheet.close"
+      },
+      {
+        "wait": 1.2
+      }
+    ]
+  },
+  {
+    "id": "popover.bar",
+    "group": "presentations",
+    "title": "Popover from a bar button",
+    "inventory": "4.5",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "popover.source"
+      },
+      {
+        "wait": 1.2
+      },
+      {
+        "tap": [
+          201,
+          700
+        ]
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "menu.bar",
+    "group": "presentations",
+    "title": "Menu from a toolbar button",
+    "inventory": "4.6",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "menu.button"
+      },
+      {
+        "wait": 1.2
+      },
+      {
+        "tap": [
+          100,
+          700
+        ]
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "menu.submenu",
+    "group": "presentations",
+    "title": "Menu with a submenu",
+    "inventory": "4.6",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "menu.button"
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "tap": "Sort By"
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "tap": [
+          100,
+          700
+        ]
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "menu.pressdrag",
+    "group": "presentations",
+    "title": "Press the menu button and drag onto an item",
+    "inventory": "4.6",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": "menu.button",
+          "to": [
+            300,
+            230
+          ],
+          "pressDuration": 0.4,
+          "velocity": 400,
+          "hold": 0.3
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "contextmenu.card",
+    "group": "presentations",
+    "title": "Context menu on a card",
+    "inventory": "4.7",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "card",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "tap": [
+          201,
+          80
+        ]
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "alert.two",
+    "group": "presentations",
+    "title": "Alert with two actions",
+    "inventory": "4.9",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "white"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "alert.show"
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "tap": "Cancel"
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "alert.three",
+    "group": "presentations",
+    "title": "Alert with three actions",
+    "inventory": "4.9",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "white"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "alert.show"
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "tap": "Cancel"
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "confirm.source",
+    "group": "presentations",
+    "title": "Confirmation dialog anchored to its button",
+    "inventory": "4.10",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "confirm.show"
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "tap": [
+          201,
+          120
+        ]
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "push.zoom",
+    "group": "presentations",
+    "title": "Push with a zoom transition from a card",
+    "inventory": "4.11",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "card.0"
+      },
+      {
+        "wait": 1.2
+      },
+      {
+        "pressDrag": {
+          "from": [
+            1,
+            437
+          ],
+          "to": [
+            320,
+            437
+          ],
+          "pressDuration": 0.05,
+          "velocity": 800,
+          "hold": 0.0
+        }
+      },
+      {
+        "wait": 1.2
+      }
+    ]
+  },
+  {
+    "id": "button.styles",
+    "group": "controls",
+    "title": "Glass button styles, sizes and shapes",
+    "inventory": "5.1",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "white",
+      "black"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": []
+  },
+  {
+    "id": "button.press",
+    "group": "controls",
+    "title": "Glass and prominent button press",
+    "inventory": "5.1",
+    "app": "lab",
+    "backdrops": [
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "btn.glass",
+          "duration": 0.8
+        }
+      },
+      {
+        "wait": 0.8
+      },
+      {
+        "press": {
+          "at": "btn.prominent",
+          "duration": 0.8
+        }
+      },
+      {
+        "wait": 0.8
+      }
+    ]
+  },
+  {
+    "id": "toggle",
+    "group": "controls",
+    "title": "Switch tapped, then its knob dragged",
+    "inventory": "5.5",
+    "app": "lab",
+    "backdrops": [
+      "white",
+      "black",
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "toggle.off"
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "pressDrag": {
+          "from": {
+            "element": "toggle.on",
+            "dx": 12
+          },
+          "to": {
+            "element": "toggle.on",
+            "dx": -18
+          },
+          "pressDuration": 0.2,
+          "velocity": 100,
+          "hold": 0.5
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "slider",
+    "group": "controls",
+    "title": "Slider flicked, then dragged slowly",
+    "inventory": "5.6",
+    "app": "lab",
+    "backdrops": [
+      "white",
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": "slider.default",
+          "to": {
+            "element": "slider.default",
+            "dx": 140
+          },
+          "pressDuration": 0.1,
+          "velocity": 1500,
+          "hold": 0.0
+        }
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "pressDrag": {
+          "from": {
+            "element": "slider.default",
+            "dx": 140
+          },
+          "to": {
+            "element": "slider.default",
+            "dx": 60
+          },
+          "pressDuration": 0.1,
+          "velocity": 100,
+          "hold": 0.5
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "segmented",
+    "group": "controls",
+    "title": "Segmented control tapped, then dragged",
+    "inventory": "5.7",
+    "app": "lab",
+    "backdrops": [
+      "white",
+      "stripes"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": {
+          "element": "segmented",
+          "dx": 107
+        }
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "pressDrag": {
+          "from": {
+            "element": "segmented",
+            "dx": -107
+          },
+          "to": "segmented",
+          "pressDuration": 0.2,
+          "velocity": 200,
+          "hold": 0.4
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "stepper",
+    "group": "controls",
+    "title": "Stepper",
+    "inventory": "5.8",
+    "app": "lab",
+    "backdrops": [
+      "white"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "Increment"
+      },
+      {
+        "wait": 0.6
+      },
+      {
+        "tap": "Increment"
+      },
+      {
+        "wait": 0.6
+      },
+      {
+        "tap": "Decrement"
+      },
+      {
+        "wait": 0.8
+      }
+    ]
+  },
+  {
+    "id": "picker.menu",
+    "group": "controls",
+    "title": "Menu picker",
+    "inventory": "5.9",
+    "app": "lab",
+    "backdrops": [
+      "white"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "picker"
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "tap": "Sonnet"
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "datepicker.compact",
+    "group": "controls",
+    "title": "Compact date picker",
+    "inventory": "5.9",
+    "app": "lab",
+    "backdrops": [
+      "white"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "datepicker"
+      },
+      {
+        "wait": 1.2
+      },
+      {
+        "tap": [
+          201,
+          80
+        ]
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "datepicker.inline",
+    "group": "controls",
+    "title": "Inline date picker",
+    "inventory": "5.9",
+    "app": "lab",
+    "backdrops": [
+      "white"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": []
+  },
+  {
+    "id": "datepicker.wheel",
+    "group": "controls",
+    "title": "Wheel date picker",
+    "inventory": "5.9",
+    "app": "lab",
+    "backdrops": [
+      "white"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": []
+  },
+  {
+    "id": "pagecontrol",
+    "group": "controls",
+    "title": "Page control with a platter",
+    "inventory": "5.10",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": []
+  },
+  {
+    "id": "textfield",
+    "group": "controls",
+    "title": "Text and search fields",
+    "inventory": "5.11",
+    "app": "lab",
+    "backdrops": [
+      "white",
+      "black"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "field.text"
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "list.form",
+    "group": "controls",
+    "title": "Inset grouped form",
+    "inventory": "5.12",
+    "app": "lab",
+    "backdrops": [
+      "none"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            600
+          ],
+          "to": [
+            201,
+            400
+          ],
+          "pressDuration": 0.05,
+          "velocity": 400,
+          "hold": 0.5
+        }
+      },
+      {
+        "wait": 0.5
+      }
+    ]
+  },
+  {
+    "id": "swipe.row",
+    "group": "controls",
+    "title": "Swipe actions on a row",
+    "inventory": "5.14",
+    "app": "lab",
+    "backdrops": [
+      "none"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": "row.2",
+          "to": {
+            "element": "row.2",
+            "dx": -180
+          },
+          "pressDuration": 0.05,
+          "velocity": 600,
+          "hold": 0.4
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "progress",
+    "group": "controls",
+    "title": "Progress views and a thumbless slider",
+    "inventory": "5.13",
+    "app": "lab",
+    "backdrops": [
+      "white"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": []
+  },
+  {
+    "id": "apple.maps.sheet",
+    "group": "apple",
+    "title": "Maps sheet dragged to full, then to its smallest detent",
+    "inventory": "4.1",
+    "app": "com.apple.Maps",
+    "backdrops": [
+      "none"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 1.0
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            497
+          ],
+          "to": [
+            201,
+            150
+          ],
+          "pressDuration": 0.05,
+          "velocity": 500,
+          "hold": 0.3
+        }
+      },
+      {
+        "wait": 1.5
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            80
+          ],
+          "to": [
+            201,
+            800
+          ],
+          "pressDuration": 0.05,
+          "velocity": 800,
+          "hold": 0.3
+        }
+      },
+      {
+        "wait": 1.5
+      }
+    ],
+    "prepare": [
+      {
+        "wait": 2.0
+      },
+      {
+        "tap": [
+          201,
+          810
+        ]
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "apple.photos.search",
+    "group": "apple",
+    "title": "Photos search tab",
+    "inventory": "3.5",
+    "app": "com.apple.mobileslideshow",
+    "backdrops": [
+      "none"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 1.0
+      },
+      {
+        "tap": "Search"
+      },
+      {
+        "wait": 1.5
+      },
+      {
+        "tap": "Library"
+      },
+      {
+        "wait": 1.5
+      }
+    ],
+    "prepare": [
+      {
+        "wait": 2.0
+      },
+      {
+        "tap": [
+          72,
+          822
+        ]
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "tap": [
+          348,
+          822
+        ]
+      },
+      {
+        "wait": 2.0
+      },
+      {
+        "tap": "Next keyboard"
+      },
+      {
+        "wait": 3.0
+      },
+      {
+        "tap": [
+          201,
+          830
+        ]
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "tap": "Next keyboard"
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "tap": [
+          370,
+          541
+        ]
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "tap": [
+          72,
+          822
+        ]
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "apple.photos.scroll",
+    "group": "apple",
+    "title": "Photos grid scrolled under the tab bar",
+    "inventory": "3.3",
+    "app": "com.apple.mobileslideshow",
+    "backdrops": [
+      "none"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            650
+          ],
+          "to": [
+            201,
+            250
+          ],
+          "pressDuration": 0.05,
+          "velocity": 800,
+          "hold": 0.2
+        }
+      },
+      {
+        "wait": 1.0
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            250
+          ],
+          "to": [
+            201,
+            650
+          ],
+          "pressDuration": 0.05,
+          "velocity": 800,
+          "hold": 0.2
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "apple.reminders.menu",
+    "group": "apple",
+    "title": "Reminders list menu",
+    "inventory": "4.6",
+    "app": "com.apple.reminders",
+    "backdrops": [
+      "none"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 1.0
+      },
+      {
+        "tap": "OverflowBarButtonItem"
+      },
+      {
+        "wait": 1.2
+      },
+      {
+        "tap": [
+          100,
+          700
+        ]
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "prepare": [
+      {
+        "wait": 2.0
+      },
+      {
+        "tap": [
+          127,
+          521
+        ]
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "apple.calendar.toolbar",
+    "group": "apple",
+    "title": "Calendar grouped toolbar and bottom bar",
+    "inventory": "3.13",
+    "app": "com.apple.mobilecal",
+    "backdrops": [
+      "none"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "prepare": [
+      {
+        "wait": 2.0
+      },
+      {
+        "tap": [
+          201,
+          810
+        ]
+      },
+      {
+        "wait": 1.0
+      }
+    ]
+  },
+  {
+    "id": "apple.settings.large",
+    "group": "apple",
+    "title": "Settings large title under the bar",
+    "inventory": "3.12",
+    "app": "com.apple.Preferences",
+    "backdrops": [
+      "none"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": [
+            201,
+            600
+          ],
+          "to": [
+            201,
+            300
+          ],
+          "pressDuration": 0.05,
+          "velocity": 600,
+          "hold": 1.0
+        }
+      },
+      {
+        "wait": 0.5
+      }
+    ]
+  }
+]

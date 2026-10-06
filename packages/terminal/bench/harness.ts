@@ -14,6 +14,7 @@ import {
 	measureFindFirstResult,
 	populateScrollback,
 } from "./find.bench.js";
+import { UNBOUNDED_BYTES } from "@operator/terminal-core";
 
 export interface Geometry {
 	columns: number;
@@ -160,10 +161,10 @@ async function runScenario(
 			}
 			const sensitivitySamples: number[] = [];
 			for (let index = 0; index < configuration.warmups; index += 1) {
-				measureFindFirstResult(renderer, Number.MAX_SAFE_INTEGER);
+				measureFindFirstResult(renderer, UNBOUNDED_BYTES);
 			}
 			for (let index = 0; index < configuration.samples; index += 1) {
-				sensitivitySamples.push(measureFindFirstResult(renderer, Number.MAX_SAFE_INTEGER));
+				sensitivitySamples.push(measureFindFirstResult(renderer, UNBOUNDED_BYTES));
 			}
 			invocationKinds.add(renderer.kind);
 			const { median, p95 } = summary(samples);

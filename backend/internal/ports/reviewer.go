@@ -124,6 +124,10 @@ type ReviewInvocation struct {
 	// files for this reviewer. Adapters use it when a long-lived reviewer needs
 	// permission to read request-scoped task files created after launch.
 	TaskPromptRoot string
+	// MCPServers are the MCP servers the reviewer CLI must load for this launch:
+	// the reviewer-role Operator server (`opr mcp --reviewer`), whose
+	// review_submit tool is the only way a reviewer records its result.
+	MCPServers []MCPServerSpec
 }
 
 // ReviewTask is one PR/run in a multi-PR review trigger queue.

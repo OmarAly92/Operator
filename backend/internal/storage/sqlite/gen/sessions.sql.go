@@ -13,6 +13,23 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
+const clearSessionAgentReport = `-- name: ClearSessionAgentReport :execrows
+UPDATE sessions SET agent_report_state = '', agent_report_reason = '', agent_report_at = NULL, updated_at = ? WHERE id = ? AND agent_report_state <> ''
+`
+
+type ClearSessionAgentReportParams struct {
+	UpdatedAt time.Time
+	ID        domain.SessionID
+}
+
+func (q *Queries) ClearSessionAgentReport(ctx context.Context, arg ClearSessionAgentReportParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, clearSessionAgentReport, arg.UpdatedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getSession = `-- name: GetSession :one
 SELECT id, project_id, num, issue_id, harness,
     activity_state, activity_last_at, is_terminated, branch, workspace_path, workspace_mode,
@@ -22,7 +39,8 @@ SELECT id, project_id, num, issue_id, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id,
+    agent_report_state, agent_report_reason, agent_report_at, launch_permission_mode
 FROM sessions WHERE id = ?
 `
 
@@ -65,6 +83,10 @@ type GetSessionRow struct {
 	NativeTranscriptPath      string
 	AutoInjectReview          bool
 	ClaudeAccountID           domain.ClaudeAccountID
+	AgentReportState          string
+	AgentReportReason         string
+	AgentReportAt             sql.NullTime
+	LaunchPermissionMode      domain.PermissionMode
 }
 
 func (q *Queries) GetSession(ctx context.Context, id domain.SessionID) (GetSessionRow, error) {
@@ -109,6 +131,10 @@ func (q *Queries) GetSession(ctx context.Context, id domain.SessionID) (GetSessi
 		&i.NativeTranscriptPath,
 		&i.AutoInjectReview,
 		&i.ClaudeAccountID,
+		&i.AgentReportState,
+		&i.AgentReportReason,
+		&i.AgentReportAt,
+		&i.LaunchPermissionMode,
 	)
 	return i, err
 }
@@ -122,13 +148,13 @@ INSERT INTO sessions (
     latest_user_prompt, latest_assistant_update, native_transcript_path,
     preview_url, preview_revision, preview_opened_revision, terminate_on_pr_merge, cleanup_generation, browser_capability_verifier,
     provider_conversation_id, controller_generation,
-    created_at, updated_at, is_pinned, pinned_at, auto_inject_review, claude_account_id
+    created_at, updated_at, is_pinned, pinned_at, auto_inject_review, claude_account_id, launch_permission_mode
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?,
-    ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?
 )
 `
 
@@ -171,6 +197,7 @@ type InsertSessionParams struct {
 	PinnedAt                  sql.NullTime
 	AutoInjectReview          bool
 	ClaudeAccountID           domain.ClaudeAccountID
+	LaunchPermissionMode      domain.PermissionMode
 }
 
 func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) error {
@@ -213,6 +240,7 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) er
 		arg.PinnedAt,
 		arg.AutoInjectReview,
 		arg.ClaudeAccountID,
+		arg.LaunchPermissionMode,
 	)
 	return err
 }
@@ -226,7 +254,8 @@ SELECT id, project_id, num, issue_id, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id,
+    agent_report_state, agent_report_reason, agent_report_at, launch_permission_mode
 FROM sessions ORDER BY project_id, num
 `
 
@@ -269,6 +298,10 @@ type ListAllSessionsRow struct {
 	NativeTranscriptPath      string
 	AutoInjectReview          bool
 	ClaudeAccountID           domain.ClaudeAccountID
+	AgentReportState          string
+	AgentReportReason         string
+	AgentReportAt             sql.NullTime
+	LaunchPermissionMode      domain.PermissionMode
 }
 
 func (q *Queries) ListAllSessions(ctx context.Context) ([]ListAllSessionsRow, error) {
@@ -319,6 +352,10 @@ func (q *Queries) ListAllSessions(ctx context.Context) ([]ListAllSessionsRow, er
 			&i.NativeTranscriptPath,
 			&i.AutoInjectReview,
 			&i.ClaudeAccountID,
+			&i.AgentReportState,
+			&i.AgentReportReason,
+			&i.AgentReportAt,
+			&i.LaunchPermissionMode,
 		); err != nil {
 			return nil, err
 		}
@@ -342,7 +379,8 @@ SELECT id, project_id, num, issue_id, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id,
+    agent_report_state, agent_report_reason, agent_report_at, launch_permission_mode
 FROM sessions WHERE project_id = ? ORDER BY num
 `
 
@@ -385,6 +423,10 @@ type ListSessionsByProjectRow struct {
 	NativeTranscriptPath      string
 	AutoInjectReview          bool
 	ClaudeAccountID           domain.ClaudeAccountID
+	AgentReportState          string
+	AgentReportReason         string
+	AgentReportAt             sql.NullTime
+	LaunchPermissionMode      domain.PermissionMode
 }
 
 func (q *Queries) ListSessionsByProject(ctx context.Context, projectID domain.ProjectID) ([]ListSessionsByProjectRow, error) {
@@ -435,6 +477,10 @@ func (q *Queries) ListSessionsByProject(ctx context.Context, projectID domain.Pr
 			&i.NativeTranscriptPath,
 			&i.AutoInjectReview,
 			&i.ClaudeAccountID,
+			&i.AgentReportState,
+			&i.AgentReportReason,
+			&i.AgentReportAt,
+			&i.LaunchPermissionMode,
 		); err != nil {
 			return nil, err
 		}
@@ -559,6 +605,32 @@ func (q *Queries) SessionIsSeed(ctx context.Context, id domain.SessionID) (bool,
 	return is_seed, err
 }
 
+const setSessionAgentReport = `-- name: SetSessionAgentReport :execrows
+UPDATE sessions SET agent_report_state = ?, agent_report_reason = ?, agent_report_at = ?, updated_at = ? WHERE id = ?
+`
+
+type SetSessionAgentReportParams struct {
+	AgentReportState  string
+	AgentReportReason string
+	AgentReportAt     sql.NullTime
+	UpdatedAt         time.Time
+	ID                domain.SessionID
+}
+
+func (q *Queries) SetSessionAgentReport(ctx context.Context, arg SetSessionAgentReportParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setSessionAgentReport,
+		arg.AgentReportState,
+		arg.AgentReportReason,
+		arg.AgentReportAt,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const setSessionAutoInjectReview = `-- name: SetSessionAutoInjectReview :execrows
 UPDATE sessions SET auto_inject_review = ?, updated_at = ? WHERE id = ?
 `
@@ -589,6 +661,24 @@ type SetSessionClaudeAccountParams struct {
 
 func (q *Queries) SetSessionClaudeAccount(ctx context.Context, arg SetSessionClaudeAccountParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, setSessionClaudeAccount, arg.ClaudeAccountID, arg.UpdatedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setSessionLaunchPermissionMode = `-- name: SetSessionLaunchPermissionMode :execrows
+UPDATE sessions SET launch_permission_mode = ?, updated_at = ? WHERE id = ?
+`
+
+type SetSessionLaunchPermissionModeParams struct {
+	LaunchPermissionMode domain.PermissionMode
+	UpdatedAt            time.Time
+	ID                   domain.SessionID
+}
+
+func (q *Queries) SetSessionLaunchPermissionMode(ctx context.Context, arg SetSessionLaunchPermissionModeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setSessionLaunchPermissionMode, arg.LaunchPermissionMode, arg.UpdatedAt, arg.ID)
 	if err != nil {
 		return 0, err
 	}

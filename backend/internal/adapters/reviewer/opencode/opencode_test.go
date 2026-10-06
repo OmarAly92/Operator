@@ -51,9 +51,13 @@ func TestReviewCommandUsesReadOnlyPermissionPolicy(t *testing.T) {
 		WorkspacePath: "/ws/w1",
 		Prompt:        "review it",
 		SystemPrompt:  "review only",
+		MCPServers:    []ports.MCPServerSpec{{Name: "operator", Command: "/opt/opr", Args: []string{"mcp", "--reviewer"}}},
 	})
 	if err != nil {
 		t.Fatalf("ReviewCommand: %v", err)
+	}
+	if len(agent.got.MCPServers) != 1 {
+		t.Fatalf("mcp servers = %#v, want the reviewer server", agent.got.MCPServers)
 	}
 
 	if agent.got.Prompt != "review only\n\nreview it" {
@@ -67,11 +71,11 @@ func TestReviewCommandUsesReadOnlyPermissionPolicy(t *testing.T) {
 		t.Fatalf("inline config is invalid JSON: %v", err)
 	}
 	permission := config["permission"].(map[string]any)
-	if permission["*"] != "deny" || permission["read"] != "allow" {
+	if permission["*"] != "deny" || permission["read"] != "allow" || permission["operator_*"] != "allow" {
 		t.Fatalf("permission policy = %#v", permission)
 	}
 	bash := permission["bash"].(map[string]any)
-	if bash["*"] != "deny" || bash["gh api *"] != "allow" || bash["opr review submit *"] != "allow" {
+	if bash["*"] != "deny" || bash["gh api *"] != "allow" {
 		t.Fatalf("bash policy = %#v", bash)
 	}
 }
@@ -139,7 +143,7 @@ func TestReviewRestoreCommandUsesNativeSessionIDAndReadOnlyPolicy(t *testing.T) 
 		t.Fatalf("reviewer config: %v", err)
 	}
 	permission := config["permission"].(map[string]any)
-	if permission["*"] != "deny" || permission["read"] != "allow" {
+	if permission["*"] != "deny" || permission["read"] != "allow" || permission["operator_*"] != "allow" {
 		t.Fatalf("permission policy = %#v", permission)
 	}
 }
@@ -239,9 +243,9 @@ func TestBashAllowlistCoversPromptRequiredCommands(t *testing.T) {
 			allowed: true,
 		},
 		{
-			name:    "local review submit",
+			name:    "opr commands are not the reviewer's to run",
 			command: `printf '%s' '{ "reviews": [] }' | opr review submit --session sess-1 --reviews -`,
-			allowed: true,
+			allowed: false,
 		},
 		{
 			name:    "arbitrary shell command",

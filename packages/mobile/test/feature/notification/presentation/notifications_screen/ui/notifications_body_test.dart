@@ -50,6 +50,8 @@ void main() {
     repository = _MockRepository();
     serverConfigStore = _MockServerConfigStore();
     when(() => serverConfigStore.current).thenReturn(_pairedServer);
+    when(() => serverConfigStore.changes).thenAnswer((_) => const Stream.empty());
+    when(() => repository.cachedFirstPage()).thenAnswer((_) async => null);
   });
 
   void stubPage(List<NotificationModel> notifications, {int unreadCount = 0}) {
@@ -152,6 +154,24 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('3'), findsNothing);
+    await cubit.close();
+  });
+
+  testWidgets('the list starts below the glass bar and clears the home indicator', (tester) async {
+    stubPage([item('n-1')], unreadCount: 1);
+
+    final cubit = await pump(
+      tester,
+      Builder(
+        builder: (context) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(padding: const EdgeInsets.only(top: 106, bottom: 34)),
+          child: const NotificationsBody(),
+        ),
+      ),
+    );
+
+    expect(tester.widget<ListView>(find.byType(ListView)).padding, const EdgeInsets.only(top: 114, bottom: 42));
+    expect(tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).edgeOffset, 106);
     await cubit.close();
   });
 }

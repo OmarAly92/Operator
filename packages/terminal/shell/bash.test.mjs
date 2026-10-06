@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { haveTmux, parseOscRecords, runInPty, splitEveryByte } from "./pty.mjs";
+import { haveTmux, parseOscRecords, runInPty, runInPtySegments, splitEveryByte } from "./pty.mjs";
+import { abortedPromptsSession, commandOutputs, coreSkip } from "./core.mjs";
 
 const bootstrap = fileURLToPath(new URL("./bash.sh", import.meta.url));
 const ptySkip = haveTmux() ? false : "tmux is required";
@@ -238,4 +239,53 @@ test("emits one ordered bash lifecycle without DEBUG hook commands", { skip: pty
 		);
 		assert.ok(commandIndex < releasedIndex && releasedIndex < outputIndex && outputIndex < exitIndex && exitIndex < endIndex);
 	}
+});
+
+test("reports no typeahead: text typed during a command stays with readline, as before", { skip: ptySkip }, () => {
+	const raw = runInPty(
+		"bash --noprofile --norc -i",
+		[
+			`source ${JSON.stringify(bootstrap)}`,
+			{ keys: "sleep 1", waitMs: 200 },
+			{ keys: "echo later", enter: false, waitMs: 1800 },
+			{ keys: "", waitMs: 500 },
+		],
+		{ settleMs: 300 },
+	);
+	const records = parseOscRecords(raw);
+	assert.equal(records.some((record) => record.payload.includes("typeahead=")), false);
+	const commands = records.map((record) => fieldOf(record.payload, "cmd")).filter((command) => command !== undefined);
+	assert.deepEqual(commands, ["sleep%201", "echo%20later"]);
+});
+
+test("percent-encodes non-ASCII bytes as UTF-8", () => {
+	const out = execFileSync(
+		"bash",
+		["--noprofile", "--norc", "-c", `source ${JSON.stringify(bootstrap)}; __operator_terminal_pct_encode 'café € 日 ?[x]'`],
+		{ encoding: "utf8", env: { ...process.env, LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8" } },
+	);
+	assert.equal(out.replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, ""), "caf%c3%a9%20%e2%82%ac%20%e6%97%a5%20%3f%5bx%5d");
+});
+
+test("after a width change redraws only the last prompt line and never moves above it", { skip: ptySkip }, () => {
+	const [, afterResize] = runInPtySegments(
+		"bash --noprofile --norc -i",
+		[`source ${bootstrap}`, "PS1='first-line\\nsecond $ '", { keys: "clear", waitMs: 800 }, { resize: [60, 40] }],
+		{ settleMs: 800 },
+	);
+	assert.doesNotMatch(afterResize, /\x1bM|\x1b\[\d*A/, JSON.stringify(afterResize));
+	assert.doesNotMatch(afterResize, /first-line/);
+	assert.match(afterResize, /second \$ /);
+});
+
+test("each command block holds only its output: no echoed command line and no partial-line mark", { skip: ptySkip || coreSkip }, async () => {
+	const { blocks } = await abortedPromptsSession("bash");
+	assert.deepEqual(commandOutputs(blocks), [["printf x", "x"], ["echo one", "one"], ["echo two", "two"]]);
+});
+
+test("Ctrl-C and an empty Enter at the prompt add no block, and every block keeps the cwd", { skip: ptySkip || coreSkip }, async () => {
+	const { blocks } = await abortedPromptsSession("bash");
+	assert.deepEqual(blocks.map((block) => block.command), ["printf x", "echo one", "echo two", ""]);
+	assert.notEqual(blocks[0].cwd, "");
+	assert.deepEqual(blocks.map((block) => block.cwd), blocks.map(() => blocks[0].cwd));
 });

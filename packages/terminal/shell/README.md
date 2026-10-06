@@ -16,9 +16,24 @@ recipe's `argv`.
   and the previous command's exit code, then emits `OSC 133 A` (prompt
   start) for the next prompt.
 
+While a command runs, `PROMPT_EOL_MARK` carries the command's `exit=` mark
+and `OSC 133 D` in a zero-width `%{…%}` prefix, so zsh's `PROMPT_SP` step
+prints them before its partial-line mark and a block never ends with it;
+`precmd` puts the user's value back (or unsets it) and prints the two marks
+itself only when `PROMPT_SP` did not.
+
 The branch read is the only command run for the package's own bookkeeping;
 it is gated on `git rev-parse --is-inside-work-tree` and tolerates git
 being absent.
+
+`zsh.sh` also registers a `line-init` zle hook widget. It emits `OSC 133 B`
+and `OSC 7000 ; v=1 ; input-ready=1`, and at the first prompt after a
+command it reads the input already waiting on the tty, gives it straight
+back to zle with `zle -U`, and reports it as `OSC 7000 ; v=1 ;
+typeahead=<percent-encoded UTF-8>` when it is 1–256 characters with no
+control character (`protocol/SPEC.md` §4.5). The shell keeps the text; a
+line editor that adopts it clears it with `^U`. `bash.sh` and `fish.fish`
+do not report typeahead.
 
 ## What these scripts do NOT do
 
@@ -41,7 +56,10 @@ Phase 1a).
 
 ## Tests
 
-`zsh.test.mjs` runs five `node --test` cases against a real `zsh` binary.
-The cases verify the happy path, precmd preservation, keymap preservation,
-idempotence under a second source, and prompt preservation. The test
-skips on hosts without `zsh` rather than failing.
+`zsh.test.mjs`, `bash.test.mjs` and `fish.test.mjs` run under `node --test`
+against the real shells; the pty cases drive them through `tmux`
+(`pty.mjs`) and skip when the shell or tmux is missing. Run them with a
+UTF-8 locale (`LANG=C.UTF-8 LC_ALL=C.UTF-8`): one case types `é` and `€`.
+`go/bootstrap/shell/` holds the byte copies the daemon embeds;
+`go/bootstrap/bootstrap_test.go` `TestScriptCopyIsInSyncWithShellDir` fails
+when they drift.

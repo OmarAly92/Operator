@@ -3,8 +3,10 @@ package auggie
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
 	workerauggie "github.com/OmarAly92/operator/backend/internal/adapters/agent/auggie"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
@@ -38,8 +40,17 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 	if strings.TrimSpace(inv.TaskPromptRoot) == "" {
 		return ports.ReviewCommandSpec{Argv: []string{binary}}, nil
 	}
+	argv := []string{binary, "--rules", inv.SystemPromptFile}
+	// review_submit, on the Operator reviewer MCP server, records the result.
+	mcpConfig, err := agentbase.MCPServersJSON(inv.MCPServers)
+	if err != nil {
+		return ports.ReviewCommandSpec{}, fmt.Errorf("auggie reviewer: %w", err)
+	}
+	if mcpConfig != "" {
+		argv = append(argv, "--mcp-config", mcpConfig)
+	}
 	return ports.ReviewCommandSpec{
-		Argv:           []string{binary, "--rules", inv.SystemPromptFile},
+		Argv:           argv,
 		InitialMessage: inv.Prompt,
 	}, nil
 }

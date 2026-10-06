@@ -198,7 +198,7 @@ void main() {
       final cubit = stubbedCubit();
       whenListen(
         cubit,
-        Stream<ManualConnectState>.fromIterable([const ConnectSuccessState()]),
+        Stream<ManualConnectState>.fromIterable([const ConnectSuccessState('Mac')]),
         initialState: const ManualConnectInitialState(),
       );
       await tester.pumpWidget(host(

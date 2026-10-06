@@ -48,6 +48,10 @@ type ServeConfig struct {
 	InitialCols int
 	InitialRows int
 	Recorder    *recorder
+
+	HistoryPath     string
+	PersistInterval time.Duration
+	HistoryMaxBytes int
 }
 
 // Serve runs the host event loop until the listener closes or Shutdown is
@@ -66,6 +70,7 @@ func newHost(ctx context.Context, cfg ServeConfig) *host {
 		cfg:       cfg,
 		ctx:       ctx,
 		clients:   make(map[net.Conn]*clientState),
+		watchers:  make(map[net.Conn]*clientState),
 		shutdownC: make(chan struct{}),
 		capture:   &captureSink{},
 		pty:       cfg.PTY,
@@ -74,6 +79,9 @@ func newHost(ctx context.Context, cfg ServeConfig) *host {
 		recorder:  cfg.Recorder,
 	}
 	h.readCond = sync.NewCond(&h.mu)
+	if cfg.Parser != nil {
+		h.activity = vtwasm.NewActivityClock(cfg.Parser)
+	}
 	return h
 }
 
@@ -83,9 +91,10 @@ func newHost(ctx context.Context, cfg ServeConfig) *host {
 // applyLargestLocked). A connection that never sends a resize stays sized=false
 // and never influences the shared grid.
 type clientState struct {
-	cols, rows   int
-	sized        bool
-	wantsHistory bool
+	cols, rows    int
+	sized         bool
+	wantsHistory  bool
+	wantsActivity bool
 
 	// out is this client's outbound queue, drained by a dedicated writer
 	// goroutine (runWriter). Every frame the host sends a client -- the
@@ -216,10 +225,31 @@ type host struct {
 
 	capture *captureSink
 
+	preCapture     []byte
+	preCaptureDone bool
+
 	recorder *recorder
 
 	readCond   *sync.Cond
 	readParked bool
+
+	fedBytes       uint64
+	persistMu      sync.Mutex
+	persistedBytes uint64
+
+	watchers   map[net.Conn]*clientState
+	programGen uint32
+	shownTitle string
+
+	notifyWindowStart time.Time
+	notifyCount       int
+	appearance        *AppearancePayload
+
+	activity      vtwasm.ActivityClock
+	activitySeq   uint64
+	activityFrame []byte
+	pokedAt       time.Time
+	tickedAt      time.Time
 }
 
 // runWriter drains one client's outbound queue, blocking on each conn.Write
@@ -325,7 +355,7 @@ func (h *host) applyLargestLocked(pending *clientState) {
 	}
 	if pending != nil && pending.sized {
 		if area := pending.cols * pending.rows; area > bestArea {
-			bestArea, bestCols, bestRows = area, pending.cols, pending.rows
+			bestCols, bestRows = pending.cols, pending.rows
 		}
 	}
 	// No client has reported a size yet: leave the PTY at its current grid (the
@@ -338,8 +368,12 @@ func (h *host) applyLargestLocked(pending *clientState) {
 	}
 	h.curCols, h.curRows = bestCols, bestRows
 	_ = h.pty.Resize(bestCols, bestRows)
+	h.pokedAt = time.Now()
 	if h.parser != nil {
 		_ = h.parser.Resize(uint32(bestCols), uint32(bestRows))
+		if replies := h.takeQueryRepliesLocked(); len(replies) > 0 {
+			go func(pty ptyConn) { _, _ = pty.Write(replies) }(h.pty)
+		}
 	}
 	h.recorder.resize(bestCols, bestRows)
 }
@@ -348,6 +382,8 @@ func (h *host) applyLargestLocked(pending *clientState) {
 func (h *host) run(ctx context.Context) error {
 	// Pump PTY output to ring + broadcast.
 	go h.pumpPTY()
+	go h.runHistoryPersist()
+	go h.runActivityClock()
 
 	// Watch for ctx cancellation and trigger shutdown.
 	go func() {
@@ -387,6 +423,7 @@ func (h *host) shutdown() {
 		h.mu.Lock()
 		h.readCond.Broadcast()
 		h.mu.Unlock()
+		h.persistHistory()
 
 		// 1. Dispose the ConPTY first (critical ordering).
 		_ = h.currentPTY().Close()
@@ -402,6 +439,11 @@ func (h *host) shutdown() {
 			states = append(states, cs)
 		}
 		h.clients = make(map[net.Conn]*clientState)
+		for c, cs := range h.watchers {
+			_ = c.Close()
+			states = append(states, cs)
+		}
+		h.watchers = make(map[net.Conn]*clientState)
 		h.mu.Unlock()
 		// Closing a conn does not wake a writer parked on an empty queue, and
 		// a deliver parked in awaitCapacity would never be signalled either.
@@ -616,8 +658,12 @@ func (h *host) deliver(batch []byte) bool {
 	// This costs the screen nothing: the batch is already queued to every
 	// client, and runWriter drains those queues without h.mu.
 	h.feedParserLocked(batch)
+	h.fedBytes += uint64(len(batch))
+	toCapture := h.holdForFirstCaptureLocked(batch)
 	inSync := h.parserInSyncLocked()
 	replies := h.takeQueryRepliesLocked()
+	h.publishProgramLocked()
+	h.publishActivityLocked(time.Now())
 	pty := h.pty
 	h.mu.Unlock()
 
@@ -633,7 +679,9 @@ func (h *host) deliver(batch []byte) bool {
 		cs.awaitCapacity()
 	}
 
-	h.capture.write(batch)
+	if toCapture {
+		h.capture.write(batch)
+	}
 	h.recorder.write(batch)
 	return inSync
 }
@@ -660,6 +708,15 @@ func (h *host) parserInSyncLocked() bool {
 func (h *host) tickParser() {
 	if parser := h.currentParser(); parser != nil {
 		_, _ = parser.Tick(time.Now().UnixMilli())
+		h.mu.Lock()
+		h.tickedAt = time.Now()
+		replies := h.takeQueryRepliesLocked()
+		h.publishProgramLocked()
+		pty := h.pty
+		h.mu.Unlock()
+		if len(replies) > 0 {
+			_, _ = pty.Write(replies)
+		}
 	}
 }
 
@@ -794,6 +851,10 @@ func (h *host) handleConn(conn net.Conn) {
 		_ = conn.Close()
 		return
 	}
+	if opening == nil && len(deferred) > 0 && deferred[0].typ == MsgWatchReq {
+		h.serveWatcher(conn, cs, buf, deferred[0].payload)
+		return
+	}
 
 	// Phase 2: apply the grid, render the replay, and join the broadcast set
 	// under a SINGLE h.mu hold. deliver() takes h.mu and feeds the parser
@@ -862,6 +923,8 @@ func (h *host) handleConn(conn net.Conn) {
 
 	if cs.wantsHistory {
 		go h.streamHistory(cs, origin)
+	} else if opening != nil {
+		h.sendOlderMark(cs)
 	}
 
 	defer func() {
@@ -991,6 +1054,7 @@ func (h *host) streamHistory(cs *clientState, before uint64) {
 			return
 		}
 		if !ok {
+			h.sendOlderMark(cs)
 			return
 		}
 		frame, err := EncodeMessage(MsgTerminalData, []byte(chunk))
@@ -1024,6 +1088,9 @@ func (h *host) awaitAckedHistory(cs *clientState) {
 func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 	switch msgType {
 	case MsgTerminalInput:
+		h.mu.Lock()
+		h.pokedAt = time.Now()
+		h.mu.Unlock()
 		pty := h.currentPTY()
 		if _, alive := pty.ExitCode(); !alive {
 			_, _ = pty.Write(payload)
@@ -1091,6 +1158,8 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 		if err := json.Unmarshal(payload, &req); err == nil && len(req.Argv) > 0 {
 			if err := h.capture.start(req.Argv); err != nil {
 				h.logf("start capture: %v", err)
+			} else {
+				h.releaseHeldCapture()
 			}
 		}
 
@@ -1131,6 +1200,15 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 
 	case MsgRespawnReq:
 		h.handleRespawn(conn, payload)
+
+	case MsgAppearance:
+		h.handleAppearance(payload)
+
+	case MsgOlderReq:
+		var req OlderReq
+		if err := json.Unmarshal(payload, &req); err == nil {
+			h.serveOlder(conn, req.Before)
+		}
 
 	case MsgAck:
 		var ack AckPayload

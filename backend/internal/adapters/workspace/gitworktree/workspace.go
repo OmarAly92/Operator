@@ -206,6 +206,12 @@ func (w *Workspace) CreateWorkspaceProject(ctx context.Context, cfg ports.Worksp
 	out := ports.WorkspaceProjectInfo{Worktrees: make([]ports.WorkspaceRepoInfo, 0, len(repos))}
 	for _, repo := range repos {
 		baseSHA, err := w.createWorkspaceProjectRepo(ctx, repo, branch)
+		if err == nil && repo.name == domain.RootWorkspaceRepoName {
+			err = w.excludeWorkspaceChildren(ctx, repo.outputPath, repos)
+			if err != nil {
+				created = append(created, repo)
+			}
+		}
 		if err != nil {
 			for i := len(created) - 1; i >= 0; i-- {
 				_ = w.forceDestroyPath(ctx, created[i].repoPath, created[i].outputPath)
@@ -229,6 +235,25 @@ func (w *Workspace) CreateWorkspaceProject(ctx context.Context, cfg ports.Worksp
 		}
 	}
 	return out, nil
+}
+
+// excludeWorkspaceChildren makes the root repo ignore every child directory
+// through its shared info/exclude, before any child worktree exists. The
+// registration-time .gitignore entries are a local commit that the root worktree
+// misses when it is based on origin, and without them the children show up as
+// untracked in the root and `git add -A` there records them as gitlinks.
+func (w *Workspace) excludeWorkspaceChildren(ctx context.Context, rootPath string, repos []workspaceProjectRepo) error {
+	patterns := make([]string, 0, len(repos))
+	for _, repo := range repos {
+		if repo.name == domain.RootWorkspaceRepoName || repo.relativePath == "" {
+			continue
+		}
+		patterns = append(patterns, "/"+repo.relativePath+"/")
+	}
+	if err := w.AddExclude(ctx, ports.WorkspaceInfo{Path: rootPath}, patterns...); err != nil {
+		return fmt.Errorf("gitworktree: exclude workspace children from root: %w", err)
+	}
+	return nil
 }
 
 // DestroyWorkspaceProject removes every worktree in a workspace project,
@@ -461,8 +486,20 @@ func (w *Workspace) StashUncommitted(ctx context.Context, info ports.WorkspaceIn
 	}
 	commitSHA := strings.TrimSpace(string(commitOut))
 
-	// Point the preserve ref at the commit.
+	// Point the preserve ref at the commit. A ref that is still there was never
+	// applied cleanly (a clean ApplyPreserved deletes it), so it may hold the
+	// only copy of earlier work: keep it under a name derived from its commit
+	// instead of overwriting it.
 	ref := "refs/opr/preserved/" + string(info.SessionID)
+	if out, err := w.run(ctx, w.binary, revParseVerifyArgs(path, ref)...); err == nil {
+		if previous := strings.TrimSpace(string(out)); previous != "" && previous != commitSHA {
+			backup := ref + "-" + previous[:min(12, len(previous))]
+			if _, err := w.run(ctx, w.binary, updateRefArgs(path, backup, previous)...); err != nil {
+				return "", fmt.Errorf("gitworktree: keep unapplied preserve ref %q: %w", ref, err)
+			}
+			slog.WarnContext(ctx, "gitworktree: previous preserved work was never applied; kept it", "ref", backup, "session", info.SessionID)
+		}
+	}
 	if _, err := w.run(ctx, w.binary, updateRefArgs(path, ref, commitSHA)...); err != nil {
 		return "", fmt.Errorf("gitworktree: update-ref %q: %w", ref, err)
 	}
@@ -566,9 +603,16 @@ func (w *Workspace) AddExclude(ctx context.Context, info ports.WorkspaceInfo, pa
 	}
 	excludePath := filepath.Join(infoDir, "exclude")
 	existing, _ := os.ReadFile(excludePath)
+	// Whole-line match: a substring test would treat `/api/` as present when
+	// only `/services/api/` is.
+	present := map[string]bool{}
+	for _, line := range strings.Split(string(existing), "\n") {
+		present[strings.TrimSpace(line)] = true
+	}
 	var toAdd []string
 	for _, p := range patterns {
-		if !strings.Contains(string(existing), p) {
+		if !present[p] {
+			present[p] = true
 			toAdd = append(toAdd, p)
 		}
 	}
@@ -1337,8 +1381,11 @@ func (w *Workspace) restorePath(cfg ports.WorkspaceConfig) (string, error) {
 	return w.managedPath(cfg)
 }
 
+// defaultSessionBranchName is the fallback when a caller passes no branch. It
+// matches the session manager's DefaultSpawnBranch shape so sibling PR branches
+// (opr/<session>/<topic>) stay valid Git refs beside it.
 func defaultSessionBranchName(id domain.SessionID) string {
-	return "opr/" + string(id)
+	return "opr/" + string(id) + "/root"
 }
 
 func firstNonEmpty(values ...string) string {

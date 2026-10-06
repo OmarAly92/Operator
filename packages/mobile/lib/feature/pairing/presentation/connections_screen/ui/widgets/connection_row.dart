@@ -18,7 +18,7 @@ class ConnectionRow extends StatelessWidget {
     required this.connecting,
     required this.active,
     required this.onTap,
-    required this.onMenuTap,
+    this.onMenuTap,
     this.error,
     this.onScanAgain,
     this.activeDotKey,
@@ -34,11 +34,11 @@ class ConnectionRow extends StatelessWidget {
   final VoidCallback? onScanAgain;
   final Key? activeDotKey;
   final VoidCallback onTap;
-  final VoidCallback onMenuTap;
+  final VoidCallback? onMenuTap;
 
   Color _brandInk(BuildContext context) {
     final skin = context.skin;
-    return skin.themeMode == ThemeMode.dark ? skin.accent : const Color(0xFF117E3F);
+    return skin.themeMode == ThemeMode.dark ? skin.accent : const Color(0xFF0E6E37);
   }
 
   String _metaText() {
@@ -103,22 +103,23 @@ class ConnectionRow extends StatelessWidget {
                       onTap: onScanAgain,
                       child: AppText(
                         'Scan again',
-                        style: AppTextStyle.style11SemiBold.copyWith(color: skin.accent),
+                        style: AppTextStyle.style11SemiBold.copyWith(color: skin.accentText),
                       ),
                     ),
                 ],
               ],
             ),
           ),
-          AppContainer(
-            onTap: onMenuTap,
-            width: 30,
-            height: 30,
-            padding: EdgeInsets.zero,
-            backgroundColor: Colors.transparent,
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            child: Center(child: Icon(Icons.more_vert, size: 18, color: skin.textFaint)),
-          ),
+          if (onMenuTap != null)
+            AppContainer(
+              onTap: onMenuTap,
+              width: 30,
+              height: 30,
+              padding: EdgeInsets.zero,
+              backgroundColor: Colors.transparent,
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              child: Center(child: Icon(Icons.more_vert, size: 18, color: skin.textFaint)),
+            ),
         ],
       ),
     );

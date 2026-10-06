@@ -248,7 +248,6 @@ backend/internal/
 ├── runfile/             # Daemon run-file and single-instance lock
 ├── daemonmeta/          # Daemon build and version metadata
 ├── telemetrymeta/       # Telemetry metadata
-├── skillassets/         # Packaged skill assets
 ├── devimport/           # Development import
 ├── integration/         # Cross-package integration tests
 ├── testsupport/         # Test-only helpers, including a real pty
@@ -574,6 +573,76 @@ flowchart TD
     CheckSignal -->|No| Idle[idle]
 
 ```
+
+### Board Column and Status Reason
+
+`toSession` also derives two display facts, never stored:
+
+- `boardColumn` (`domain.BoardColumnFor`): `working`, `needs_you`, `in_review`,
+  `ready_to_merge` or `archive`. It mirrors the desktop's `attentionZone`, and
+  `testdata/board/columns.json` pins both maps to the same table.
+- `statusReason` (`deriveStatusReason`): one line explaining the status, e.g.
+  `CI failing on PR #12; merge conflict on PR #12`.
+
+### Operator MCP Server
+
+Every worker session whose agent can load MCP servers (its adapter implements
+`ports.MCPServerLoader`) is launched with the Operator MCP server, so the agent can
+read the board it sits on and act on Operator. Agents act on Operator only through
+these tools; `opr` commands are for hooks, people and scripts. `opr mcp` (hidden) serves it over stdio from the
+daemon's own executable; the session manager registers it on spawn, restore and
+agent switch through `ports.LaunchConfig.MCPServers` / `RestoreConfig.MCPServers`,
+with the session and project ids in the server's env. The board rules ship as the
+server's MCP `instructions`; for agents whose CLI does not surface them, the same
+rules are appended to the standing system prompt. Sessions without the server get
+neither.
+
+- Claude Code: inline `--mcp-config` JSON (additive; never `--strict-mcp-config`,
+  never a worktree `.mcp.json`) and `mcp__operator` pre-approved via `--allowedTools`.
+- Codex: one `-c mcp_servers.operator={command=…,args=[…],env={…},default_tools_approval_mode="approve"}`
+  override, which merges into the user's own `mcp_servers` (checked against codex-cli 0.156.1).
+- OpenCode: an `mcp.operator` local-server entry in the per-session `opencode.json` that
+  `OPENCODE_CONFIG` already points at; it merges with the user's configs (checked with
+  opencode 1.18.32, whose `opencode mcp list` connects to `opr mcp`).
+- Tools: `board_get`, `session_get` and `ticket_get` (read-only, thin wrappers over
+  daemon routes), and the self-scoped actions `session_report`, `session_rename`,
+  `pr_claim` (never takes over another live session's PR), `pr_resolve_comments`
+  (only on a PR attributed to the caller), `review_request` and
+  `ticket_mark_merge_ready` (only for the plan whose `reviewerSessionId` is the
+  caller; it replaces the curl the ticket reviewer prompt used to carry), and
+  `session_handoff_submit`, which a source agent calls when an agent switch sends it
+  an `<opr-handoff-request>`. A source without the server is not asked; the switch
+  uses Operator's deterministic continuation. The full plan is
+  `docs/plans/kanban-mcp.md`.
+- Reviewers: `opr mcp --reviewer` serves only `review_submit`, for the worker named
+  in the reviewer pane's `OPERATOR_REVIEW_WORKER_SESSION_ID` (the pane never
+  carries `OPERATOR_SESSION_ID`). The review launcher passes it to every reviewer
+  in `ports.ReviewInvocation.MCPServers`, and the reviewer task prompt records the
+  verdict with that tool. Operator offers only reviewers whose adapter registers it
+  (`domain.AllReviewerHarnesses`): Claude Code, Codex, OpenCode, Kilo and Copilot
+  through their worker adapters; Qwen (`--mcp-config`, trusted, plus
+  `--allowed-tools mcp__operator`, since plan mode blocks any tool that would ask);
+  Amp (the private settings file's `amp.mcpServers` plus an `mcp__operator__*` allow
+  rule); and Auggie (`--mcp-config`). The other reviewer adapters are unregistered
+  (`domain.RetiredReviewerHarnesses`): a stored choice of one still saves, and is
+  skipped when choosing the reviewer.
+- Telemetry: every tool call reports its tool name and outcome (plus the state
+  for `session_report`) to `/internal/telemetry/mcp-tool-called`, which the
+  daemon rolls up into one `opr.mcp.tool_calls` event per day, harness, tool,
+  outcome and state (`httpd/mcp_telemetry.go`; see `docs/telemetry.md`).
+
+### Agent Report
+
+`session_report` writes `PUT/DELETE /sessions/{id}/agent-report`, which the
+lifecycle manager persists as the durable `agent_report_*` columns (migration
+0118; written only by their own queries, never by `UpdateSession`). Status
+derivation reads the report below live activity: `needs_you` → `needs_input`
+(outranks PR state), `ready_for_review` → `review_pending` (any PR fact wins).
+The next user turn (`user-prompt-submit`, or an untagged idle/waiting→active
+signal) clears it; a permission prompt resolving mid-turn does not. A needs_you
+report alerts when it takes effect: at the end of the turn, replacing the
+`turn_finished` alert, or immediately if the agent is already idle. The alert
+body is the agent's reason.
 
 ### PR Pipeline States
 
@@ -962,6 +1031,116 @@ that ends is drained once more before its tail is dropped, so the agent's last
 words are projected; a session whose transcript has not appeared yet is
 re-resolved on a backoff, because Codex's fallback resolution walks its whole
 sessions tree.
+
+#### Background tasks
+
+Claude Code's background shells, monitors and subagents are projected as
+`task_update` block events. The per-tail mapper keeps a little state: it ties a
+launch (`toolUseResult.backgroundTaskId`, `Monitor started (task …`, an
+`async_launched` agent) to its `tool_use` for the description, command, start
+time and Claude Code version, and maps the `<task-notification>` that ends it
+(from the `queue-operation` enqueue record or the matching `task-notification`
+user record, deduplicated by task id and status). The event's `detail` is the
+task as JSON, redacted like the rest of the event. `task_update` rows sit
+outside the per-session block trim on their own budget, and
+`GET /api/v1/sessions/{id}/tasks` folds them to the latest state per task
+across every agent scope.
+
+`POST /api/v1/sessions/{id}/tasks/{taskId}/stop` has two paths, both refusing
+rather than guessing:
+
+- **Shell or monitor**: find the process group under the session's pty child.
+  The only candidates are the processes that hold the task's own
+  `…/tasks/<taskId>.output` open for writing. There is no command-line
+  fallback: Claude Code wraps a foreground Bash call exactly like a background
+  one, so a task whose output file is unknown (in practice a monitor, whose
+  path is only reported when it ends) is `canStop: false` and a stop answers
+  `TASK_STOP_UNSUPPORTED`. A group that contains the session root, an
+  ancestor of the match, a process outside the session, or a process with a
+  child in another group is refused (`TASK_UNSAFE`); several safe groups are
+  `TASK_AMBIGUOUS`. SIGTERM goes to the group and SIGKILL follows after 3s
+  only if the group, not just its leader, is still alive and a fresh lookup
+  still finds it writing the task's output.
+- **Agent**: Claude Code offers no external stop, so the daemon drives its
+  `/tasks` panel under an exclusive per-session pane drive. While it runs, that
+  session's input fails fast the way it does during an exclusive operation: a
+  mux keystroke gets an error frame and never blocks the read loop, and a REST
+  send answers 409 `SESSION_BUSY`. The composer's stop, compact and model
+  commands wait for the drive, and so do exclusive operations. It types
+  `/tasks` only into a composer the empty detector confirms and submits only
+  once `/tasks` is the top suggestion. If anything fails, or the request is
+  cancelled after `/tasks` was typed, a cleanup that outlives the request
+  clears it with Ctrl-U and confirms the composer no longer holds it. It opens
+  the agent's row with Enter, presses `x` only in a detail view confirmed on a
+  fresh read, and sends Esc only to a panel still confirmed open after it has
+  had a second to close itself. Every read is the parser's screen, never the
+  output ring, which lags a redrawing TUI. The stop succeeds only when the
+  transcript reports the task stopped. `canStop` is true for an agent only on
+  claude-code, on a Claude Code version the panel reader was verified against,
+  and when its description is unique among running agents.
+
+#### Permission mode
+
+Claude Code writes `{"type":"permission-mode","permissionMode":…}` at start
+and on every live change, and stamps `permissionMode` and `version` on user
+records. The per-tail mapper turns either into a `permission_mode` block event
+(Operator's mode in `text`, `{"mode","version"}` in `detail`) only when the
+mode or the version changes, and `permission_mode` rows sit outside the
+per-session trim so the latest one per session survives. The session DTO
+reports that mode as `permissionMode` (falling back to the durable
+`sessions.launch_permission_mode`, written at spawn and by a mode restart and
+used by every resume), plus `capabilities.permissionMode`, filled on the
+session list and get endpoints only. The DTO does not predict which modes
+Shift+Tab reaches; `permissionMode` is omitted for a harness Operator
+cannot read the mode of. A transcript value outside Operator's vocabulary (for
+example `dontAsk`) becomes a `permission_mode` event with an empty mode, and the
+DTO then omits `permissionMode` rather than keep reporting the last known one;
+the phone shows it as Unknown.
+
+A session's recorded launch mode wins over the project's configuration: once
+`launch_permission_mode` is set, restore, resume and every other relaunch use
+it, so editing the project's permission setting later changes new sessions
+only. Sessions without a recorded launch mode (created before the column)
+still take the project's current setting.
+
+`POST /api/v1/sessions/{id}/command` with `{"command":"permission-mode","mode":…}`
+refuses rather than guesses, is allow-listed to the Claude Code version the
+footer reader was checked against, and never predicts which modes the
+Shift+Tab loop contains. Which modes it holds, and in what order, depends on
+the launch mode and on the account's `permissions.defaultMode`: a session
+launched in Bypass on an account whose default is Auto was observed on
+2.1.280, with auto mode enabled, to loop Bypass → Auto → Ask → Accept edits →
+Plan → Bypass. Ask is recognised by its "manual mode on" footer; an account
+or build whose footer reads differently is unknown to the reader, so the
+drive stops unconfirmed and never restarts. Every change therefore tries the
+loop first:
+
+- **Shift+Tab drive**: under the same exclusive per-session pane drive as the
+  task stop, except that a permission-mode change never waits for the pane:
+  a second change, or one that arrives while another drive or operation holds
+  the session, gets `SESSION_BUSY` at once. On an idle or
+  waiting-for-input session only, the daemon reads
+  the composer footer, presses Shift+Tab, and waits for the footer to change,
+  at most eight times, re-checking the session is still eligible before every
+  press. The footer reads "⏸ manual mode on" for Default (Ask); any other or
+  missing footer line is unknown and never counts as a mode. The drive stops
+  at the target, stops without pressing again when the footer is no longer
+  readable (a dialog opened) or the session state changes mid-drive, and
+  stops when the loop returns to its start. Any miss other than a return to
+  the start is `PERMISSION_MODE_UNCONFIRMED` and never restarts; an observer
+  error (the mode can't be read at all) is `PERMISSION_MODE_UNSUPPORTED`. A
+  request without a mode is `SESSION_COMMAND_MODE_REQUIRED`; a mode outside
+  the vocabulary is `INVALID_PERMISSION_MODE`, as on spawn.
+- **Restart with `--resume`**, only when the drive went all the way round
+  without ever showing the target: input admission closes first, the daemon
+  waits a settle interval and re-reads the session, refusing with
+  `SESSION_BUSY` without destroying anything if it is no longer idle or if a
+  pane drive already holds it, then relaunches through the ordinary
+  `--resume` path with the new `--permission-mode` and records it as the
+  launch mode. The result carries `restarted: true`. The restart runs to
+  completion even if the requesting client disconnects; the Shift+Tab drive
+  still stops when the request is cancelled. A `/send` that lands while a
+  restart holds input admission closed also gets `SESSION_BUSY`.
 
 ### Durable shell-block capture
 

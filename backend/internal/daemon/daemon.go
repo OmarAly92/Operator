@@ -18,8 +18,10 @@ import (
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/modelcatalog"
 	agentbrowser "github.com/OmarAly92/operator/backend/internal/adapters/agentbrowser"
+	"github.com/OmarAly92/operator/backend/internal/adapters/process"
 	"github.com/OmarAly92/operator/backend/internal/adapters/projectscan"
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/runtimeselect"
+	"github.com/OmarAly92/operator/backend/internal/adapters/workspace/gitworktree"
 	"github.com/OmarAly92/operator/backend/internal/config"
 	"github.com/OmarAly92/operator/backend/internal/daemon/supervisor"
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -36,6 +38,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/redact"
 	"github.com/OmarAly92/operator/backend/internal/runfile"
 	agentsvc "github.com/OmarAly92/operator/backend/internal/service/agent"
+	"github.com/OmarAly92/operator/backend/internal/service/backgroundtask"
 	blockevent "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 	browsersvc "github.com/OmarAly92/operator/backend/internal/service/browser"
 	claudeaccountssvc "github.com/OmarAly92/operator/backend/internal/service/claudeaccounts"
@@ -49,7 +52,6 @@ import (
 	capturesvc "github.com/OmarAly92/operator/backend/internal/service/terminalcapture"
 	ticketsvc "github.com/OmarAly92/operator/backend/internal/service/ticket"
 	usagesvc "github.com/OmarAly92/operator/backend/internal/service/usage"
-	"github.com/OmarAly92/operator/backend/internal/skillassets"
 	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
 	"github.com/OmarAly92/operator/backend/internal/terminal"
 	"github.com/OmarAly92/operator/backend/internal/tunnel"
@@ -112,13 +114,6 @@ func Run() error {
 	}
 	defer func() { _ = store.Close() }()
 
-	// Refresh the embedded using-opr skill into the data dir so worker sessions
-	// in any project can read the opr CLI catalog from a stable absolute path.
-	// Non-fatal: the skill is an enhancement over `opr --help`, not required.
-	if err := skillassets.Install(cfg.DataDir); err != nil {
-		log.Warn("install using-opr skill", "err", err)
-	}
-
 	telemetrySink := newTelemetrySink(cfg, store, log)
 	defer func() { _ = telemetrySink.Close(context.Background()) }()
 	telemetrySink.Emit(context.Background(), ports.TelemetryEvent{
@@ -148,7 +143,8 @@ func Run() error {
 	// through the CDC change_log -- only session-state events do.
 	runtimeAdapter := runtimeselect.New(log)
 	managedPreview := previewserver.New(log, cfg.DataDir)
-	termMgr := terminal.NewManager(runtimeAdapter, cdcPipe.Broadcaster, log)
+	notificationHub := notify.NewHub()
+	termMgr := terminal.NewManager(runtimeAdapter, cdcPipe.Broadcaster, log, terminal.WithNotificationFeed(notificationHub))
 	defer termMgr.Close()
 
 	if n := redact.LoadUserPatterns(cfg.DataDir, log); n > 0 {
@@ -166,7 +162,6 @@ func Run() error {
 	// agent nudges (CI failure, review feedback, merge conflict).
 	messenger := newSessionMessenger(store, runtimeAdapter, log)
 	lifecycleMessenger := newModeAwareMessenger()
-	notificationHub := notify.NewHub()
 	notifier := notificationsvc.New(notificationsvc.Deps{Store: store})
 	notificationWriter := notify.New(notify.Deps{Store: store, Publisher: notificationHub})
 	// Resolution transitions that happened while the daemon was down never
@@ -195,7 +190,7 @@ func Run() error {
 		return fmt.Errorf("wire agent resolver: %w", err)
 	}
 
-	lcStack := startLifecycle(ctx, store, runtimeAdapter, lifecycleMessenger, notificationWriter, telemetrySink, agents, log)
+	lcStack := startLifecycle(ctx, store, runtimeAdapter, lifecycleMessenger, notificationWriter, telemetrySink, agents, termMgr, log)
 
 	// Daemon-owned preferences. The store's type is field-compatible with the
 	// service's, adapted here so neither package imports the other.
@@ -229,13 +224,14 @@ func Run() error {
 		return fmt.Errorf("wire session service: %w", err)
 	}
 	lifecycleMessenger.Bind(sessionLifecycleMessenger{sessMgr})
+	sessMgr.SetPermissionModeObserver(blockEvents)
 	lcStack.LCM.SetCompletionTerminator(sessMgr)
 	lcStack.LCM.SetSessionInputLease(sessMgr)
 	lcStack.LCM.SetSessionOperationGate(sessMgr)
 	lcStack.LCM.SetInteractionRegistry(sessMgr)
 	lcStack.LCM.SetDialogObserver(sessMgr)
 	termMgr.SetSessionInputLease(sessMgr)
-	projectSvc := projectsvc.NewWithDeps(projectsvc.Deps{Store: store, Sessions: sessionSvc, DefaultHarness: domain.AgentHarness(cfg.Agent), Telemetry: telemetrySink})
+	projectSvc := projectsvc.NewWithDeps(projectsvc.Deps{Store: store, Sessions: sessionSvc, DefaultHarness: domain.AgentHarness(cfg.Agent), Telemetry: telemetrySink, Branches: gitworktree.NewBranchLister("")})
 	if err := seedScratchProjectOnBoot(ctx, cfg, projectSvc); err != nil {
 		stop()
 		lcStack.Stop()
@@ -346,7 +342,7 @@ func Run() error {
 	if mergeProvider, mergeErr := newGitHubSCMProvider(log); mergeErr != nil {
 		logSCMProviderDisabled(log, mergeErr)
 	} else {
-		prActions = prsvc.NewActionService(prsvc.ActionDeps{Store: store, Merger: mergeProvider, Reader: mergeProvider})
+		prActions = prsvc.NewActionService(prsvc.ActionDeps{Store: store, Merger: mergeProvider, Reader: mergeProvider, Resolver: mergeProvider})
 	}
 
 	// Durable agent-switch reconciliation is a startup safety boundary. The
@@ -366,62 +362,64 @@ func Run() error {
 	if reconcileErr := lcStack.ReconcileRuntime(ctx); reconcileErr != nil {
 		log.Error("reconcile agent processes on boot failed", "err", reconcileErr)
 	}
-	// Push-device registry: persisted phones that receive OS push notifications.
-	// A load failure must not block boot — degrade to no push rather than refusing
-	// to start the daemon. pushRegistry (interface) is assigned only when load
-	// succeeds so a failure leaves a true nil interface (not a non-nil interface
-	// wrapping a nil pointer), which the controller's nil guard relies on to
-	// return 501. pushDevices keeps the concrete registry for the dispatcher.
-	var (
-		pushRegistry controllers.PushRegistry
-		pushDevices  *mobilebridge.DeviceRegistry
-	)
-	if reg, regErr := mobilebridge.LoadRegistry(mobilebridge.PushDevicesPath(cfg.DataDir)); regErr != nil {
-		log.Warn("load push device registry failed; push notifications disabled", "err", regErr)
-	} else {
-		pushRegistry = reg
-		pushDevices = reg
+	if reconcileErr := lcStack.ReconcileBlockRetention(ctx); reconcileErr != nil {
+		log.Error("reconcile terminal block retention on boot failed", "err", reconcileErr)
 	}
+	phoneAlerts := push.NewAlerts(push.AlertsDeps{
+		Subscriber: notificationHub,
+		Sender:     push.NewNtfySender(push.DefaultNtfyServer, nil),
+		ConfigPath: mobilebridge.Path(cfg.DataDir),
+		Presence:   termMgr,
+		Log:        log,
+	})
 
-	// Push dispatcher: an additive notification-hub subscriber that relays each
-	// new notification to every registered device via the Expo Push Service. Runs
-	// for the daemon's lifetime and stops when ctx is cancelled. EXPO_ACCESS_TOKEN
-	// (optional) enables Expo's enforced push security when set.
-	if pushDevices != nil {
-		dispatcher := push.NewDispatcher(notificationHub, pushDevices, push.NewExpoClient(os.Getenv("EXPO_ACCESS_TOKEN")), log)
-		go dispatcher.Run(ctx)
-	}
-
-	ticketSvc := ticketsvc.New(ticketsvc.Deps{Store: store, Sessions: sessionSvc, BaseURL: fmt.Sprintf("http://127.0.0.1:%d", cfg.Port)})
+	ticketSvc := ticketsvc.New(ticketsvc.Deps{Store: store, Sessions: sessionSvc})
 	ticketsvc.NewAutoReviewer(ticketSvc, log).Subscribe(ctx, cdcPipe.Broadcaster)
 
+	processTable := process.New()
+	var runtimeProcesses ports.RuntimeProcessReader
+	if reader, ok := runtimeAdapter.(ports.RuntimeProcessReader); ok {
+		runtimeProcesses = reader
+	}
+	backgroundTasks := backgroundtask.New(backgroundtask.Deps{
+		Events:    blockEvents,
+		Sessions:  store,
+		Runtime:   runtimeProcesses,
+		Processes: processTable,
+		Signals:   processTable,
+		Agents:    sessMgr,
+	})
+
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
-		Projects:            projectSvc,
-		Agents:              agentSvc,
-		Sessions:            sessionSvc,
-		PRs:                 prActions,
-		Reviews:             reviewSvc,
-		Notifications:       notifier,
-		NotificationStream:  notificationHub,
-		Push:                pushRegistry,
-		ShellTerminals:      shellTermSvc,
-		ShellTerminalBlocks: terminalBlocks,
-		ClaudeAccounts:      claudeAccounts,
-		Settings:            settingsSvc,
-		DevScan:             folderScanner,
-		DevBlockReplay:      blockevent.NewReplay(blockEvents),
-		CDC:                 store,
-		Events:              cdcPipe.Broadcaster,
-		Activity:            lcStack.LCM,
-		BlockEvents:         blockEvents,
-		BlockHistory:        blockEvents,
-		SessionModels:       blockEvents,
-		Interactions:        sessMgr,
-		SlashCommands:       slashcommandssvc.New(store, agents, claudeAccounts),
-		UsageHooks:          usageCollector,
-		UsageSummary:        usagesvc.NewSummaryReader(store),
-		Telemetry:           telemetrySink,
-		Mobile:              mc,
+		Projects:               projectSvc,
+		Agents:                 agentSvc,
+		Sessions:               sessionSvc,
+		PRs:                    prActions,
+		Reviews:                reviewSvc,
+		Notifications:          notifier,
+		NotificationStream:     notificationHub,
+		PhoneAlerts:            phoneAlerts,
+		ShellTerminals:         shellTermSvc,
+		ShellTerminalBlocks:    terminalBlocks,
+		ClaudeAccounts:         claudeAccounts,
+		Settings:               settingsSvc,
+		DevScan:                folderScanner,
+		DevBlockReplay:         blockevent.NewReplay(blockEvents),
+		CDC:                    store,
+		Events:                 cdcPipe.Broadcaster,
+		Activity:               lcStack.LCM,
+		BlockEvents:            blockEvents,
+		BlockHistory:           blockEvents,
+		BackgroundTasks:        backgroundTasks,
+		SessionModels:          blockEvents,
+		SessionPermissionModes: blockEvents,
+		PermissionModeGate:     sessMgr,
+		Interactions:           sessMgr,
+		SlashCommands:          slashcommandssvc.New(store, agents, claudeAccounts),
+		UsageHooks:             usageCollector,
+		UsageSummary:           usagesvc.NewSummaryReader(store),
+		Telemetry:              telemetrySink,
+		Mobile:                 mc,
 		DevImport: devimportsvc.New(devimportsvc.Deps{
 			Store:         store,
 			TargetDataDir: cfg.DataDir,
@@ -450,6 +448,8 @@ func Run() error {
 	// the LAN surface and loopback surface never drift apart.
 	lan := httpd.NewMobileLAN(srv.Handler(), mobilebridge.DefaultPort, log, telemetrySink)
 	bs.LAN = lan
+	phoneAlerts.SetBridge(lan)
+	go phoneAlerts.Run(ctx)
 	tunnelMgr.SetLocalPort(mobilebridge.DefaultPort)
 	tunnelMgr.SetOnProvider(lan.SetTrustedForwardHeader)
 
@@ -487,12 +487,13 @@ func Run() error {
 		}
 	}
 	transcriptDone := transcriptsvc.NewSupervisor(transcriptsvc.Deps{
-		Sessions: store,
-		Offsets:  store,
-		Sink:     blockEvents,
-		Resolver: transcriptsvc.NewResolver(agents, claudeAccounts),
-		Watcher:  transcriptWatcher,
-		Logger:   log,
+		Sessions:   store,
+		Offsets:    store,
+		Sink:       blockEvents,
+		Interrupts: lcStack.LCM,
+		Resolver:   transcriptsvc.NewResolver(agents, claudeAccounts),
+		Watcher:    transcriptWatcher,
+		Logger:     log,
 	}).Start(ctx)
 	// ponytail: 5s tolerates a brief frontend restart; tune if dev hot-reload trips it.
 	const supervisorGrace = 5 * time.Second

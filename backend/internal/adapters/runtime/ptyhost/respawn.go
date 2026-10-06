@@ -72,6 +72,7 @@ func (h *host) handleRespawn(conn net.Conn, payload []byte) {
 		}
 		h.mu.Lock()
 		h.parser = nil
+		h.resetProgramLocked()
 		h.mu.Unlock()
 		h.sendTo(conn, respawnResFrame(false, 0, err.Error()))
 		return
@@ -80,6 +81,7 @@ func (h *host) handleRespawn(conn net.Conn, payload []byte) {
 	h.mu.Lock()
 	h.pty = pty
 	h.parser = newParser
+	h.resetProgramLocked()
 	h.curCols, h.curRows = 0, 0
 	h.applyLargestLocked(nil)
 	h.pumpDone = make(chan struct{})

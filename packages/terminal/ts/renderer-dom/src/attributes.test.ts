@@ -66,8 +66,8 @@ describe("row attributes under attributes: warp", () => {
 		expect(run.textContent).toBe("secret");
 	});
 
-	it("does nothing under the plain default", () => {
-		const run = rowOf("x y", ATTR_ITALIC | ATTR_UNDERLINE | ATTR_STRIKE | ATTR_HIDDEN | ATTR_BLINK, RGB_MAGENTA).querySelector<HTMLElement>(".terminal-run")!;
+	it("does nothing under plain", () => {
+		const run = rowOf("x y", ATTR_ITALIC | ATTR_UNDERLINE | ATTR_STRIKE | ATTR_HIDDEN | ATTR_BLINK, RGB_MAGENTA, { ...DEFAULT_FEATURES, attributes: "plain" }).querySelector<HTMLElement>(".terminal-run")!;
 		expect(Object.keys(run.dataset)).toEqual(["terminalRun"]);
 		expect(run.className).toBe("terminal-run");
 		expect(run.style.getPropertyValue("--terminal-underline")).toBe("");
@@ -113,7 +113,7 @@ describe("row-builder merge predicate under attributes: warp", () => {
 				2, 255, 254, 0, STYLE_DEFAULT_UNDERLINE, 0,
 			]),
 		};
-		const row = buildRowNode(source, 0, 0, new TextDecoder("utf-8", { fatal: true }), 8, DEFAULT_FEATURES);
+		const row = buildRowNode(source, 0, 0, new TextDecoder("utf-8", { fatal: true }), 8, { ...DEFAULT_FEATURES, attributes: "plain" });
 		const runs = row.querySelectorAll<HTMLElement>(".terminal-run");
 		expect(runs.length).toBe(1);
 	});

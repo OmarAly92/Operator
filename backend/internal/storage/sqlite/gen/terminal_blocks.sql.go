@@ -11,6 +11,53 @@ import (
 	"time"
 )
 
+const clearOldOrphanedRawOutput = `-- name: ClearOldOrphanedRawOutput :execrows
+UPDATE terminal_blocks
+SET raw_output = x'', raw_output_cleared_at = ?
+WHERE raw_output_cleared_at IS NULL
+  AND finished_at < ?
+  AND terminal_id NOT IN (SELECT handle_id FROM shell_terminals)
+`
+
+type ClearOldOrphanedRawOutputParams struct {
+	RawOutputClearedAt sql.NullTime
+	FinishedAt         time.Time
+}
+
+func (q *Queries) ClearOldOrphanedRawOutput(ctx context.Context, arg ClearOldOrphanedRawOutputParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, clearOldOrphanedRawOutput, arg.RawOutputClearedAt, arg.FinishedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteFullyClearedOrphanedBlocks = `-- name: DeleteFullyClearedOrphanedBlocks :execrows
+DELETE FROM terminal_blocks
+WHERE terminal_blocks.raw_output_cleared_at IS NOT NULL
+  AND terminal_blocks.raw_output_cleared_at < ?1
+  AND terminal_blocks.terminal_id NOT IN (SELECT handle_id FROM shell_terminals)
+  AND terminal_blocks.rowid NOT IN (
+    SELECT recent.rowid FROM terminal_blocks AS recent
+    WHERE recent.command <> ''
+    ORDER BY recent.finished_at DESC, recent.terminal_id DESC, recent.source_id DESC
+    LIMIT ?2
+  )
+`
+
+type DeleteFullyClearedOrphanedBlocksParams struct {
+	ClearedBefore sql.NullTime
+	KeepCommands  int64
+}
+
+func (q *Queries) DeleteFullyClearedOrphanedBlocks(ctx context.Context, arg DeleteFullyClearedOrphanedBlocksParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteFullyClearedOrphanedBlocks, arg.ClearedBefore, arg.KeepCommands)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteTerminalBlocks = `-- name: DeleteTerminalBlocks :exec
 DELETE FROM terminal_blocks
 WHERE terminal_id = ?
@@ -21,12 +68,48 @@ func (q *Queries) DeleteTerminalBlocks(ctx context.Context, terminalID string) e
 	return err
 }
 
+const listRecentTerminalCommands = `-- name: ListRecentTerminalCommands :many
+SELECT command, finished_at
+FROM terminal_blocks
+WHERE command <> ''
+ORDER BY finished_at DESC, terminal_id DESC, source_id DESC
+LIMIT ?
+`
+
+type ListRecentTerminalCommandsRow struct {
+	Command    string
+	FinishedAt time.Time
+}
+
+func (q *Queries) ListRecentTerminalCommands(ctx context.Context, limit int64) ([]ListRecentTerminalCommandsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRecentTerminalCommands, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecentTerminalCommandsRow{}
+	for rows.Next() {
+		var i ListRecentTerminalCommandsRow
+		if err := rows.Scan(&i.Command, &i.FinishedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTerminalBlocks = `-- name: ListTerminalBlocks :many
 SELECT terminal_id, source_id, session_id, command, cwd, git_branch, exit_code,
        raw_output, started_at, finished_at, shell_kind, shell_version,
        truncated_lines, truncated_bytes, capture_epoch, start_offset, end_offset, created_at
 FROM (
-    SELECT terminal_id, source_id, session_id, command, cwd, git_branch, exit_code, raw_output, started_at, finished_at, shell_kind, shell_version, truncated_lines, truncated_bytes, capture_epoch, start_offset, end_offset, created_at
+    SELECT terminal_id, source_id, session_id, command, cwd, git_branch, exit_code, raw_output, started_at, finished_at, shell_kind, shell_version, truncated_lines, truncated_bytes, capture_epoch, start_offset, end_offset, created_at, raw_output_cleared_at
     FROM terminal_blocks
     WHERE terminal_id = ?
     ORDER BY finished_at DESC, source_id DESC
@@ -40,15 +123,36 @@ type ListTerminalBlocksParams struct {
 	Limit      int64
 }
 
-func (q *Queries) ListTerminalBlocks(ctx context.Context, arg ListTerminalBlocksParams) ([]TerminalBlock, error) {
+type ListTerminalBlocksRow struct {
+	TerminalID     string
+	SourceID       string
+	SessionID      string
+	Command        string
+	Cwd            string
+	GitBranch      string
+	ExitCode       sql.NullInt64
+	RawOutput      []byte
+	StartedAt      sql.NullTime
+	FinishedAt     time.Time
+	ShellKind      string
+	ShellVersion   string
+	TruncatedLines int64
+	TruncatedBytes int64
+	CaptureEpoch   string
+	StartOffset    int64
+	EndOffset      int64
+	CreatedAt      time.Time
+}
+
+func (q *Queries) ListTerminalBlocks(ctx context.Context, arg ListTerminalBlocksParams) ([]ListTerminalBlocksRow, error) {
 	rows, err := q.db.QueryContext(ctx, listTerminalBlocks, arg.TerminalID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []TerminalBlock{}
+	items := []ListTerminalBlocksRow{}
 	for rows.Next() {
-		var i TerminalBlock
+		var i ListTerminalBlocksRow
 		if err := rows.Scan(
 			&i.TerminalID,
 			&i.SourceID,

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hookutil"
 	"github.com/OmarAly92/operator/backend/internal/ports"
-	"github.com/OmarAly92/operator/backend/internal/skillassets"
 )
 
 const (
@@ -42,21 +40,6 @@ const (
 	// shared contract with the (forthcoming) `opr hooks` CLI and is asserted by
 	// tests so the plugin can't silently drift away from it.
 	opencodeHookCommandPrefix = "opr hooks opencode "
-
-	// opencodeSkillSubDir is where opencode discovers project skills
-	// (`.opencode/skills/<name>/SKILL.md`). Operator materializes the using-opr skill
-	// here so opencode's native `skill` tool can see it — the data-dir install
-	// alone is invisible to that discovery path.
-	opencodeSkillSubDir = "skills"
-
-	// opencodeSkillMarkerFile lives beside the skill directory (not inside it) so
-	// Materialize's RemoveAll of using-opr/ cannot erase ownership mid-install.
-	// Install overwrites and uninstall deletes only when this marker is present.
-	opencodeSkillMarkerFile = ".using-opr.opr-managed"
-
-	// opencodeSkillSentinel is written into the marker file. Keep it distinct
-	// from the plugin sentinel so ownership checks stay file-specific.
-	opencodeSkillSentinel = "operator: managed opencode using-opr skill"
 )
 
 // opencodePluginSource is the Operator-managed opencode plugin, embedded so it ships
@@ -74,16 +57,13 @@ var opencodePluginSource string
 var opencodeManagedEvents = []string{"session-start", "user-prompt-submit", "stop"}
 
 // GetAgentHooks installs Operator's opencode activity plugin into the worktree-local
-// .opencode/plugins/ directory, and materializes the using-opr skill into
-// .opencode/skills/using-opr/ so opencode's native `skill` tool can discover it.
-// Unlike Claude Code and Codex, opencode has no native command-hook config to
+// .opencode/plugins/ directory. Unlike Claude Code and Codex, opencode has no native command-hook config to
 // merge into; its only lifecycle-extensibility surface is a JS/TS plugin. Operator
 // therefore writes a dedicated, Operator-owned plugin file. The write is atomic and
 // idempotent: re-installing overwrites Operator's own file with identical content. It
 // refuses to overwrite a file that is NOT Operator-managed (no sentinel), so a user
 // plugin that happens to occupy our path is never silently destroyed — install
-// fails loudly instead. The skill install uses the same ownership guard via a
-// marker file beside the skill directory (written before Materialize runs).
+// fails loudly instead.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -117,16 +97,12 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 	if err := hookutil.EnsureWorkspaceGitignore(filepath.Dir(pluginPath), opencodePluginFileName); err != nil {
 		return fmt.Errorf("opencode.GetAgentHooks: gitignore: %w", err)
 	}
-	if err := installUsingOperatorSkill(cfg.WorkspacePath); err != nil {
-		return fmt.Errorf("opencode.GetAgentHooks: %w", err)
-	}
 	return nil
 }
 
-// UninstallHooks removes Operator's opencode plugin and the Operator-managed using-opr skill
-// from the workspace-local .opencode/ tree. It deletes the plugin only when it
-// carries the Operator sentinel, and the skill directory only when the Operator marker is
-// present, so user files that happen to share those paths are left in place. A
+// UninstallHooks removes Operator's opencode plugin from the workspace-local
+// .opencode/ tree. It deletes the plugin only when it carries the Operator
+// sentinel, so a user file that happens to share the path is left in place. A
 // missing file is a no-op.
 func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error {
 	if err := ctx.Err(); err != nil {
@@ -145,9 +121,6 @@ func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error
 		if err := os.Remove(pluginPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("opencode.UninstallHooks: remove plugin: %w", err)
 		}
-	}
-	if err := uninstallUsingOperatorSkill(workspacePath); err != nil {
-		return fmt.Errorf("opencode.UninstallHooks: %w", err)
 	}
 	return nil
 }
@@ -173,106 +146,6 @@ func opencodePluginPath(workspacePath string) string {
 	return filepath.Join(workspacePath, opencodePluginDirName, opencodePluginSubDir, opencodePluginFileName)
 }
 
-func opencodeSkillDir(workspacePath string) string {
-	return filepath.Join(workspacePath, opencodePluginDirName, opencodeSkillSubDir, skillassets.SkillName)
-}
-
-func opencodeSkillsDir(workspacePath string) string {
-	return filepath.Join(workspacePath, opencodePluginDirName, opencodeSkillSubDir)
-}
-
-func opencodeSkillMarkerPath(workspacePath string) string {
-	return filepath.Join(opencodeSkillsDir(workspacePath), opencodeSkillMarkerFile)
-}
-
-// installUsingOperatorSkill materializes the embedded using-opr skill into
-// .opencode/skills/using-opr/ so opencode's skill tool can discover it. It
-// refuses to overwrite a same-named directory that is not Operator-managed.
-func installUsingOperatorSkill(workspacePath string) error {
-	skillDir := opencodeSkillDir(workspacePath)
-	if info, err := os.Stat(skillDir); err == nil {
-		if !info.IsDir() {
-			return fmt.Errorf("refusing to overwrite non-directory at %s — move it so Operator can install using-opr", skillDir)
-		}
-		managed, err := isOperatorManagedSkill(workspacePath)
-		if err != nil {
-			return err
-		}
-		if !managed {
-			return fmt.Errorf("refusing to overwrite non-Operator skill at %s — move it so Operator can install using-opr", skillDir)
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("stat skill dir: %w", err)
-	}
-
-	skillsParent := opencodeSkillsDir(workspacePath)
-	if err := os.MkdirAll(skillsParent, 0o750); err != nil {
-		return fmt.Errorf("create skills dir: %w", err)
-	}
-	// Write ownership before Materialize clobbers using-opr/, so a crash mid-tree
-	// write leaves a marker that allows the next install attempt to recover.
-	if err := hookutil.AtomicWriteFile(opencodeSkillMarkerPath(workspacePath), []byte(opencodeSkillSentinel+"\n"), 0o600); err != nil {
-		return fmt.Errorf("write skill marker: %w", err)
-	}
-	if err := skillassets.Materialize(skillDir); err != nil {
-		return fmt.Errorf("materialize using-opr skill: %w", err)
-	}
-	if err := ensureSkillTreeGitignored(skillDir); err != nil {
-		return fmt.Errorf("skill gitignore: %w", err)
-	}
-	if err := hookutil.EnsureWorkspaceGitignore(skillsParent, opencodeSkillMarkerFile); err != nil {
-		return fmt.Errorf("skill marker gitignore: %w", err)
-	}
-	return nil
-}
-
-// ensureSkillTreeGitignored writes Operator-managed .gitignore files beside every
-// file in the skill tree so registry's hook-footprint contract holds: each
-// installed path must be ignorable for git worktree teardown.
-func ensureSkillTreeGitignored(skillRoot string) error {
-	byDir := map[string][]string{}
-	err := filepath.WalkDir(skillRoot, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-		dir := filepath.Dir(path)
-		byDir[dir] = append(byDir[dir], filepath.Base(path))
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("walk skill tree: %w", err)
-	}
-	for dir, names := range byDir {
-		if err := hookutil.EnsureWorkspaceGitignore(dir, names...); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// uninstallUsingOperatorSkill removes the Operator-managed using-opr skill directory. A
-// missing directory, or a same-named directory without the Operator marker, is a no-op.
-func uninstallUsingOperatorSkill(workspacePath string) error {
-	managed, err := isOperatorManagedSkill(workspacePath)
-	if err != nil {
-		return err
-	}
-	if !managed {
-		return nil
-	}
-	if err := os.RemoveAll(opencodeSkillDir(workspacePath)); err != nil {
-		return fmt.Errorf("remove skill dir: %w", err)
-	}
-	markerPath := opencodeSkillMarkerPath(workspacePath)
-	if err := os.Remove(markerPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("remove skill marker: %w", err)
-	}
-	return nil
-}
-
 // isOperatorManagedPlugin reports whether the file at path exists and carries the Operator
 // sentinel. A missing file yields (false, nil).
 func isOperatorManagedPlugin(path string) (bool, error) {
@@ -284,17 +157,4 @@ func isOperatorManagedPlugin(path string) (bool, error) {
 		return false, fmt.Errorf("read %s: %w", path, err)
 	}
 	return strings.Contains(string(data), opencodePluginSentinel), nil
-}
-
-// isOperatorManagedSkill reports whether the Operator ownership marker beside the skill
-// directory exists. A missing marker yields (false, nil).
-func isOperatorManagedSkill(workspacePath string) (bool, error) {
-	data, err := os.ReadFile(opencodeSkillMarkerPath(workspacePath)) //nolint:gosec // path built from caller-owned workspace dir
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("read skill marker: %w", err)
-	}
-	return strings.Contains(string(data), opencodeSkillSentinel), nil
 }

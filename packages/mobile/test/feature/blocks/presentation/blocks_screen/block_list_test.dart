@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/search/text_match.dart';
+import 'package:operator_mobile/core/widgets/motion/disclosure.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
@@ -40,9 +42,17 @@ class ListHarness extends StatefulWidget {
     this.sticky,
     this.pinned,
     this.highlights = const {},
+    this.sessionActive = false,
+    this.onStreamingHaptic,
+    this.activeMatchId,
+    this.selectionMode = false,
   });
 
   final List<SessionBlock> initial;
+  final String? activeMatchId;
+  final bool selectionMode;
+  final bool sessionActive;
+  final VoidCallback? onStreamingHaptic;
   final String sessionId;
   final ValueNotifier<StickyBlock?>? sticky;
   final ValueNotifier<bool>? pinned;
@@ -55,6 +65,22 @@ class ListHarness extends StatefulWidget {
 class ListHarnessState extends State<ListHarness> {
   late List<SessionBlock> blocks = widget.initial;
   late String sessionId = widget.sessionId;
+  late bool sessionActive = widget.sessionActive;
+  late String? activeMatchId = widget.activeMatchId;
+  late Map<String, BlockMatch> highlights = widget.highlights;
+  late bool selectionMode = widget.selectionMode;
+
+  void findMatch(String? id, Map<String, BlockMatch> matches) => setState(() {
+    activeMatchId = id;
+    highlights = matches;
+  });
+
+  void select(bool value) => setState(() => selectionMode = value);
+
+  void replace(List<SessionBlock> next, {bool? active}) => setState(() {
+    blocks = next;
+    sessionActive = active ?? sessionActive;
+  });
 
   void prepend(List<SessionBlock> older) =>
       setState(() => blocks = [...older, ...blocks]);
@@ -81,7 +107,11 @@ class ListHarnessState extends State<ListHarness> {
     blocks: blocks,
     sticky: widget.sticky,
     pinnedListenable: widget.pinned,
-    highlights: widget.highlights,
+    highlights: highlights,
+    activeMatchId: activeMatchId,
+    selectionMode: selectionMode,
+    sessionActive: sessionActive,
+    onStreamingHaptic: widget.onStreamingHaptic,
   );
 }
 
@@ -92,6 +122,9 @@ Future<ListHarnessState> pumpList(
   ValueNotifier<bool>? pinned,
   bool renderStickyHeader = true,
   Map<String, BlockMatch> highlights = const {},
+  bool sessionActive = false,
+  VoidCallback? onStreamingHaptic,
+  bool settle = true,
 }) async {
   await tester.pumpWidget(
     SkinScope(
@@ -112,6 +145,8 @@ Future<ListHarnessState> pumpList(
                         sticky: sticky,
                         pinned: pinned,
                         highlights: highlights,
+                        sessionActive: sessionActive,
+                        onStreamingHaptic: onStreamingHaptic,
                       ),
                     ),
                     if (sticky != null && renderStickyHeader)
@@ -130,7 +165,12 @@ Future<ListHarnessState> pumpList(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+    await tester.pump(AppMotion.disclosure);
+  }
   return tester.state<ListHarnessState>(find.byType(ListHarness));
 }
 
@@ -172,6 +212,187 @@ void main() {
     expect(tester.widget<Opacity>(find.byKey(const ValueKey('response-opacity-seq-1'))).opacity, 1);
   });
 
+  String ago(Duration age) => DateTime.now().toUtc().subtract(age).toIso8601String();
+
+  testWidgets('a reply created 10s ago arrives without animating', (tester) async {
+    final harness = await pumpList(tester, [block(1, kind: BlockKind.prompt)]);
+    harness.append([block(2, kind: BlockKind.assistant, createdAt: ago(const Duration(seconds: 10)))]);
+    await tester.pump();
+    expect(tester.widget<Opacity>(find.byKey(const ValueKey('response-opacity-seq-2'))).opacity, 1);
+    expect(tester.widget<Transform>(find.byKey(const ValueKey('response-offset-seq-2'))).transform.storage[13], 0);
+    expect(tester.hasRunningAnimations, isFalse);
+  });
+
+  testWidgets('a reply created now fades in over 220ms', (tester) async {
+    final harness = await pumpList(tester, [block(1, kind: BlockKind.prompt)]);
+    harness.append([block(2, kind: BlockKind.assistant, createdAt: ago(Duration.zero))]);
+    await tester.pump();
+    final opacity = find.byKey(const ValueKey('response-opacity-seq-2'));
+    expect(tester.widget<Opacity>(opacity).opacity, 0);
+    await tester.pump(AppMotion.chatReply ~/ 2);
+    expect(tester.widget<Opacity>(opacity).opacity, inExclusiveRange(0, 1));
+    await tester.pump(AppMotion.chatReply ~/ 2);
+    expect(tester.widget<Opacity>(opacity).opacity, 1);
+  });
+
+  testWidgets('a reply with a missing or unparsable createdAt is treated as fresh', (tester) async {
+    final harness = await pumpList(tester, [block(1, kind: BlockKind.prompt)]);
+    harness.append([block(2, kind: BlockKind.assistant)]);
+    harness.append([block(3, kind: BlockKind.assistant, createdAt: 'not a timestamp')]);
+    await tester.pump();
+    expect(tester.widget<Opacity>(find.byKey(const ValueKey('response-opacity-seq-2'))).opacity, 0);
+    expect(tester.widget<Opacity>(find.byKey(const ValueKey('response-opacity-seq-3'))).opacity, 0);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('assistant meta stays hidden while the turn runs and appears once it settles', (tester) async {
+    final prompt = block(1, kind: BlockKind.prompt);
+    final first = block(2, kind: BlockKind.assistant);
+    final tool = block(3, kind: BlockKind.tool);
+    final streaming = block(4, kind: BlockKind.assistant, status: BlockStatus.running);
+    final harness = await pumpList(tester, [prompt, first, tool, streaming], sessionActive: true);
+    expect(find.byKey(const ValueKey('reply-meta-seq-4')), findsNothing);
+    expect(find.byKey(const ValueKey('reply-meta-seq-2')), findsNothing);
+    harness.replace([prompt, first, tool, block(4, kind: BlockKind.assistant)]);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('reply-meta-seq-4')), findsNothing);
+    harness.replace([prompt, first, tool, block(4, kind: BlockKind.assistant)], active: false);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('reply-meta-seq-4')), findsOneWidget);
+    expect(find.byKey(const ValueKey('reply-meta-seq-2')), findsNothing);
+  });
+
+  testWidgets('reply meta fades in as its turn settles but not for loaded history', (tester) async {
+    final prompt = block(1, kind: BlockKind.prompt);
+    final harness = await pumpList(tester, [prompt, block(2, kind: BlockKind.assistant)], sessionActive: true);
+    Opacity metaOpacity() => tester.widget<Opacity>(
+      find.descendant(of: find.byKey(const ValueKey('reply-meta-seq-2')), matching: find.byType(Opacity)).first,
+    );
+    harness.replace([prompt, block(2, kind: BlockKind.assistant)], active: false);
+    await tester.pump();
+    expect(metaOpacity().opacity, lessThan(1));
+    await tester.pump(AppMotion.chatReply ~/ 2);
+    expect(metaOpacity().opacity, inExclusiveRange(0, 1));
+    await tester.pumpAndSettle();
+    expect(metaOpacity().opacity, 1);
+    harness.replace([block(0, kind: BlockKind.assistant), ...harness.blocks]);
+    await tester.pump();
+    expect(metaOpacity().opacity, 1);
+  });
+
+  testWidgets('a settled reply meta row sits left-aligned under the reply', (tester) async {
+    await pumpList(tester, [block(1, kind: BlockKind.prompt), block(2, kind: BlockKind.assistant)]);
+    final meta = tester.getRect(find.byKey(const ValueKey('reply-meta-seq-2')));
+    final reply = tester.getRect(find.text('line 0 of block 2', findRichText: true));
+    expect(meta.top, greaterThanOrEqualTo(reply.bottom));
+    final icon = tester.getRect(find.descendant(
+      of: find.byKey(const ValueKey('reply-meta-seq-2')),
+      matching: find.byIcon(Icons.content_copy_rounded),
+    ));
+    expect(icon.left, closeTo(reply.left, 1));
+  });
+
+  group('streaming haptic', () {
+    testWidgets('fires when a reply starts and at most every 320ms while it grows', (tester) async {
+      var fired = 0;
+      final prompt = block(1, kind: BlockKind.prompt);
+      SessionBlock reply(int lines) => block(2, kind: BlockKind.assistant, status: BlockStatus.running, lines: lines);
+      final harness = await pumpList(
+        tester,
+        [prompt],
+        sessionActive: true,
+        onStreamingHaptic: () => fired++,
+        settle: false,
+      );
+      expect(fired, 0);
+      harness.replace([prompt, reply(1)]);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(fired, 1);
+      harness.replace([prompt, reply(2)]);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(fired, 1);
+      harness.replace([prompt, reply(3)]);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(fired, 1);
+      await tester.pump(const Duration(milliseconds: 200));
+      harness.replace([prompt, reply(4)]);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(fired, 2);
+      harness.replace([prompt, reply(4)]);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(fired, 2);
+    });
+
+    testWidgets('stays silent for an idle session and for loaded history', (tester) async {
+      var fired = 0;
+      final harness = await pumpList(
+        tester,
+        [block(5, kind: BlockKind.prompt)],
+        onStreamingHaptic: () => fired++,
+      );
+      harness.append([block(6, kind: BlockKind.assistant)]);
+      await tester.pump();
+      harness.replace([block(1, kind: BlockKind.assistant), ...harness.blocks], active: true);
+      await tester.pump();
+      expect(fired, 0);
+    });
+
+    testWidgets('stays silent when an old completed reply is replayed into an active session', (tester) async {
+      var fired = 0;
+      final harness = await pumpList(
+        tester,
+        [block(1, kind: BlockKind.prompt)],
+        sessionActive: true,
+        onStreamingHaptic: () => fired++,
+        settle: false,
+      );
+      harness.append([block(2, kind: BlockKind.assistant, createdAt: ago(const Duration(seconds: 10)))]);
+      await tester.pump();
+      expect(fired, 0);
+    });
+
+    testWidgets('stays silent while another route covers the list', (tester) async {
+      var fired = 0;
+      final prompt = block(1, kind: BlockKind.prompt);
+      SessionBlock reply(int lines) => block(2, kind: BlockKind.assistant, status: BlockStatus.running, lines: lines);
+      final harness = await pumpList(
+        tester,
+        [prompt],
+        sessionActive: true,
+        onStreamingHaptic: () => fired++,
+        settle: false,
+      );
+      tester.state<NavigatorState>(find.byType(Navigator)).push(
+        MaterialPageRoute<void>(builder: (_) => const Scaffold(body: Text('covering'))),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('covering'), findsOneWidget);
+
+      harness.replace([prompt, reply(1)]);
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 400));
+      harness.replace([prompt, reply(2)]);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(fired, 0);
+    });
+
+    testWidgets('stays silent under reduce motion', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      var fired = 0;
+      final harness = await pumpList(
+        tester,
+        [block(1, kind: BlockKind.prompt)],
+        sessionActive: true,
+        onStreamingHaptic: () => fired++,
+        settle: false,
+      );
+      harness.append([block(2, kind: BlockKind.assistant, status: BlockStatus.running)]);
+      await tester.pump();
+      expect(fired, 0);
+    });
+  });
+
   testWidgets('tool lists start expanded while individual details stay collapsed', (tester) async {
     await pumpList(tester, [block(1, kind: BlockKind.tool), block(2, kind: BlockKind.tool)]);
     expect(find.text('Used 2 tools'), findsOneWidget);
@@ -186,6 +407,29 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Bash 1'), findsNothing);
     expect(find.text('Bash 2'), findsNothing);
+  });
+
+  testWidgets('a lone tool sits in the same bordered card as grouped tools', (tester) async {
+    await pumpList(tester, [block(1), block(2, kind: BlockKind.tool), block(3)]);
+    expect(find.textContaining('tools'), findsNothing);
+    final card = tester
+        .widgetList<Container>(find.ancestor(of: find.text('Bash 2'), matching: find.byType(Container)))
+        .map((container) => container.decoration)
+        .whereType<BoxDecoration>()
+        .firstWhere((decoration) => decoration.border != null);
+    final border = card.border! as Border;
+    expect(border.top.style, BorderStyle.solid);
+    expect(border.bottom.style, BorderStyle.solid);
+    expect(card.borderRadius, const BorderRadius.vertical(top: Radius.circular(10), bottom: Radius.circular(10)));
+  });
+
+  testWidgets('a running tool shows its status at the end of the row', (tester) async {
+    await pumpList(tester, [block(1), block(2, kind: BlockKind.tool, status: BlockStatus.running), block(3)]);
+    final card = tester.getRect(find.byKey(const ValueKey('seq-2')).first);
+    final label = tester.getRect(find.text('running'));
+    final chevron = tester.getRect(find.byType(DisclosureChevron));
+    expect(card.right - chevron.right, lessThanOrEqualTo(40));
+    expect(chevron.left - label.right, lessThanOrEqualTo(8));
   });
 
   testWidgets('tool failures remain visible in a collapsed group', (tester) async {
@@ -399,6 +643,145 @@ void main() {
     );
   });
 
+  testWidgets('animateToLatest glides to the tail over several frames and re-pins', (tester) async {
+    final pinned = ValueNotifier<bool>(true);
+    await pumpList(tester, range(1, 200, lines: (seq) => 1 + seq % 6), pinned: pinned);
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(pinned.value, isFalse);
+
+    final arrived = state.animateToLatest();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    final early = state.controller.position.pixels;
+    expect(early, greaterThan(0));
+    expect(early, lessThan(state.controller.position.maxScrollExtent));
+    await tester.pump(const Duration(milliseconds: 100));
+    final later = state.controller.position.pixels;
+    expect(later, greaterThan(early));
+    expect(later, lessThan(state.controller.position.maxScrollExtent));
+    expect(pinned.value, isTrue);
+
+    await tester.pumpAndSettle();
+    await arrived;
+    expect(state.controller.position.pixels, state.controller.position.maxScrollExtent);
+    expect(state.pinned, isTrue);
+    expect(find.text('Bash 200'), findsOneWidget);
+  });
+
+  testWidgets('animateToLatest jumps under reduce motion', (tester) async {
+    await tester.pumpWidget(
+      SkinScope(
+        skin: const DarkSkin(),
+        child: ScreenUtilInit(
+          designSize: const Size(390, 844),
+          builder: (context, _) => MaterialApp(
+            home: MediaQuery(
+              data: const MediaQueryData(disableAnimations: true),
+              child: Scaffold(
+                body: SizedBox(
+                  width: 390,
+                  height: 600,
+                  child: ListHarness(initial: range(1, 200, lines: (seq) => 1 + seq % 6)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+
+    state.animateToLatest();
+    await tester.pump();
+    await tester.pump();
+
+    expect(state.controller.position.pixels, state.controller.position.maxScrollExtent);
+    expect(state.pinned, isTrue);
+  });
+
+  testWidgets('grabbing the list mid-glide stops it where it is and follows the finger', (tester) async {
+    await pumpList(tester, range(1, 200, lines: (seq) => 1 + seq % 6));
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+
+    state.animateToLatest();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    final gesture = await tester.startGesture(tester.getCenter(find.byType(BlockList)));
+    await tester.pump(const Duration(milliseconds: 16));
+    final held = state.controller.position.pixels;
+    expect(held, lessThan(state.controller.position.maxScrollExtent - 100));
+    expect(state.pinned, isFalse);
+
+    await gesture.moveBy(const Offset(0, 40));
+    await tester.pump(const Duration(milliseconds: 16));
+    await gesture.moveBy(const Offset(0, 40));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(state.controller.position.pixels, lessThan(held));
+    expect(state.controller.position.pixels, greaterThan(held - 120));
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(state.pinned, isFalse);
+    expect(state.controller.position.pixels, lessThan(state.controller.position.maxScrollExtent - 100));
+  });
+
+  testWidgets('another scroll during the glide cancels it instead of re-pinning', (tester) async {
+    await pumpList(tester, range(1, 200, lines: (seq) => 1 + seq % 6));
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+
+    state.animateToLatest();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    state.controller.jumpTo(500);
+    await tester.pumpAndSettle();
+
+    expect(state.pinned, isFalse);
+    expect(state.controller.position.pixels, 500);
+  });
+
+  testWidgets('blocks streaming in mid-glide still end pinned at the new tail', (tester) async {
+    final harness = await pumpList(tester, range(1, 200, lines: (seq) => 1 + seq % 6));
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+
+    state.animateToLatest();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    harness.append(range(201, 230, lines: (seq) => 4));
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pumpAndSettle();
+
+    expect(state.pinned, isTrue);
+    expect(state.controller.position.pixels, state.controller.position.maxScrollExtent);
+    expect(find.text('Bash 230'), findsOneWidget);
+  });
+
+  testWidgets('disposing the list mid-glide is safe', (tester) async {
+    await pumpList(tester, range(1, 200, lines: (seq) => 1 + seq % 6));
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+
+    final glide = state.animateToLatest();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 400));
+    await glide;
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('the header of the block under the top edge is pinned', (
     tester,
   ) async {
@@ -474,7 +857,7 @@ void main() {
 
     expect(state.topBlockIndex, 1);
     expect(
-      tester.getTopLeft(find.byKey(const ValueKey('seq-2'))).dy,
+      tester.getTopLeft(find.byKey(const ValueKey('seq-2')).first).dy,
       closeTo(0, 1.5),
     );
   });
@@ -503,7 +886,7 @@ void main() {
 
     expect(state.topBlockIndex, 1);
     expect(
-      tester.getTopLeft(find.byKey(const ValueKey('seq-2'))).dy,
+      tester.getTopLeft(find.byKey(const ValueKey('seq-2')).first).dy,
       closeTo(0, 1.5),
     );
   });
@@ -804,7 +1187,7 @@ void main() {
     );
 
     final richTextFinder = find.descendant(
-      of: find.byKey(const ValueKey('seq-2')),
+      of: find.byKey(const ValueKey('seq-2')).first,
       matching: find.byType(RichText),
     );
     expect(richTextFinder, findsWidgets);

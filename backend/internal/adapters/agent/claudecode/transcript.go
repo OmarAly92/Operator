@@ -10,8 +10,15 @@ import (
 )
 
 type claudeTranscriptRecord struct {
-	Type            string          `json:"type"`
-	Subtype         string          `json:"subtype"`
+	Type           string `json:"type"`
+	Subtype        string `json:"subtype"`
+	Operation      string `json:"operation"`
+	Timestamp      string `json:"timestamp"`
+	Version        string `json:"version"`
+	PermissionMode string `json:"permissionMode"`
+	Origin         struct {
+		Kind string `json:"kind"`
+	} `json:"origin"`
 	UUID            string          `json:"uuid"`
 	IsSidechain     bool            `json:"isSidechain"`
 	AgentID         string          `json:"agentId"`
@@ -55,31 +62,24 @@ var claudeIgnoredRecordTypes = map[string]struct{}{
 	"file-history-snapshot": {},
 }
 
+var claudePermissionModes = map[string]domain.PermissionMode{
+	"default":           domain.PermissionModeDefault,
+	"acceptEdits":       domain.PermissionModeAcceptEdits,
+	"plan":              domain.PermissionModePlan,
+	"auto":              domain.PermissionModeAuto,
+	"bypassPermissions": domain.PermissionModeBypassPermissions,
+}
+
 // MapTranscriptRecord maps one line of Claude Code's native JSONL transcript
 // onto zero or more block transcript events. ok=false means the record type was
 // not recognised; the caller counts those so a harness upgrade degrades to
 // fewer blocks rather than to a crash.
 func MapTranscriptRecord(line []byte) ([]domain.BlockTranscriptEvent, bool) {
-	var rec claudeTranscriptRecord
-	if err := json.Unmarshal(line, &rec); err != nil {
-		return nil, false
-	}
-	if rec.IsSidechain {
-		return nil, true
-	}
-	return mapClaudeRecord(rec, false)
+	return NewTranscriptMapper("").Map(line)
 }
 
 func MapSidechainRecord(agentID string, line []byte) ([]domain.BlockTranscriptEvent, bool) {
-	var rec claudeTranscriptRecord
-	if err := json.Unmarshal(line, &rec); err != nil {
-		return nil, false
-	}
-	events, ok := mapClaudeRecord(rec, true)
-	for i := range events {
-		events[i].AgentID = agentID
-	}
-	return events, ok
+	return NewTranscriptMapper(agentID).Map(line)
 }
 
 func mapClaudeRecord(rec claudeTranscriptRecord, sidechain bool) ([]domain.BlockTranscriptEvent, bool) {

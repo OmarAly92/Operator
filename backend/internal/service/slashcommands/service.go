@@ -113,7 +113,7 @@ func (s *Service) configDir(ctx context.Context, rec domain.SessionRecord) strin
 
 func commandsIn(root, prefix, source string) []slashcommands.Command {
 	var out []slashcommands.Command
-	walkCommands(root, "", &out, map[string]struct{}{}, func(rel, path string) {
+	walkCommands(root, "", map[string]struct{}{}, func(rel, path string) {
 		name := strings.ReplaceAll(strings.TrimSuffix(rel, ".md"), "/", ":")
 		out = append(out, slashcommands.Command{
 			Name:        prefix + name,
@@ -124,7 +124,7 @@ func commandsIn(root, prefix, source string) []slashcommands.Command {
 	return out
 }
 
-func walkCommands(dir, rel string, out *[]slashcommands.Command, visited map[string]struct{}, visit func(rel, path string)) {
+func walkCommands(dir, rel string, visited map[string]struct{}, visit func(rel, path string)) {
 	resolved, err := filepath.EvalSymlinks(dir)
 	if err != nil {
 		return
@@ -148,7 +148,7 @@ func walkCommands(dir, rel string, out *[]slashcommands.Command, visited map[str
 			continue
 		}
 		if info.IsDir() {
-			walkCommands(path, childRel, out, visited, visit)
+			walkCommands(path, childRel, visited, visit)
 			continue
 		}
 		if !strings.HasSuffix(e.Name(), ".md") || e.Name() == "README.md" {

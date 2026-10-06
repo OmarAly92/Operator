@@ -20,11 +20,16 @@ const readyMark = "\x1b]7000;v=1;ready=1\x1b\\"
 // connecting client is replayed from.
 func startServeParsed(t *testing.T, pid, cols, rows int) *serveFixture {
 	t.Helper()
+	return startServeWithLimits(t, pid, cols, rows, vtwasm.Limits{Rows: 200_000, Bytes: 0xffffffff})
+}
+
+func startServeWithLimits(t *testing.T, pid, cols, rows int, limits vtwasm.Limits) *serveFixture {
+	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	parser, err := vtwasm.New(context.Background(), vtwasm.Module, uint32(cols), uint32(rows), vtwasm.Limits{Rows: 200_000, Bytes: 0xffffffff})
+	parser, err := vtwasm.New(context.Background(), vtwasm.Module, uint32(cols), uint32(rows), limits)
 	if err != nil {
 		t.Fatalf("new parser: %v", err)
 	}

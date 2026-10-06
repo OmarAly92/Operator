@@ -214,7 +214,6 @@ func (b *BridgeService) enableWithPassword(pw string) (MobileStatusResponse, err
 	prevHash := b.LAN.PasswordHash()
 	prevStrong := b.LAN.PasswordStrong()
 	wasRunning := b.LAN.Running()
-	prevState, _ := mobilebridge.Load(b.ConfigPath)
 
 	// The persisted password is plaintext; the auth hash is derived in memory.
 	b.LAN.SetPasswordHash(mobilebridge.HashPassword(pw))
@@ -225,11 +224,19 @@ func (b *BridgeService) enableWithPassword(pw string) (MobileStatusResponse, err
 		b.LAN.SetPasswordStrong(prevStrong)
 		return MobileStatusResponse{}, err
 	}
-	if err := mobilebridge.Save(b.ConfigPath, mobilebridge.State{
-		Enabled:       true,
-		Password:      pw,
-		LastPort:      port,
-		TunnelEnabled: prevState.TunnelEnabled,
+	if _, err := mobilebridge.Update(b.ConfigPath, func(st *mobilebridge.State) error {
+		if st.Password != pw || st.AlertTopic == "" {
+			topic, err := mobilebridge.GenerateAlertTopic()
+			if err != nil {
+				return err
+			}
+			st.AlertTopic = topic
+			st.AlertTopicClaimed = false
+		}
+		st.Enabled = true
+		st.Password = pw
+		st.LastPort = port
+		return nil
 	}); err != nil {
 		// Persist failed after the listener came up. Roll back so reality matches
 		// the unchanged persisted state (and the UI's "enable failed"). A rotate on
@@ -281,9 +288,11 @@ func (b *BridgeService) Disable() error {
 	if err := b.LAN.Stop(ctx); err != nil {
 		return err
 	}
-	st, _ := mobilebridge.Load(b.ConfigPath)
-	st.Enabled = false
-	return mobilebridge.Save(b.ConfigPath, st)
+	_, err := mobilebridge.Update(b.ConfigPath, func(st *mobilebridge.State) error {
+		st.Enabled = false
+		return nil
+	})
+	return err
 }
 
 func (b *BridgeService) TunnelEnable() (MobileStatusResponse, error) {
@@ -347,12 +356,11 @@ func redactSecret(text, secret string) string {
 }
 
 func (b *BridgeService) setTunnelIntent(on bool) error {
-	st, err := mobilebridge.Load(b.ConfigPath)
-	if err != nil {
-		return err
-	}
-	st.TunnelEnabled = on
-	return mobilebridge.Save(b.ConfigPath, st)
+	_, err := mobilebridge.Update(b.ConfigPath, func(st *mobilebridge.State) error {
+		st.TunnelEnabled = on
+		return nil
+	})
+	return err
 }
 
 func ngrokStatusFrom(info tunnel.NgrokInfo) MobileNgrokStatus {
@@ -455,12 +463,10 @@ func (b *BridgeService) SetDomain(ctx context.Context, domain string) (MobileNgr
 	if err := b.Tunnel.SetStableDomain(ctx, domain); err != nil {
 		return MobileNgrokStatus{}, err
 	}
-	st, err := mobilebridge.Load(b.ConfigPath)
-	if err != nil {
-		return MobileNgrokStatus{}, err
-	}
-	st.NgrokDomain = strings.TrimSpace(domain)
-	if err := mobilebridge.Save(b.ConfigPath, st); err != nil {
+	if _, err := mobilebridge.Update(b.ConfigPath, func(st *mobilebridge.State) error {
+		st.NgrokDomain = strings.TrimSpace(domain)
+		return nil
+	}); err != nil {
 		return MobileNgrokStatus{}, err
 	}
 	if live := b.Tunnel.Status(); live.State == tunnel.StateLive && live.Provider == "ngrok" {

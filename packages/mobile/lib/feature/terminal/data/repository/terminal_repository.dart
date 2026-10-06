@@ -5,8 +5,10 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/terminal/data/data_source/terminal_remote_data_source.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/open_session_shell_params.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
+import 'package:operator_mobile/feature/terminal/data/model/params/stage_session_attachments_params.dart';
 import 'package:operator_mobile/feature/terminal/data/model/shell_terminal_model.dart';
 import 'package:operator_mobile/feature/terminal/data/model/slash_command_model.dart';
+import 'package:operator_mobile/feature/terminal/data/model/staged_attachments_model.dart';
 
 abstract class TerminalRepository {
   FutureResult<GlobalResponse<ShellTerminalModel>> openSessionShell(OpenSessionShellParams params);
@@ -15,6 +17,10 @@ abstract class TerminalRepository {
   FutureResult<String?> getDraft(String sessionId);
   FutureResult<String?> getSuggestion(String sessionId);
   FutureResult<GlobalResponse<List<SlashCommandModel>>> getSlashCommands(String sessionId);
+  FutureResult<GlobalResponse<StagedAttachmentsModel>> stageAttachments(
+    String sessionId,
+    StageSessionAttachmentsParams params,
+  );
 }
 
 class TerminalRepositoryImp implements TerminalRepository {
@@ -65,6 +71,12 @@ class TerminalRepositoryImp implements TerminalRepository {
   @override
   FutureResult<GlobalResponse<List<SlashCommandModel>>> getSlashCommands(String sessionId) =>
       _guard(() => _remoteDataSource.getSlashCommands(sessionId));
+
+  @override
+  FutureResult<GlobalResponse<StagedAttachmentsModel>> stageAttachments(
+    String sessionId,
+    StageSessionAttachmentsParams params,
+  ) => _guard(() => _remoteDataSource.stageAttachments(sessionId, params));
 
   Future<Result<T, Failure>> _guard<T>(Future<T> Function() action) async {
     if (await _network.isConnected) {

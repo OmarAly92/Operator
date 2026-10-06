@@ -1,0 +1,63 @@
+16 scene, case and frame triples compared; 16 Flutter frames byte-identical to the 2A run
+identical flutter tabbar.rest dark-black ready: native frame max difference 1.0
+identical flutter tabbar.rest dark-black settled: native frame max difference 1.0
+identical flutter tabbar.rest dark-photo ready: native frame max difference 0.0
+identical flutter tabbar.rest dark-photo settled: native frame max difference 0.0
+identical flutter tabbar.rest dark-stripes ready: native frame max difference 0.0
+identical flutter tabbar.rest dark-stripes settled: native frame max difference 0.0
+identical flutter tabbar.rest dark-white ready: native frame max difference 0.0
+identical flutter tabbar.rest dark-white settled: native frame max difference 0.0
+identical flutter tabbar.rest light-black ready: native frame max difference 0.0
+identical flutter tabbar.rest light-black settled: native frame max difference 0.0
+identical flutter tabbar.rest light-photo ready: native frame max difference 0.0
+identical flutter tabbar.rest light-photo settled: native frame max difference 0.0
+identical flutter tabbar.rest light-stripes ready: native frame max difference 2.0
+identical flutter tabbar.rest light-stripes settled: native frame max difference 2.0
+identical flutter tabbar.rest light-white ready: native frame max difference 2.0
+identical flutter tabbar.rest light-white settled: native frame max difference 2.0
+tabbar.rest dark-black ready mad: 12.78 -> 12.78 (fail -> fail), flutter frame max difference 0.0, native 1.0
+tabbar.rest dark-black ready luminance: 5.95 -> 5.95 (fail -> fail), flutter frame max difference 0.0, native 1.0
+tabbar.rest dark-black settled mad: 12.78 -> 12.78 (fail -> fail), flutter frame max difference 0.0, native 1.0
+tabbar.rest dark-black settled luminance: 5.95 -> 5.95 (fail -> fail), flutter frame max difference 0.0, native 1.0
+tabbar.rest dark-photo ready mad: 13.34 -> 13.34 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-photo ready luminance: 3.47 -> 3.47 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-photo ready bbox_pt: 5.00 -> 5.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-photo ready centre_pt: 2.50 -> 2.50 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-photo settled mad: 13.34 -> 13.34 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-photo settled luminance: 3.47 -> 3.47 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-photo settled bbox_pt: 5.00 -> 5.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-photo settled centre_pt: 2.50 -> 2.50 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-stripes ready mad: 14.23 -> 14.23 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-stripes ready bbox_pt: 8.00 -> 8.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-stripes ready centre_pt: 4.00 -> 4.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-stripes settled mad: 14.23 -> 14.23 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-stripes settled bbox_pt: 8.00 -> 8.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-stripes settled centre_pt: 4.00 -> 4.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-white ready mad: 16.80 -> 16.80 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-white ready luminance: 6.28 -> 6.28 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-white ready rim_rms: 12.47 -> 12.47 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-white ready bbox_pt: 8.00 -> 8.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-white ready centre_pt: 3.50 -> 3.50 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-white settled mad: 16.80 -> 16.80 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-white settled luminance: 6.28 -> 6.28 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-white settled rim_rms: 12.47 -> 12.47 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-white settled bbox_pt: 8.00 -> 8.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest dark-white settled centre_pt: 3.50 -> 3.50 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest light-black ready mad: 8.26 -> 8.26 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest light-black ready luminance: 4.37 -> 4.37 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest light-black settled mad: 8.26 -> 8.26 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest light-black settled luminance: 4.37 -> 4.37 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest light-photo ready mad: 9.00 -> 9.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest light-photo settled mad: 9.00 -> 9.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest light-stripes ready mad: 9.47 -> 9.47 (fail -> fail), flutter frame max difference 0.0, native 2.0
+tabbar.rest light-stripes ready luminance: 3.08 -> 3.08 (fail -> fail), flutter frame max difference 0.0, native 2.0
+tabbar.rest light-stripes ready rim_rms: 2.52 -> 2.52 (pass -> pass), flutter frame max difference 0.0, native 2.0
+tabbar.rest light-stripes settled mad: 9.47 -> 9.47 (fail -> fail), flutter frame max difference 0.0, native 2.0
+tabbar.rest light-stripes settled luminance: 3.08 -> 3.08 (fail -> fail), flutter frame max difference 0.0, native 2.0
+tabbar.rest light-stripes settled rim_rms: 2.52 -> 2.52 (pass -> pass), flutter frame max difference 0.0, native 2.0
+tabbar.rest light-white ready mad: 9.41 -> 9.41 (fail -> fail), flutter frame max difference 0.0, native 2.0
+tabbar.rest light-white ready luminance: 1.74 -> 1.74 (pass -> pass), flutter frame max difference 0.0, native 2.0
+tabbar.rest light-white settled mad: 9.41 -> 9.41 (fail -> fail), flutter frame max difference 0.0, native 2.0
+tabbar.rest light-white settled luminance: 1.74 -> 1.74 (pass -> pass), flutter frame max difference 0.0, native 2.0
+missing: 0
+worse: 0

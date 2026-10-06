@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { FIXTURES_DIR, listFixtures, loadFixture } from "./fixtures.mjs";
 import { listProbes, loadProbe, PROBES_DIR } from "./fixtures.mjs";
+import { SIGNALS_DIR, listSignals, loadSignal } from "./fixtures.mjs";
 
 test("every fixture directory has a recording and a well-formed size.json", async () => {
 	const names = listFixtures();
@@ -51,4 +52,30 @@ test("the glyph probe holds the rows the evidence script measures", async () => 
 		assert.ok(text.includes(marker), `probe is missing ${JSON.stringify(marker)}`);
 	}
 	assert.equal(text.split("\x1b[40G|").length - 1, 3, "three rows carry the column-40 marker");
+});
+
+test("every signal recording has timing and truth that cover it", async () => {
+	assert.ok(existsSync(SIGNALS_DIR), "signals directory exists");
+	for (const name of listSignals()) {
+		const signal = await loadSignal(name);
+		assert.ok(signal.recording.length > 0, `${name}: empty recording`);
+		assert.equal(signal.sizes[0].offset, 0, `${name}: first size at 0`);
+		assert.ok(signal.timing.length > 0, `${name}: no timing`);
+		assert.equal(signal.timing[0][0], 0, `${name}: first read at offset 0`);
+		for (let index = 1; index < signal.timing.length; index += 1) {
+			assert.ok(signal.timing[index][0] > signal.timing[index - 1][0], `${name}: offsets increase at ${index}`);
+			assert.ok(signal.timing[index][1] >= signal.timing[index - 1][1], `${name}: time never goes back at ${index}`);
+			assert.ok(signal.timing[index][0] < signal.recording.length, `${name}: offset past the recording`);
+		}
+		const intervals = signal.truth.intervals;
+		assert.ok(intervals.length > 0, `${name}: no truth intervals`);
+		assert.equal(intervals[0].from, 0, `${name}: truth starts at 0`);
+		for (let index = 0; index < intervals.length; index += 1) {
+			assert.ok(["working", "asking", "settled"].includes(intervals[index].state), `${name}: state ${intervals[index].state}`);
+			assert.ok(intervals[index].to > intervals[index].from, `${name}: empty interval ${index}`);
+			if (index > 0) assert.equal(intervals[index].from, intervals[index - 1].to, `${name}: gap before interval ${index}`);
+		}
+		assert.ok(["claude-code", "codex", ""].includes(signal.truth.harness), `${name}: harness`);
+		assert.ok(!listFixtures().includes(name), `${name} must not also be a fixture`);
+	}
 });

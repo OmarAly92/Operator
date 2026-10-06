@@ -41,8 +41,18 @@ func deriveStatus(rec domain.SessionRecord, prs []domain.PRFacts, now time.Time,
 		return domain.StatusNeedsInput
 	}
 
+	// The agent's own report applies once its turn is over (a live turn read
+	// working above). needs_you outranks PR state: the agent is waiting on the
+	// user whatever its PRs say. ready_for_review only stands in for a PR, so
+	// any PR fact wins over it.
+	if rec.AgentReport.NeedsYou() {
+		return domain.StatusNeedsInput
+	}
 	if scmStatus := deriveSCMStatus(prs); scmStatus != "" {
 		return scmStatus
+	}
+	if rec.AgentReport != nil && rec.AgentReport.State == domain.AgentReportReadyForReview {
+		return domain.StatusReviewPending
 	}
 
 	// No hook callback has ever arrived for this spawn/restore even though the

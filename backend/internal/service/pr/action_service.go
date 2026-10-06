@@ -28,23 +28,25 @@ type actionReader interface {
 
 // ActionDeps contains the storage and SCM boundaries used by ActionService.
 type ActionDeps struct {
-	Store  actionStore
-	Merger ports.SCMMerger
-	Reader actionReader
+	Store    actionStore
+	Merger   ports.SCMMerger
+	Reader   actionReader
+	Resolver ports.SCMThreadResolver
 }
 
 // ActionService validates current pull request state before applying mutations.
 type ActionService struct {
-	store  actionStore
-	merger ports.SCMMerger
-	reader actionReader
+	store    actionStore
+	merger   ports.SCMMerger
+	reader   actionReader
+	resolver ports.SCMThreadResolver
 }
 
 var _ ActionManager = (*ActionService)(nil)
 
 // NewActionService builds the guarded pull request action service.
 func NewActionService(deps ActionDeps) *ActionService {
-	return &ActionService{store: deps.Store, merger: deps.Merger, reader: deps.Reader}
+	return &ActionService{store: deps.Store, merger: deps.Merger, reader: deps.Reader, resolver: deps.Resolver}
 }
 
 // Merge re-fetches authoritative SCM state and then squash-merges only the
@@ -188,7 +190,79 @@ func scmRepoForPR(pr domain.PullRequest) (ports.SCMRepo, bool) {
 	return ports.SCMRepo{Provider: provider, Host: host, Owner: parts[0], Name: parts[1], Repo: pr.Repo}, true
 }
 
-// ResolveComments is not implemented by the current provider action service.
-func (s *ActionService) ResolveComments(_ context.Context, _ string, _ []string) (ResolveResult, error) {
-	return ResolveResult{Resolved: 0}, nil
+// ResolveComments resolves review threads on a tracked pull request. It
+// re-fetches the threads from the provider (the stored copy may be a poll
+// behind), then resolves every unresolved thread, or only those that contain
+// one of the requested comment ids (or are named by a requested thread id).
+func (s *ActionService) ResolveComments(ctx context.Context, request ResolveRequest) (ResolveResult, error) {
+	prNumber, err := parsePRNumber(request.PRID)
+	if err != nil || strings.TrimSpace(request.PRURL) == "" {
+		return ResolveResult{}, fmt.Errorf("%w: invalid pull request identity", ErrInvalidPR)
+	}
+	if s.store == nil || s.reader == nil || s.resolver == nil {
+		return ResolveResult{}, errors.New("pr: resolve-comments action is not configured")
+	}
+	tracked, ok, err := s.store.GetPR(ctx, request.PRURL)
+	if err != nil {
+		return ResolveResult{}, fmt.Errorf("load pull request: %w", err)
+	}
+	if !ok || tracked.Number != prNumber {
+		return ResolveResult{}, ErrPRNotFound
+	}
+	repo, ok := scmRepoForPR(tracked)
+	if !ok {
+		return ResolveResult{}, fmt.Errorf("%w: pull request repository is unknown", ErrPRPreconditions)
+	}
+	ref := ports.SCMPRRef{Repo: repo, Number: tracked.Number, URL: tracked.URL}
+	review, err := s.reader.FetchReviewThreads(ctx, ref)
+	if err != nil {
+		if errors.Is(err, ports.ErrSCMNotFound) {
+			return ResolveResult{}, fmt.Errorf("%w: %w", ErrPRNotFound, err)
+		}
+		return ResolveResult{}, fmt.Errorf("refresh review threads: %w", err)
+	}
+	threads := threadsToResolve(review.Threads, request.CommentIDs)
+	if len(threads) == 0 {
+		if len(request.CommentIDs) > 0 {
+			return ResolveResult{}, ErrCommentsNotFound
+		}
+		return ResolveResult{}, ErrNothingToResolve
+	}
+	resolved := 0
+	for _, id := range threads {
+		if err := s.resolver.ResolveReviewThread(ctx, ref, id); err != nil {
+			return ResolveResult{Resolved: resolved}, fmt.Errorf("resolve review thread %s: %w", id, err)
+		}
+		resolved++
+	}
+	return ResolveResult{Resolved: resolved}, nil
+}
+
+// threadsToResolve returns the ids of the unresolved threads to resolve: all of
+// them when ids is empty, otherwise those named by, or containing a comment
+// named by, one of ids.
+func threadsToResolve(threads []ports.SCMReviewThreadObservation, ids []string) []string {
+	want := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		if id = strings.TrimSpace(id); id != "" {
+			want[id] = true
+		}
+	}
+	var out []string
+	for _, thread := range threads {
+		if thread.Resolved || strings.TrimSpace(thread.ID) == "" {
+			continue
+		}
+		if len(want) == 0 || want[thread.ID] {
+			out = append(out, thread.ID)
+			continue
+		}
+		for _, comment := range thread.Comments {
+			if want[comment.ID] {
+				out = append(out, thread.ID)
+				break
+			}
+		}
+	}
+	return out
 }

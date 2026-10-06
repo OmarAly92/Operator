@@ -2,12 +2,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useShellTerminals } from "./useShellTerminals";
+import { shellTerminalsQueryKey, useOpenShellTerminal, useShellTerminals } from "./useShellTerminals";
 
-const { getMock } = vi.hoisted(() => ({ getMock: vi.fn() }));
+const { getMock, postMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn() }));
 
 vi.mock("../lib/api-client", () => ({
-	apiClient: { GET: getMock },
+	apiClient: { GET: getMock, POST: postMock },
 	hasTrustedApiBaseUrl: () => true,
 }));
 
@@ -43,5 +43,27 @@ describe("useShellTerminals", () => {
 		const { result } = renderHook(() => useShellTerminals(), { wrapper });
 		await waitFor(() => expect(result.current.data).toHaveLength(1));
 		expect(result.current.data?.[0].durableBlocks).toBe(false);
+	});
+});
+
+describe("useOpenShellTerminal", () => {
+	it("puts the opened terminal in the list at once, so selecting it does not snap back to the first tab", async () => {
+		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+		const existing = { handleId: "shell-1", workingDir: "/tmp", title: "one", createdAt: "2026-09-27T00:00:00Z" };
+		client.setQueryData(shellTerminalsQueryKey, [existing]);
+		postMock.mockResolvedValue({
+			data: { shellTerminal: { handleId: "shell-2", workingDir: "/tmp", title: "two", createdAt: "2026-09-27T00:00:01Z" } },
+			error: undefined,
+		});
+		getMock.mockReturnValue(new Promise(() => {}));
+		const { result } = renderHook(() => useOpenShellTerminal(), {
+			wrapper: ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+		});
+		let listedOnSuccess: string[] = [];
+		await result.current.mutateAsync(
+			{ projectId: "proj" },
+			{ onSuccess: () => { listedOnSuccess = (client.getQueryData<{ handleId: string }[]>(shellTerminalsQueryKey) ?? []).map((s) => s.handleId); } },
+		);
+		await waitFor(() => expect(listedOnSuccess).toEqual(["shell-1", "shell-2"]));
 	});
 });

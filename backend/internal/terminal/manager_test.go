@@ -899,6 +899,51 @@ func TestTerminalAckReachesTheStream(t *testing.T) {
 	eventually(t, time.Second, func() bool { return pty.ackedBytes() == 5000 })
 }
 
+func TestTerminalOlderRequestReachesTheStream(t *testing.T) {
+	pty := newFlowControlledFakePTY()
+	src := &fakeSource{alive: true, attachFn: func(ctx context.Context, rows, cols uint16) (ports.Stream, error) {
+		return pty, nil
+	}}
+	mgr := NewManager(src, nil, testLogger(), WithHeartbeat(0))
+	defer mgr.Close()
+
+	conn := newFakeConn()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go mgr.Serve(ctx, conn)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-5", Type: msgOpen}
+	recv(t, conn, chTerminal, msgOpened, time.Second)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-5", Type: msgOlder}
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-5", Type: msgOlder, Before: 4096}
+
+	eventually(t, time.Second, func() bool { return len(pty.olderRequests()) == 1 })
+	if got := pty.olderRequests(); got[0] != 4096 {
+		t.Fatalf("older requests = %v, want [4096]", got)
+	}
+}
+
+func TestTerminalOlderRequestOnAStreamWithoutTheCapabilityIsIgnored(t *testing.T) {
+	pty := newFakePTY()
+	src := &fakeSource{alive: true, spawner: &fakeSpawner{ptys: []*fakePTY{pty}}}
+	mgr := NewManager(src, nil, testLogger(), WithHeartbeat(0))
+	defer mgr.Close()
+
+	conn := newFakeConn()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go mgr.Serve(ctx, conn)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-6", Type: msgOpen}
+	recv(t, conn, chTerminal, msgOpened, time.Second)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-6", Type: msgOlder, Before: 10}
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-6", Type: msgData, Data: base64.StdEncoding.EncodeToString([]byte("y"))}
+
+	eventually(t, time.Second, func() bool { return string(pty.writtenBytes()) == "y" })
+}
+
 // The desktop declares that it can read history chunks; the daemon forwards
 // that to the runtime, which is what makes the pty-host stream scrollback.
 func TestTerminalOpenForwardsTheHistoryOptIn(t *testing.T) {
@@ -960,4 +1005,61 @@ func TestTerminalAckOnAStreamWithoutFlowControlIsIgnored(t *testing.T) {
 	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-2", Type: msgData, Data: base64.StdEncoding.EncodeToString([]byte("x"))}
 
 	eventually(t, time.Second, func() bool { return string(pty.writtenBytes()) == "x" })
+}
+
+func TestLastInputAtRecordsTheLatestWrite(t *testing.T) {
+	pty := newFakePTY()
+	mgr := NewManager(&fakeSource{alive: true, spawner: &fakeSpawner{ptys: []*fakePTY{pty}}}, nil, testLogger(), WithHeartbeat(0))
+	defer mgr.Close()
+	if !mgr.LastInputAt("t1").IsZero() {
+		t.Fatal("unexpected input time before any write")
+	}
+	conn := newFakeConn()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go mgr.Serve(ctx, conn)
+	conn.in <- clientMsg{Ch: chTerminal, ID: "t1", Type: msgOpen}
+	recv(t, conn, chTerminal, msgOpened, time.Second)
+	before := time.Now()
+	conn.in <- clientMsg{Ch: chTerminal, ID: "t1", Type: msgData, Data: base64.StdEncoding.EncodeToString([]byte("x"))}
+	eventually(t, time.Second, func() bool { return !mgr.LastInputAt("t1").Before(before) })
+}
+
+type drivenSessionLease struct{ driven domain.SessionID }
+
+func (l drivenSessionLease) AcquireSessionInput(id domain.SessionID) (func(), bool) {
+	if id == l.driven {
+		return nil, false
+	}
+	return func() {}, true
+}
+
+func TestServeRefusesDrivenSessionInputAndKeepsServingOthers(t *testing.T) {
+	driven, other := newFakePTY(), newFakePTY()
+	src := &fakeSource{alive: true, spawner: &fakeSpawner{ptys: []*fakePTY{driven, other}}}
+	mgr := NewManager(src, nil, testLogger(), WithHeartbeat(0))
+	mgr.SetSessionInputLease(drivenSessionLease{driven: "worker-1"})
+	defer mgr.Close()
+
+	conn := newFakeConn()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go mgr.Serve(ctx, conn)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "worker-1", Type: msgOpen}
+	recv(t, conn, chTerminal, msgOpened, time.Second)
+	conn.in <- clientMsg{Ch: chTerminal, ID: "worker-2", Type: msgOpen}
+	recv(t, conn, chTerminal, msgOpened, time.Second)
+
+	sent := time.Now()
+	conn.in <- clientMsg{Ch: chTerminal, ID: "worker-1", Type: msgData, Data: base64.StdEncoding.EncodeToString([]byte("typed"))}
+	errFrame := recv(t, conn, chTerminal, msgError, time.Second)
+	if errFrame.ID != "worker-1" || time.Since(sent) > 500*time.Millisecond {
+		t.Fatalf("error frame = %#v after %v", errFrame, time.Since(sent))
+	}
+	conn.in <- clientMsg{Ch: chTerminal, ID: "worker-2", Type: msgData, Data: base64.StdEncoding.EncodeToString([]byte("ls\n"))}
+	eventually(t, time.Second, func() bool { return string(other.writtenBytes()) == "ls\n" })
+	if got := string(driven.writtenBytes()); got != "" {
+		t.Fatalf("driven session received input %q", got)
+	}
 }

@@ -138,8 +138,16 @@ pub fn default_bindings(id: ShortcutId, is_mac: bool) -> Vec<Binding> {
         (ShortcutId::PreviousSession, false) => vec![binding("PageUp", true, false, false, false)],
         (ShortcutId::NextSession, true) => vec![binding("ArrowDown", false, true, false, true)],
         (ShortcutId::NextSession, false) => vec![binding("PageDown", true, false, false, false)],
-        (ShortcutId::PreviousTab, _) => vec![binding("Tab", true, false, true, false)],
-        (ShortcutId::NextTab, _) => vec![binding("Tab", true, false, false, false)],
+        (ShortcutId::PreviousTab, true) => vec![
+            binding("Tab", true, false, true, false),
+            binding("ArrowLeft", false, true, false, true),
+        ],
+        (ShortcutId::PreviousTab, false) => vec![binding("Tab", true, false, true, false)],
+        (ShortcutId::NextTab, true) => vec![
+            binding("Tab", true, false, false, false),
+            binding("ArrowRight", false, true, false, true),
+        ],
+        (ShortcutId::NextTab, false) => vec![binding("Tab", true, false, false, false)],
         (ShortcutId::FocusTerminal, true) => vec![binding("t", false, true, true, false)],
         (ShortcutId::FocusTerminal, false) => vec![binding("t", true, false, true, false)],
     }

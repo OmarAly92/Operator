@@ -11,9 +11,13 @@ String appendTranscript(String existing, String spoken) =>
     existing.trim().isEmpty ? spoken : '${existing.trimRight()} $spoken';
 
 class MicKey extends StatefulWidget {
-  const MicKey({super.key, this.prominent = false});
+  const MicKey({super.key, this.prominent = false, this.quiet = false, this.size});
 
   final bool prominent;
+  final bool quiet;
+  final double? size;
+
+  double get diameter => size ?? (prominent ? 46 : kMicSize);
 
   @override
   State<MicKey> createState() => _MicKeyState();
@@ -62,7 +66,11 @@ class _MicKeyState extends State<MicKey> with SingleTickerProviderStateMixin {
         final disabled = denied || unavailable;
         _syncPulse(live);
 
-        final fill = widget.prominent && !live && !denied
+        final round = widget.prominent || widget.quiet;
+        final quietRest = widget.quiet && !live && !denied && !unavailable;
+        final fill = quietRest
+            ? skin.textPrimary.withValues(alpha: 0)
+            : widget.prominent && !live && !denied
             ? skin.accent
             : live
             ? skin.red
@@ -71,7 +79,9 @@ class _MicKeyState extends State<MicKey> with SingleTickerProviderStateMixin {
             : unavailable
             ? skin.bgElevated
             : skin.tintBlue;
-        final ink = widget.prominent && !live && !denied
+        final ink = quietRest
+            ? skin.textSecondary
+            : widget.prominent && !live && !denied
             ? skin.onAccent
             : live
             ? skin.textPrimary
@@ -82,8 +92,8 @@ class _MicKeyState extends State<MicKey> with SingleTickerProviderStateMixin {
             : skin.blue;
 
         return SizedBox(
-          width: widget.prominent ? 46 : kMicSize,
-          height: widget.prominent ? 46 : kMicSize,
+          width: widget.diameter,
+          height: widget.diameter,
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -93,11 +103,11 @@ class _MicKeyState extends State<MicKey> with SingleTickerProviderStateMixin {
                   child: ScaleTransition(
                     scale: Tween<double>(begin: 1, end: 1.45).animate(_pulse),
                     child: Container(
-                      width: widget.prominent ? 46 : kMicSize,
-                      height: widget.prominent ? 46 : kMicSize,
+                      width: widget.diameter,
+                      height: widget.diameter,
                       decoration: BoxDecoration(
                         color: skin.red,
-                        borderRadius: BorderRadius.circular(widget.prominent ? 23 : 12),
+                        borderRadius: BorderRadius.circular(round ? widget.diameter / 2 : 12),
                       ),
                     ),
                   ),
@@ -120,12 +130,12 @@ class _MicKeyState extends State<MicKey> with SingleTickerProviderStateMixin {
                   onTapUp: disabled ? null : (_) => cubit.pressOut(),
                   onTapCancel: disabled ? null : cubit.pressCancel,
                   child: Container(
-                    width: widget.prominent ? 46 : kMicSize,
-                    height: widget.prominent ? 46 : kMicSize,
+                    width: widget.diameter,
+                    height: widget.diameter,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: fill,
-                      borderRadius: BorderRadius.circular(widget.prominent ? 23 : 12),
+                      borderRadius: BorderRadius.circular(round ? widget.diameter / 2 : 12),
                       border: latched
                           ? Border.all(color: skin.textPrimary, width: 2)
                           : unavailable && !widget.prominent
@@ -134,7 +144,7 @@ class _MicKeyState extends State<MicKey> with SingleTickerProviderStateMixin {
                     ),
                     child: Icon(
                       disabled && !widget.prominent ? Icons.mic_off : Icons.mic_none,
-                      size: widget.prominent ? 22 : 18,
+                      size: round ? (widget.size == null ? 22 : widget.diameter / 2) : 18,
                       color: ink,
                     ),
                   ),

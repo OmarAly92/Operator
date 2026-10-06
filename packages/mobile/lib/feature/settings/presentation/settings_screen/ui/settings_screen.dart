@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
@@ -18,9 +19,8 @@ class SettingsScreen extends StatelessWidget {
     create: (_) => sl<SettingsCubit>(),
     child: Scaffold(
       backgroundColor: context.skin.bgBase,
+      extendBodyBehindAppBar: true,
       appBar: GlobalAppbar.main(
-        backgroundColor: context.skin.bgChrome,
-        hasBorder: true,
         title: AppText(
           'Settings',
           style: AppTextStyle.style19SemiBold.copyWith(
@@ -30,7 +30,7 @@ class SettingsScreen extends StatelessWidget {
           ),
         ),
       ),
-      body: SettingsBody(onOpenBoard: onOpenBoard),
+      body: ScrollUnderBars(child: SettingsBody(onOpenBoard: onOpenBoard)),
     ),
   );
 }

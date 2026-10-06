@@ -14,6 +14,7 @@ export type EditorCommand =
 	| { kind: "end" }
 	| { kind: "history"; direction: -1 | 1 }
 	| { kind: "accept-suggestion" }
+	| { kind: "end-or-accept-suggestion" }
 	| { kind: "complete" }
 	| { kind: "reverse-search" }
 	| { kind: "passthrough"; data: string };
@@ -37,7 +38,15 @@ export function mapKey(event: KeyboardEvent): EditorCommand | null {
 			case "a":
 				return { kind: "home" };
 			case "e":
-				return { kind: "accept-suggestion" };
+				return { kind: "end-or-accept-suggestion" };
+			case "f":
+				return { kind: "move", delta: 1 };
+			case "b":
+				return { kind: "move", delta: -1 };
+			case "p":
+				return { kind: "history", direction: -1 };
+			case "n":
+				return { kind: "history", direction: 1 };
 			case "w":
 				return { kind: "delete-word-backward" };
 			case "u":

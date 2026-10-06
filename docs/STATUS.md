@@ -66,10 +66,10 @@ surface (`npm run sqlc`, `npm run api`).
   host-trusted adapters remain candidates for future contained execution once
   their documented sandbox, environment-replacement, broker, and gateway
   prerequisites are implemented.
-- Durable dashboard notifications for `needs_input`, `ready_to_merge`,
-  `pr_merged`, and `pr_closed_unmerged`: backend enrichment/persistence,
-  cursor-paginated read/unread history, live notification stream, and read
-  acknowledgement API.
+- Durable dashboard notifications for `needs_input`, `turn_finished`,
+  `agent_exited`, `ready_to_merge`, `pr_merged`, and `pr_closed_unmerged`:
+  backend enrichment/persistence, cursor-paginated read/unread history, live
+  notification stream, and read acknowledgement API.
 - SCM observer (`internal/observe/scm`) wired into the daemon: GitHub provider,
   lazy/non-blocking auth, per-PR polling with ETag guards and semantic diffing,
   feeding PR facts into lifecycle, which sends agent nudges for CI failures,
@@ -144,9 +144,10 @@ surface (`npm run sqlc`, `npm run api`).
 - In-app notification center with click access, Unread/All filters, paginated
   REST catch-up, live notification stream updates, separate PR/session target
   actions, persistent read history, mark-read controls, and native app toasts
-  while the app is running. Clicking a toast to focus the window needs real OS
-  notification activation (UNUserNotificationCenter/WinRT) — implemented at the
-  routing layer, release-gating follow-up for delivery.
+  while the app is running. On macOS, toasts go through UNUserNotificationCenter
+  in packaged builds (the Tauri notification plugin remains for dev), and
+  clicking a toast focuses the window and opens that session. Windows/WinRT
+  click activation is not yet implemented.
 
 ### Mobile (Flutter)
 
@@ -164,9 +165,28 @@ surface (`npm run sqlc`, `npm run api`).
   on status, and a session whose transcript is unreadable degrades to the
   hook-only projection. Harnesses other than Claude Code and Codex contribute
   hook blocks only. Phase 3 adds deterministic terminal controls.
+- Phone alerts ride ntfy (ntfy.sh) with a per-pairing topic claimed through
+  `/api/v1/phone-alerts`, gated on Connect Mobile plus a claimed, unquiet,
+  foreground-absent, coalesced session; the app itself raises local
+  notifications from the live mux `notifications` channel while open. The
+  earlier Expo push path and `/api/v1/push/devices` are removed.
+- The agent composer attaches camera shots, library photos, files and recent
+  photos (staged into the worktree and named in the message), and reads and
+  changes a Claude Code session's permission mode from the Add context sheet;
+  phone spawns start in Bypass permissions.
 
 ## In flight / not yet a runtime feature
 
+- **Agent signals (wave 1 phase B, branch `terminal/wave1-agent-signals-b`)**: card
+  status from the terminal screen for any agent, hooks first; phone alerts through
+  ntfy carry the masked question or summary; `TERMINAL.md` §4.52.
+- **Operator MCP server (`docs/plans/kanban-mcp.md`)**: every worker session
+  gets `opr mcp`: read tools (`board_get`, `session_get`, `ticket_get`),
+  `session_report` (agent-driven Needs you / ready for review, with the reason on
+  the desktop and mobile cards and in the alert) and self-scoped actions. Wired
+  for Claude Code, Codex, OpenCode, Qwen, Amp, Copilot, Auggie, Crush and Kilo;
+  the remaining harnesses are handed off in
+  `docs/plans/kanban-mcp-remaining-harnesses.md`.
 - **macOS signing and notarization**: there is no Apple Developer account, so
   macOS builds are ad-hoc signed and not notarized. Auto-update works, but a
   fresh DMG download must be allowed through Gatekeeper by hand. Adding the
@@ -179,9 +199,9 @@ surface (`npm run sqlc`, `npm run api`).
   replace; neither has been run on real hardware. Windows has no WebdriverIO
   leg. Warm-start, idle-memory, download-size and installed-footprint numbers
   are unmeasured.
-- **OS toast-click activation**: clicking a native notification to focus the
-  window needs UNUserNotificationCenter/WinRT activation; the routing layer is
-  in place, delivery is not.
+- **OS toast-click activation**: delivered on macOS via UNUserNotificationCenter
+  in packaged builds. Windows/WinRT activation is not yet implemented; Windows
+  and Linux keep the Tauri notification plugin.
 - **Feature (`pr<N>`) builds have no in-app picker**: the shell-side GitHub
   releases transport (`ReleasesSource`) is deliberately unwired, so a feature
   pin can only be set through the settings API; the stopped transport degrades

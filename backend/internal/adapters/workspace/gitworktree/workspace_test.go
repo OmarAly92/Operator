@@ -1030,3 +1030,48 @@ func TestGitWorktreeExitStatusOneHelper(t *testing.T) {
 	}
 	os.Exit(1)
 }
+
+// TestDefaultSessionBranchNameUsesRootShape keeps the adapter's fallback in step
+// with sessionmanager.DefaultSpawnBranch: a bare opr/<session> branch would block
+// every opr/<session>/<topic> sibling PR branch.
+func TestDefaultSessionBranchNameUsesRootShape(t *testing.T) {
+	if got := defaultSessionBranchName("proj-1"); got != "opr/proj-1/root" {
+		t.Fatalf("defaultSessionBranchName = %q, want opr/proj-1/root", got)
+	}
+}
+
+// TestAddExcludeMatchesWholeLines: `/api/` is a substring of `/services/api/`
+// but a different pattern, so it must still be added.
+func TestAddExcludeMatchesWholeLines(t *testing.T) {
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not found")
+	}
+	root := t.TempDir()
+	repo := filepath.Join(root, "repo")
+	if out, err := exec.Command(git, "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v (%s)", err, out)
+	}
+	ws, err := New(Options{Binary: git, ManagedRoot: root, RepoResolver: StaticRepoResolver{"proj": repo}})
+	if err != nil {
+		t.Fatalf("new: %v", err)
+	}
+	info := ports.WorkspaceInfo{Path: repo}
+	if err := ws.AddExclude(context.Background(), info, "/services/api/"); err != nil {
+		t.Fatalf("add first: %v", err)
+	}
+	if err := ws.AddExclude(context.Background(), info, "/api/", "/services/api/"); err != nil {
+		t.Fatalf("add second: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(repo, ".git", "info", "exclude"))
+	if err != nil {
+		t.Fatalf("read exclude: %v", err)
+	}
+	lines := map[string]int{}
+	for _, line := range strings.Split(string(data), "\n") {
+		lines[line]++
+	}
+	if lines["/api/"] != 1 || lines["/services/api/"] != 1 {
+		t.Fatalf("exclude = %q, want each pattern exactly once", data)
+	}
+}

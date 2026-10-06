@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 
+const String kSentToExtra = 'sentTo';
+
 abstract class ServerConfigSource {
   ServerConfig? get current;
   Stream<ServerConfig?> get changes;
@@ -23,6 +25,7 @@ class ServerConfigInterceptor extends Interceptor {
       );
     }
 
+    options.extra[kSentToExtra] = config;
     options.baseUrl = config.httpBase;
     options.headers['Authorization'] = 'Bearer ${config.password}';
     handler.next(options);

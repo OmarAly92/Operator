@@ -25,6 +25,7 @@ type DelegateTaskInput struct {
 	Model          string
 	Attachments    []ports.SpawnAttachment
 	WorkspaceMode  domain.WorkspaceMode
+	Branch         string
 	// Cols/Rows are the grid of the pane that will show the worker; zero when
 	// the caller has no pane (the CLI).
 	Cols            int
@@ -59,6 +60,7 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 		AgentConfig:     ports.AgentConfig{Model: strings.TrimSpace(in.Model)},
 		Attachments:     in.Attachments,
 		WorkspaceMode:   in.WorkspaceMode,
+		Branch:          in.Branch,
 		Cols:            in.Cols,
 		Rows:            in.Rows,
 		ClaudeAccountID: in.ClaudeAccountID,

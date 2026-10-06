@@ -74,13 +74,17 @@ type ReviewerConfig struct {
 // and the worker's harness is not itself a supported reviewer.
 const FallbackReviewerHarness = ReviewerClaudeCode
 
-// ResolveReviewerHarness picks the reviewer harness for a worker. A configured
-// reviewer wins. Otherwise only the original, unattended-safe reviewer set is
-// inherited from the worker. Every other reviewer requires explicit selection,
-// so adding an experimental adapter never silently changes an existing project.
+// ResolveReviewerHarness picks the reviewer harness for a worker. The first
+// configured reviewer that Operator still offers wins (a project may name one
+// that was dropped). Otherwise only the original, unattended-safe reviewer set
+// is inherited from the worker. Every other reviewer requires explicit
+// selection, so adding an experimental adapter never silently changes an
+// existing project.
 func (c ProjectConfig) ResolveReviewerHarness(worker AgentHarness) ReviewerHarness {
-	if len(c.Reviewers) > 0 {
-		return c.Reviewers[0].Harness
+	for _, r := range c.Reviewers {
+		if r.Harness.IsKnown() {
+			return r.Harness
+		}
 	}
 	switch worker {
 	case HarnessClaudeCode:
@@ -89,10 +93,6 @@ func (c ProjectConfig) ResolveReviewerHarness(worker AgentHarness) ReviewerHarne
 		return ReviewerCodex
 	case HarnessOpenCode:
 		return ReviewerOpenCode
-	case HarnessMuse:
-		return ReviewerMuse
-	case HarnessKimchi:
-		return ReviewerKimchi
 	}
 	return FallbackReviewerHarness
 }
@@ -144,7 +144,7 @@ func (c ProjectConfig) Validate() error {
 		}
 	}
 	for i, rv := range c.Reviewers {
-		if !rv.Harness.IsKnown() {
+		if !rv.Harness.IsKnown() && !rv.Harness.IsRetired() {
 			return fmt.Errorf("reviewers[%d].harness: unknown harness %q", i, rv.Harness)
 		}
 	}

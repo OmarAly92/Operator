@@ -110,7 +110,7 @@ func TestCommandRejectsUnknownVerb(t *testing.T) {
 	if _, ok := domain.ParseSessionCommand("rm -rf"); ok {
 		t.Fatal("expected an unknown verb to be rejected")
 	}
-	for _, verb := range []string{"stop", "compact", "model"} {
+	for _, verb := range []string{"stop", "compact", "model", "permission-mode"} {
 		if _, ok := domain.ParseSessionCommand(verb); !ok {
 			t.Fatalf("expected %q to parse", verb)
 		}

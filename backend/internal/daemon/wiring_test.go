@@ -552,7 +552,7 @@ func TestWiring_StartLifecycleThreadsMessengerIntoLCM(t *testing.T) {
 
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	messenger := &captureMessenger{}
-	stack := startLifecycle(ctx, store, ptyhost.New(ptyhost.Options{}), messenger, nil, nil, nil, log)
+	stack := startLifecycle(ctx, store, ptyhost.New(ptyhost.Options{}), messenger, nil, nil, nil, nil, log)
 	t.Cleanup(stack.Stop)
 	t.Cleanup(cancel)
 
@@ -652,6 +652,24 @@ func (f *fakeSessionLifecycle) Interactions(context.Context, domain.SessionID) (
 func (f *fakeSessionLifecycle) DialogOnScreen(context.Context, domain.SessionID) (bool, error) {
 	return false, nil
 }
+
+func (f *fakeSessionLifecycle) StopAgentTask(context.Context, domain.SessionID, string) error {
+	return nil
+}
+
+func (f *fakeSessionLifecycle) AgentTaskStopSupported(domain.AgentHarness, string) bool {
+	return false
+}
+
+func (f *fakeSessionLifecycle) PermissionModeSupport(domain.AgentHarness, string) bool {
+	return false
+}
+
+func (f *fakeSessionLifecycle) PermissionModeReadable(domain.AgentHarness) bool {
+	return false
+}
+
+func (f *fakeSessionLifecycle) SetPermissionModeObserver(sessionmanager.PermissionModeObserver) {}
 
 // TestWiring_SessionLifecycleInterfaceInvokedByDaemon asserts the
 // sessionLifecycle interface is satisfied by *sessionmanager.Manager (compile

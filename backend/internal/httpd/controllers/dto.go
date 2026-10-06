@@ -131,6 +131,10 @@ type WorkspaceFileQuery struct {
 	Path string `query:"path" description:"Session-worktree-relative file path."`
 }
 
+type SessionCapabilitiesView struct {
+	PermissionMode bool `json:"permissionMode" description:"The session's permission mode can be changed through the permission-mode command. Filled on the session list and get endpoints only; false elsewhere."`
+}
+
 // SessionView is the session wire shape: the domain read model plus the
 // display-safe branch name and the session's attributed pull requests in the
 // curated SessionPRFacts shape. One session can own many PRs (e.g. a stack), so
@@ -166,7 +170,9 @@ type SessionView struct {
 	// daemon could replay into a fresh conversation. The prompt itself lives on
 	// the unserialized domain Metadata; clients need only the yes/no to decide
 	// whether a replay action applies.
-	HasSavedPrompt bool `json:"hasSavedPrompt,omitempty"`
+	HasSavedPrompt bool                    `json:"hasSavedPrompt,omitempty"`
+	PermissionMode string                  `json:"permissionMode,omitempty" enum:"default,accept-edits,plan,auto,bypass-permissions" description:"The mode the transcript last reported, or the launch mode before it reports. Omitted for a harness Operator cannot read the mode of, and when the transcript last reported a mode outside this list. Filled on the session list and get endpoints only."`
+	Capabilities   SessionCapabilitiesView `json:"capabilities" description:"What a client can change on this session. Filled on the session list and get endpoints only."`
 }
 
 // ListSessionsResponse is the body of GET /api/v1/sessions.
@@ -193,6 +199,7 @@ type SpawnSessionRequest struct {
 	Cols            int                    `json:"cols,omitempty" description:"Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown." minimum:"1" maximum:"1000"`
 	Rows            int                    `json:"rows,omitempty" description:"Rows of the terminal pane that will show the session; see cols." minimum:"1" maximum:"1000"`
 	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64" description:"Claude account for a claude-code session. Omit for the default account."`
+	PermissionMode  string                 `json:"permissionMode,omitempty" enum:"default,accept-edits,plan,auto,bypass-permissions" description:"Starting permission mode for the agent. Omit to use the project's configured mode."`
 }
 
 // AttachmentInput is one file attached to a spawn, delegate, stage, or send
@@ -204,6 +211,12 @@ type AttachmentInput struct {
 	// Data is the raw file bytes, standard base64-encoded, without any
 	// "data:...;base64," prefix.
 	Data string `json:"data"`
+}
+
+// SetAgentReportRequest is the body of PUT /api/v1/sessions/{sessionId}/agent-report.
+type SetAgentReportRequest struct {
+	State  domain.AgentReportState `json:"state" enum:"needs_you,ready_for_review" description:"needs_you: the agent is waiting on the user. ready_for_review: the work is complete and there is no PR to review."`
+	Reason string                  `json:"reason,omitempty" maxLength:"280" description:"One line shown on the card and in the Needs you alert. Required for needs_you."`
 }
 
 // SessionResponse is the { session } body shared by session reads and updates.
@@ -298,6 +311,37 @@ type BlockEventView struct {
 // GET /api/v1/sessions/{sessionId}/blocks.
 type ListSessionBlockEventsResponse struct {
 	Blocks []BlockEventView `json:"blocks"`
+}
+
+type SessionTaskView struct {
+	TaskID      string `json:"taskId"`
+	Kind        string `json:"kind" enum:"shell,agent,monitor"`
+	Status      string `json:"status" enum:"running,completed,failed,killed,stopped"`
+	ToolUseID   string `json:"toolUseId,omitempty"`
+	Description string `json:"description,omitempty"`
+	Command     string `json:"command,omitempty"`
+	Summary     string `json:"summary,omitempty"`
+	ExitCode    *int   `json:"exitCode,omitempty"`
+	DurationMs  *int64 `json:"durationMs,omitempty"`
+	OutputFile  string `json:"outputFile,omitempty"`
+	StartedAt   string `json:"startedAt,omitempty"`
+	EndedAt     string `json:"endedAt,omitempty"`
+	AgentID     string `json:"agentId,omitempty"`
+	CanStop     bool   `json:"canStop"`
+	UpdatedSeq  int64  `json:"updatedSeq"`
+}
+
+type ListSessionTasksResponse struct {
+	Tasks []SessionTaskView `json:"tasks"`
+}
+
+type StopSessionTaskResponse struct {
+	Task      SessionTaskView `json:"task"`
+	Confirmed bool            `json:"confirmed"`
+}
+
+type SessionTaskIDParam struct {
+	TaskID string `path:"taskId" description:"Background task id (a shell or monitor task id, or a subagent's agentId)."`
 }
 
 func blockEventViews(recs []blockeventsvc.Record) []BlockEventView {
@@ -463,7 +507,7 @@ type RenameSessionRequest struct {
 // SetSessionReviewerRequest sets the durable reviewer preference for a session.
 // Empty clears the preference and falls back to project configuration.
 type SetSessionReviewerRequest struct {
-	Harness domain.ReviewerHarness `json:"harness,omitempty" enum:"claude-code,codex,copilot,cursor,kilocode,opencode,kiro,pi,qwen,agy,continue,goose,vibe,devin,droid,kimi,kimchi,muse,amp,aider,grok,crush,auggie,cline,autohand"`
+	Harness domain.ReviewerHarness `json:"harness,omitempty" enum:"claude-code,codex,copilot,kilocode,opencode,qwen,amp,auggie"`
 }
 
 // SetSessionPreviewRequest is the body of POST /api/v1/sessions/{sessionId}/preview.
@@ -604,6 +648,18 @@ type RelaunchAgentResponse struct {
 	Session      SessionView                `json:"session"`
 }
 
+type RestartTerminalRequest struct {
+	Cols int `json:"cols,omitempty" description:"Columns of the terminal pane that shows the session, so the fresh pty is born at that width. Omit when unknown." minimum:"1" maximum:"1000"`
+	Rows int `json:"rows,omitempty" description:"Rows of the terminal pane that shows the session; see cols." minimum:"1" maximum:"1000"`
+}
+
+type RestartTerminalResponse struct {
+	OK          bool                       `json:"ok"`
+	SessionID   domain.SessionID           `json:"sessionId"`
+	RestartMode sessionsvc.RestoreModeView `json:"restartMode" enum:"native,saved_prompt,fresh"`
+	Session     SessionView                `json:"session"`
+}
+
 // KillSessionResponse is the body of POST /api/v1/sessions/{sessionId}/kill.
 type KillSessionResponse struct {
 	OK        bool             `json:"ok"`
@@ -653,13 +709,16 @@ type SendSessionMessageResponse struct {
 }
 
 type SessionCommandRequest struct {
-	Command string `json:"command"`
+	Command string `json:"command" enum:"stop,compact,model,permission-mode"`
 	Model   string `json:"model,omitempty"`
+	Mode    string `json:"mode,omitempty" enum:"default,accept-edits,plan,auto,bypass-permissions" description:"Target mode for the permission-mode command."`
 }
 
 type SessionCommandResponse struct {
-	State  string   `json:"state"`
-	Models []string `json:"models,omitempty"`
+	State          string   `json:"state"`
+	Models         []string `json:"models,omitempty"`
+	PermissionMode string   `json:"permissionMode,omitempty" description:"The mode the terminal confirmed, for the permission-mode command."`
+	Restarted      bool     `json:"restarted,omitempty" description:"The permission-mode command restarted the agent with --resume because a full Shift+Tab loop never showed the mode."`
 }
 
 // SessionDecisionRequest is the body of POST /api/v1/sessions/{sessionId}/decision.
@@ -698,6 +757,7 @@ type DelegateTaskRequest struct {
 	// references to the worker prompt.
 	Attachments     []AttachmentInput      `json:"attachments,omitempty"`
 	WorkspaceMode   string                 `json:"workspaceMode,omitempty" enum:"worktree,in_place"`
+	Branch          string                 `json:"branch,omitempty" maxLength:"255" description:"Existing local branch the worker commits on. With a worktree it is checked out there; in place it must be the branch already checked out in the project folder. Omit for a new session branch."`
 	Cols            int                    `json:"cols,omitempty" description:"Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown." minimum:"1" maximum:"1000"`
 	Rows            int                    `json:"rows,omitempty" description:"Rows of the terminal pane that will show the session; see cols." minimum:"1" maximum:"1000"`
 	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64" description:"Claude account for a claude-code worker. Omit for the default account."`
@@ -1138,7 +1198,7 @@ type NotificationResponse struct {
 	SessionID string    `json:"sessionId"`
 	ProjectID string    `json:"projectId"`
 	PRURL     string    `json:"prUrl"`
-	Type      string    `json:"type" enum:"needs_input,ready_to_merge,pr_merged,pr_closed_unmerged"`
+	Type      string    `json:"type" enum:"needs_input,ready_to_merge,pr_merged,pr_closed_unmerged,turn_finished,agent_exited"`
 	Title     string    `json:"title"`
 	Body      string    `json:"body"`
 	Status    string    `json:"status" enum:"unread,read" description:"Seen state. unread means the user has not opened the notification panel since it arrived."`
@@ -1147,6 +1207,7 @@ type NotificationResponse struct {
 	// received its input, the PR stopped waiting on a merge). Absent means the
 	// issue is still open. There is no user-facing action that sets it.
 	ResolvedAt *time.Time         `json:"resolvedAt,omitempty"`
+	Quiet      bool               `json:"quiet"`
 	Target     NotificationTarget `json:"target"`
 }
 
@@ -1224,6 +1285,15 @@ type TerminalBlockView struct {
 	CaptureEpoch   string    `json:"captureEpoch"`
 	StartOffset    int64     `json:"startOffset"`
 	EndOffset      int64     `json:"endOffset"`
+}
+
+type TerminalHistoryEntry struct {
+	Command    string    `json:"command"`
+	FinishedAt time.Time `json:"finishedAt"`
+}
+
+type TerminalHistoryResponse struct {
+	Commands []TerminalHistoryEntry `json:"commands"`
 }
 
 // ShellTerminalEnvelope is the { shellTerminal } response body for shell
@@ -1334,9 +1404,12 @@ type MergePRResponse struct {
 	Method   string `json:"method"`
 }
 
-// ResolveCommentsRequest is the optional body of POST /api/v1/prs/{id}/resolve-comments.
+// ResolveCommentsRequest is the body of POST /api/v1/prs/{id}/resolve-comments.
 type ResolveCommentsRequest struct {
-	CommentIDs []string `json:"commentIds,omitempty"`
+	// PRURL pins the tracked pull request: a number alone is ambiguous across
+	// repositories (the same contract as MergePRRequest).
+	PRURL      string   `json:"prUrl" minLength:"1" description:"URL of the tracked pull request."`
+	CommentIDs []string `json:"commentIds,omitempty" description:"Review comment or thread ids whose threads to resolve. Omit to resolve every unresolved thread."`
 }
 
 // ResolveCommentsResponse is the body of POST /api/v1/prs/{id}/resolve-comments (200).
@@ -1474,38 +1547,21 @@ type MobileNgrokDiagnosis struct {
 	Summary string             `json:"summary" description:"One-line overall diagnosis."`
 }
 
-// PushDeviceTokenParam is the {token} path parameter for push-device routes.
-type PushDeviceTokenParam struct {
-	Token string `path:"token" description:"Expo push token (URL-encoded) identifying the device."`
+type PhoneAlertDeliveryResponse struct {
+	At    time.Time `json:"at"`
+	OK    bool      `json:"ok"`
+	Error string    `json:"error,omitempty"`
 }
 
-// RegisterPushDeviceRequest is the body of POST /api/v1/push/devices. The phone
-// sends its Expo push token plus a bit of descriptive metadata; the daemon keys
-// the registry on the token and re-registering is an idempotent upsert.
-type RegisterPushDeviceRequest struct {
-	Token      string `json:"token" description:"Expo push token, e.g. ExponentPushToken[...]."`
-	Platform   string `json:"platform,omitempty" enum:"ios,android" description:"Device platform."`
-	DeviceName string `json:"deviceName,omitempty" description:"Human-friendly device label."`
+type PhoneAlertStatusResponse struct {
+	Enabled      bool                        `json:"enabled" description:"Connect Mobile is on and a topic exists."`
+	Claimed      bool                        `json:"claimed" description:"A paired phone has fetched the current topic."`
+	LastDelivery *PhoneAlertDeliveryResponse `json:"lastDelivery,omitempty"`
 }
 
-// PushDeviceResponse is the stored view of a registered push device.
-type PushDeviceResponse struct {
-	Token      string    `json:"token"`
-	Platform   string    `json:"platform,omitempty"`
-	DeviceName string    `json:"deviceName,omitempty"`
-	CreatedAt  time.Time `json:"createdAt"`
-	LastSeenAt time.Time `json:"lastSeenAt"`
-}
-
-// PushDeviceEnvelope is the { device } response body for a registered push device.
-type PushDeviceEnvelope struct {
-	Device PushDeviceResponse `json:"device"`
-}
-
-// UnregisterPushDeviceResponse is the body of DELETE /api/v1/push/devices/{token} (200).
-type UnregisterPushDeviceResponse struct {
-	Token   string `json:"token"`
-	Deleted bool   `json:"deleted"`
+type PhoneAlertSubscribeResponse struct {
+	Topic  string `json:"topic"`
+	Server string `json:"server"`
 }
 
 /* ---- settings ---------------------------------------------------------- */
@@ -1531,7 +1587,7 @@ type UiSettings struct {
 // it for this pass only, without editing project config, so one session's choice
 // cannot change what another session in the project runs.
 type TriggerReviewRequest struct {
-	Harness domain.ReviewerHarness `json:"harness,omitempty" enum:"claude-code,codex,copilot,cursor,kilocode,opencode,kiro,pi,qwen,agy,continue,goose,vibe,devin,droid,kimi,kimchi,muse,amp,aider,grok,crush,auggie,cline,autohand"`
+	Harness domain.ReviewerHarness `json:"harness,omitempty" enum:"claude-code,codex,copilot,kilocode,opencode,qwen,amp,auggie"`
 }
 
 // DesktopResponse is the body of GET /api/v1/desktop: how this machine

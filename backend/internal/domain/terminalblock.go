@@ -22,3 +22,10 @@ type Block struct {
 	EndOffset      int64
 	CreatedAt      time.Time
 }
+
+const SharedHistoryScan = 5000
+
+type CommandRun struct {
+	Command    string
+	FinishedAt time.Time
+}

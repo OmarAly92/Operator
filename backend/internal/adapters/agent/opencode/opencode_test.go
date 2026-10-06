@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hookutil"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
@@ -603,20 +602,8 @@ func TestGetAgentHooksInstallsPlugin(t *testing.T) {
 		t.Fatalf("user plugin modified by install: %q", got)
 	}
 
-	// using-opr must land where opencode's skill tool discovers project skills.
-	skillMD := filepath.Join(opencodeSkillDir(workspace), "SKILL.md")
-	skillBody, err := os.ReadFile(skillMD)
-	if err != nil {
-		t.Fatalf("using-opr SKILL.md missing after install: %v", err)
-	}
-	if !strings.Contains(string(skillBody), "name: using-opr") {
-		t.Fatalf("installed skill missing using-opr frontmatter:\n%s", skillBody)
-	}
-	if managed, err := isOperatorManagedSkill(workspace); err != nil || !managed {
-		t.Fatalf("isOperatorManagedSkill after install = (%v, %v), want (true, nil)", managed, err)
-	}
-	if _, err := os.Stat(filepath.Join(opencodeSkillDir(workspace), "commands", "session.md")); err != nil {
-		t.Fatalf("using-opr commands/session.md missing after install: %v", err)
+	if _, err := os.Stat(filepath.Join(workspace, ".opencode", "skills")); !os.IsNotExist(err) {
+		t.Fatalf("install created .opencode/skills: err=%v", err)
 	}
 }
 
@@ -680,94 +667,8 @@ func TestUninstallHooksRemovesPlugin(t *testing.T) {
 	if _, err := os.Stat(opencodePluginPath(workspace)); !os.IsNotExist(err) {
 		t.Fatalf("Operator plugin still present after uninstall: err=%v", err)
 	}
-	if _, err := os.Stat(opencodeSkillDir(workspace)); !os.IsNotExist(err) {
-		t.Fatalf("Operator using-opr skill still present after uninstall: err=%v", err)
-	}
-	if _, err := os.Stat(opencodeSkillMarkerPath(workspace)); !os.IsNotExist(err) {
-		t.Fatalf("Operator skill marker still present after uninstall: err=%v", err)
-	}
 	if _, err := os.Stat(userPlugin); err != nil {
 		t.Fatalf("user plugin removed by uninstall: %v", err)
-	}
-}
-
-func TestGetAgentHooksRecoversPartialSkillInstall(t *testing.T) {
-	plugin := &Plugin{resolvedBinary: "opencode"}
-	workspace := t.TempDir()
-	ctx := context.Background()
-
-	skillDir := opencodeSkillDir(workspace)
-	if err := os.MkdirAll(skillDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	// Simulate a crash after the marker was written but before Materialize finished.
-	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("# partial\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := hookutil.AtomicWriteFile(opencodeSkillMarkerPath(workspace), []byte(opencodeSkillSentinel+"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := plugin.GetAgentHooks(ctx, ports.WorkspaceHookConfig{WorkspacePath: workspace}); err != nil {
-		t.Fatalf("GetAgentHooks: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(skillDir, "commands", "session.md")); err != nil {
-		t.Fatalf("recovered install missing commands/session.md: %v", err)
-	}
-}
-
-func TestGetAgentHooksRefusesToClobberForeignSkill(t *testing.T) {
-	plugin := &Plugin{resolvedBinary: "opencode"}
-	workspace := t.TempDir()
-	ctx := context.Background()
-
-	skillDir := opencodeSkillDir(workspace)
-	if err := os.MkdirAll(skillDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	foreignSkill := []byte("---\nname: using-opr\ndescription: user owned\n---\n# mine\n")
-	foreignPath := filepath.Join(skillDir, "SKILL.md")
-	if err := os.WriteFile(foreignPath, foreignSkill, 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	err := plugin.GetAgentHooks(ctx, ports.WorkspaceHookConfig{WorkspacePath: workspace})
-	if err == nil {
-		t.Fatal("GetAgentHooks overwrote a non-Operator skill; want a loud error")
-	}
-	got, readErr := os.ReadFile(foreignPath)
-	if readErr != nil {
-		t.Fatalf("foreign skill removed by refused install: %v", readErr)
-	}
-	if !reflect.DeepEqual(got, foreignSkill) {
-		t.Fatalf("foreign skill modified by refused install: %q", got)
-	}
-}
-
-func TestUninstallHooksLeavesForeignSkill(t *testing.T) {
-	plugin := &Plugin{resolvedBinary: "opencode"}
-	workspace := t.TempDir()
-	ctx := context.Background()
-
-	skillDir := opencodeSkillDir(workspace)
-	if err := os.MkdirAll(skillDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	foreignSkill := []byte("---\nname: using-opr\ndescription: user owned\n---\n# mine\n")
-	foreignPath := filepath.Join(skillDir, "SKILL.md")
-	if err := os.WriteFile(foreignPath, foreignSkill, 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := plugin.UninstallHooks(ctx, workspace); err != nil {
-		t.Fatal(err)
-	}
-	got, err := os.ReadFile(foreignPath)
-	if err != nil {
-		t.Fatalf("foreign skill removed by uninstall: %v", err)
-	}
-	if !reflect.DeepEqual(got, foreignSkill) {
-		t.Fatalf("foreign skill modified by uninstall: %q", got)
 	}
 }
 

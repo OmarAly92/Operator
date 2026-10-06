@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/app_themes/app_motion.dart';
+import 'package:operator_mobile/core/widgets/motion/disclosure.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/feature/terminal/data/model/slash_command_model.dart';
@@ -91,5 +95,39 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -2000));
     await tester.pumpAndSettle();
     expect(find.text('/cmd29'), findsOneWidget);
+  });
+
+  testWidgets('closing fades the menu out through an intermediate height instead of vanishing', (tester) async {
+    final cubit = _MockSlashMenuCubit();
+    final states = StreamController<SlashMenuState>.broadcast();
+    addTearDown(states.close);
+    const opened = SlashMenuChangedState(open: true, matches: [_compact]);
+    const closed = SlashMenuChangedState(open: false, matches: []);
+    when(() => cubit.state).thenReturn(opened);
+    when(() => cubit.stream).thenAnswer((_) => states.stream);
+    when(() => cubit.open).thenReturn(true);
+    when(() => cubit.matches).thenReturn(const [_compact]);
+
+    await tester.pumpWidget(_host(cubit));
+    await tester.pumpAndSettle();
+    final full = tester.getSize(find.byType(Disclosure)).height;
+    expect(full, greaterThan(0));
+
+    when(() => cubit.state).thenReturn(closed);
+    when(() => cubit.open).thenReturn(false);
+    when(() => cubit.matches).thenReturn(const []);
+    states.add(closed);
+    await tester.pump(Duration.zero);
+    expect(tester.widget<Disclosure>(find.byType(Disclosure)).expanded, isFalse);
+    await tester.pump(AppMotion.disclosure ~/ 4);
+
+    expect(find.text('/compact'), findsOneWidget);
+    final height = tester.getSize(find.byType(Disclosure)).height;
+    expect(height, greaterThan(0));
+    expect(height, lessThan(full));
+
+    await tester.pumpAndSettle();
+    expect(find.text('/compact'), findsNothing);
+    expect(tester.getSize(find.byType(Disclosure)).height, 0);
   });
 }

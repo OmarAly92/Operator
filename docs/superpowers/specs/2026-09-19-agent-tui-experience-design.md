@@ -3,7 +3,7 @@
 **Date:** 2026-09-19
 **Decision owner:** Omar Aly
 **Status:** approved direction; plan A is the next document to write
-**Derived from:** [`2026-09-19-terminal-reference-survey.md`](2026-09-19-terminal-reference-survey.md)
+**Derived from:** [`2026-09-19-terminal-reference-survey.md`](../../terminal/2026-09-19-terminal-reference-survey.md)
 (the survey). `§N.M` refers to that document. This spec restates what it
 needs, adds the long-session requirements the survey did not cover, and
 carries the implementation reference (current code with file:line, target
@@ -181,7 +181,10 @@ regenerate from a scratch project.
 | torn frames in `claude-spinner-10s` | `run.mjs` `tearing`: model states that became visible inside a sync block (fed byte by byte), paints showing a partial frame and frames painted more than once (fed in thirds, one frame per third) | 7470 states / 25 paints / 18 multi-paint of 120 frames | 0 states / 0 paints / 0 multi-paint of 120 frames. `tornStates` 7470→0 is Task 5's synchronized-output buffering. `tornPaints`/`multiPaintFrames` 25/18→0/0 is a Task 8 fix to the harness itself, not the renderer: `paintsPerFrame` sampled the "before" text hash with no settle delay, racing ahead of the renderer's ~60Hz-throttled `repaintOnFrame`, so it sometimes read a still-painting-the-previous-frame state as "torn". Adding two awaited `requestAnimationFrame` waits before the "before" sample (confirmed independently by the Task 5 implementer and reviewer) drives both to 0; `tornStates` (the byte-level, load-bearing check) was already 0 before this fix | 0 states / 0 paints / 0 multi-paint of 120 frames — unchanged | 0 states / 0 paints / 0 multi-paint of 120 frames — unchanged; Plan C does not touch synchronized-output buffering | 0 states / 0 paints / 0 multi-paint of 120 frames, flags off and flags on both — unchanged; Plan D does not touch synchronized-output buffering | 0 states / 0 paints / 0 multi-paint of 120 frames — unchanged; Plan E does not touch synchronized-output buffering |
 | `feed()` + `snapshot()` cost at 1k / 5k / 50k rows | `performance.now()` around `core.feed` then `core.snapshot()` for a 4 KiB chunk | — | `claude-long-50k` (60,137 rows), 20 samples each: 0.40ms @ 1k (reached row 1,361) / 0.70ms @ 5k (reached row 5,610) / 5.30ms @ 50k (reached row 50,252) | `claude-long-50k`, 20 samples @ 1k / 7 @ 5k / 15 @ 50k: 0.20ms @ 1k (reached row 1,361) / 0.10ms @ 5k (reached row 5,610) / 0.20ms @ 50k (reached row 50,341) — this is `feedSyncCost`, the row `bench:agent:gate` checks against the 20 % + 0.2 ms budget (50k's 0.20ms is well inside 1k's 0.20ms × 1.2 + 0.2ms); Part 1.4's 200k-row target is measured here at the fixture's 50k | `claude-long-50k`, 20 samples @ 1k / 15 @ 5k / 13 @ 50k (`bench:agent:gate` run): 0.20ms @ 1k (reached row 1,361) / 0.20ms @ 5k (reached row 5,610) / 0.10ms @ 50k (reached row 50,160) — unchanged within run-to-run noise, still well inside the 20% + 0.2ms budget `bench:agent:gate` checks; Plan C does not touch `feed()`+`sync()` | flags off (`bench:agent:gate`), 20 samples @ 1k / 6 @ 5k / 16 @ 50k: 0.20ms @ 1k / 0.20ms @ 5k / 0.10ms @ 50k — unchanged within noise from Plan C, inside the 20% + 0.2ms budget; flags on, 20 samples each: 0.30ms @ 1k / 0.30ms @ 5k / 0.20ms @ 50k | flags off (`bench:agent:gate`), 20 samples @ 1k / 20 @ 5k / 11 @ 50k: 0.20ms @ 1k / 0.20ms @ 5k / 0.10ms @ 50k — unchanged within noise from Plan D, inside the 20% + 0.2ms budget |
 | row nodes created per paint under the spinner | `MutationObserver` `addedNodes` filtered to `.terminal-row` over 100 spinner frames | — | `claude-spinner-10s`, 100 frames: 2,469 nodes (24.69 nodes/paint) | `claude-spinner-10s`, 100 frames: 1,019 nodes (10.19 nodes/paint) — Task 10's row pool; see the paints/nodes row above (`addedNodes`/`rowNodesAdded` both 1,019, a 1.0 ratio) | `claude-spinner-10s`, 100 frames: 1,019 nodes (10.19 nodes/paint) — unchanged; Plan C does not touch the row pool | flags off: `claude-spinner-10s`, 100 frames: 1,019 nodes (10.19 nodes/paint) — unchanged from Plan C. Flags on: same 1,019 nodes (10.19 nodes/paint) — the row pool is untouched by Plan D; only the nodes *inside* each row (attribute spans) change, counted in the paints/DOM-nodes row above | `claude-spinner-10s`, 100 frames: 1,019 nodes (10.19 nodes/paint) — unchanged from Plan D; the row pool and its DOM nodes are untouched by Plan E's overlay-only affordances |
-| main-thread task time of ten idle spinner panes over 10 s | CDP `Performance.getMetrics` `TaskDuration` delta, 10 renderers fed the same 100 frames at 100 ms | — | `claude-spinner-10s`, 10 panes: 1.759 s taskDuration (17.6% of 10 s) | `claude-spinner-10s`, 10 panes: 1.30 s taskDuration in the review's run (16.8 % of 10 s; the executor's runs read 1.01–1.68 s). Spec target is ≤ 25 % of the 1.759 s baseline = 0.44 s — **missed** (74 % of baseline). Not gated | `claude-spinner-10s`, 10 panes: 0.791s and 0.874s main-thread task time over 10s across two runs (7.9–8.7% of 10s) — against the pre-Plan-B baseline of 1.759s this is 45–50% of baseline, still **missed** against the ≤25% (0.44s) target but noticeably better than Plan B's 57–95% range; not investigated further (out of scope, Plan C does not touch idle-pane cost), not gated | flags off: `claude-spinner-10s`, 10 panes: 1.152s main-thread task time over 10s (`bench:agent:gate`; 0.878s on the executor's run) — within the 0.79–1.30s spread Plan B/C reported, still **missed** against the ≤25% (0.44s) target, not gated. Flags on: 1.082s — the same noisy range | `claude-spinner-10s`, 10 panes: 1.285s main-thread task time over 10s (`bench:agent:gate`) — within the 0.79–1.30s spread Plan B/C/D reported, still **missed** against the ≤25% (0.44s) target, not gated; not investigated, Plan E does not touch idle-pane cost |
+| main-thread task time of ten idle spinner panes over 10 s | CDP `Performance.getMetrics` `TaskDuration` delta, 10 renderers fed the same 100 frames at 100 ms | — | `claude-spinner-10s`, 10 panes: 1.759 s taskDuration (17.6% of 10 s) | `claude-spinner-10s`, 10 panes: 1.30 s taskDuration in the review's run (16.8 % of 10 s; the executor's runs read 1.01–1.68 s). Spec target is ≤ 25 % of the 1.759 s baseline = 0.44 s — **missed** (74 % of baseline). Not gated | `claude-spinner-10s`, 10 panes: 0.791s and 0.874s main-thread task time over 10s across two runs (7.9–8.7% of 10s) — against the pre-Plan-B baseline of 1.759s this is 45–50% of baseline, still **missed** against the ≤25% (0.44s) target but noticeably better than Plan B's 57–95% range; not investigated further (out of scope, Plan C does not touch idle-pane cost), not gated | flags off: `claude-spinner-10s`, 10 panes: 1.152s main-thread task time over 10s (`bench:agent:gate`; 0.878s on the executor's run) — within the 0.79–1.30s spread Plan B/C reported, still **missed** against the ≤25% (0.44s) target, not gated. Flags on: 1.082s — the same noisy range | `claude-spinner-10s`, 10 panes: 1.285s main-thread task time over 10s (`bench:agent:gate`) — within the 0.79–1.30s spread Plan B/C/D reported, still **missed** against the ≤25% (0.44s) target, not gated; not investigated, Plan E does not touch idle-pane cost. After the background-pane gate (2026-09-23, branch `terminal-background-pane` `1b76f26fd`, `run.mjs --panes-only` `visible10`): 1.326 / 1.324 / 1.296 s, 1220–1221 layouts / 2256–2257 style recalcs — unchanged; the absolute rise over the 0.855–1.133 s before-runs is machine load (load average 31–54 on 10 cores), since the pre-plan tree (`11323ce3d`) run interleaved with it in the same session read 1.290–1.327 s against 1.276–1.327 s |
+| main-thread task time, 1 visible + 3 parked spinner panes over 10 s | `run.mjs --panes-only` `parked3`: CDP `TaskDuration`, `LayoutDuration`, `RecalcStyleDuration` deltas; parked panes built like `TerminalPane.parkTerminal` and fed by `enqueue` | 0.532–0.642 s (2026-09-23, `development` `b59c3b27c`; +122 layouts per parked pane per 100 frames). After the background-pane gate (2026-09-23, branch `terminal-background-pane` `1b76f26fd`): 0.445 / 0.448 / 0.478 s against a solo row of 0.458 / 0.419 / 0.420 s, 122 layouts / 222 style recalcs (the solo row's own count; parked panes add none), `parkedMutations` 0, every parked core at generation 118 with no backlog | — | — | — | — | — |
+| main-thread task time, 1 visible + 9 parked spinner panes over 10 s | same, `parked9` | 0.886–1.004 s (2026-09-23; run 1 under the profiler). After the background-pane gate (2026-09-23, branch `terminal-background-pane` `1b76f26fd`): 0.526 / 0.528 / 0.518 s, 122–123 layouts / 222–223 style recalcs, `parkedMutations` 0, every parked core at generation 118 with no backlog; 0.068–0.109 s over the same run's solo row, 7.6–12.1 ms per parked pane per 10 s (was 65–88 ms) | — | — | — | — | — |
+| retained panes over a 2 h real-app soak: WebContent RSS and CPU | `scripts/soak-operator-webview.sh <WebContent pid> 120` (`ps` RSS and %CPU once a minute) with 6 Claude sessions, 3 busy, 1 visible; after the unload also 30 min minimised and 2 visible split panes + parked | Before the unload (Task 9, 2026-09-23, branch `terminal-background-pane` `8378d78af`): not verified — dev ports busy (the user's dev app held 3002 and 5173). After the 30-minute unload (2026-09-23, `13ad4994d`): not verified — dev ports busy, for the soak, the minimised stretch and the 2-visible run alike. Bench only, not a substitute: the 30-min `bench:soak` (1 visible + 9 parked, 64 KiB/s each) reads 254.3 MiB wasm at the 200k-row cap from minute 6 and 1.52–2.14 / 1.75–2.04 s of main thread per minute, identical memory in both runs | — | — | — | — | — |
 | rows repainted when a mouse move extends the selection by one row | `MutationObserver` on `style` of `.terminal-row` around one `selectionUpdate` during streaming | — | `claude-spinner-10s`: 2 rows repainted | `claude-spinner-10s`: 1 row repainted — Task 11's selection-fill diff against the previous paint; meets the target of 1 exactly | `claude-spinner-10s`: 1 row repainted — unchanged; Plan C does not touch selection | flags off: `claude-spinner-10s`: 1 row repainted — unchanged. Flags on: 1 row repainted — unchanged; Plan D does not touch selection | `claude-spinner-10s`: 1 row repainted — unchanged; Plan E does not touch selection |
 | width change at 50k rows: viewport correctness, stale-row rewrap | new (Plan C): `bench/agent-session/scroll-gate.mjs`'s width phase — `session.widthChange(40)` (a column resize) at the scroll midpoint, then 40 more scroll steps | — | — | — | `claude-long-50k`, run 1 (`npm run bench:agent`/`bench:agent:gate`, no scroll steps, just the resize): `settleMs` 24.2–28ms, top-edge row 60081 before vs 60086 after (**not equal**, differs by 5 rows) on both runs of the plain resize probe. Run 2 (`npm run bench:agent:scroll`, resize at the scrolled-to-midpoint position, then 40 scroll steps): `settleMs` 26.1ms, top-edge row 30066 before and 30066 after (**equal**), `staleRows` 58,031 (lazy rewrap engaged — not every row was rewrapped eagerly), `scrolledRows` 40 (all 40 post-resize scroll steps found a row). The gate in `scroll-gate.mjs` asserts `before === after` and failed on the plain-resize probe's own numbers when tried standalone (see the "Plan C landed" paragraph); of 8 consecutive `bench:agent:scroll` runs, 3 passed cleanly (this run among them), 3 hit the pre-existing trim-phase flake, and 2 hit a new width-phase flake (`before` reads `-1`) — see the "Plan C landed" paragraph and `TERMINAL.md` §5 for both. Measured at the fixture's ~60k rows; the spec's target is 200k | unchanged from Plan C's gated width phase (see the scroll row above); Plan D does not touch resize mechanics. `run.mjs`'s own ungated `widthChange` probe (no prior scroll, sticky-bottom pinned) read `before`/`after` 60081/60086 with flags off (unchanged from Plan C's same reading) and 59800/60086 with flags on — both non-equal by the sticky-bottom contract documented in `TERMINAL.md` §5, not a new flake | unchanged from Plan D's gated width phase (see the scroll row above). `run.mjs`'s own ungated `widthChange` probe (no prior scroll, sticky-bottom pinned) read `before`/`after` 60,081/60,086 — non-equal by the sticky-bottom contract documented in `TERMINAL.md` §5, the same reading as Plan C/D, not a new flake; Plan E does not touch resize mechanics |
 | slow-link burst (Part 1.3.H) | Go `host_test.go::TestReadPausesPastHighWatermarkAndResumesOnAck`, `TestHistoryStreamingNeverPausesTheChild` | — | — | — | Both PASS (`go test ./internal/adapters/runtime/ptyhost/... -run 'TestReadPausesPastHighWatermarkAndResumesOnAck\|TestHistoryStreamingNeverPausesTheChild' -v`). See the "Plan C landed" paragraph for what each test proves and the real-app caveat | Both PASS, re-run on this HEAD (`go test ./internal/adapters/runtime/ptyhost/... -run 'TestReadPausesPastHighWatermarkAndResumesOnAck\|TestHistoryStreamingNeverPausesTheChild' -v`); unchanged, Plan D does not touch flow control. Not applicable to a flags-on run: these are Go tests, not gated by `RendererFeatures` | Both PASS, re-run on this HEAD (`go test ./internal/adapters/runtime/ptyhost/... -run 'TestReadPausesPastHighWatermarkAndResumesOnAck\|TestHistoryStreamingNeverPausesTheChild' -v`); unchanged, Plan E does not touch flow control |
@@ -372,18 +375,18 @@ from the review commit that follows `5ba24affc`, which fixed the parser bug
 described under "Flags-off rows". Every visible change is behind
 `RendererFeatures` (`packages/terminal/ts/renderer-dom/src/features.ts`), set
 through `DomBlockRenderer.setFeatures` and the `features` prop of
-`TerminalSurface`; Operator passes nothing, so every flag is at its default:
+`TerminalSurface`; Operator passes nothing, so every flag is at its default (`graphemes` and `widthCache` default on since 2026-09-22, `attributes` is `"warp"` since 2026-09-23; the rest are off):
 
 | Flag | Default | What it changes | Side-by-side |
 |---|---|---|---|
-| `attributes` | `"plain"` | `"warp"` paints italic/underline (5 styles, SGR 58 colour)/strike/overline/hidden, tags blink | `bench/agent-session/baselines/*/feature-attributes_warp/` (both Claude fixtures are byte-identical to their baselines: Claude Code uses none of these) |
-| `graphemes` | `false` | core prints and rewraps by grapheme cluster; selection follows the exported spans | `…/feature-graphemes/`, `baselines/glyph-probe/EVIDENCE-graphemes.json` |
+| `attributes` | `"warp"` since 2026-09-23 (was `"plain"`) | `"warp"` paints italic/underline (5 styles, SGR 58 colour)/strike/overline/hidden, tags blink | `bench/agent-session/baselines/*/feature-attributes_plain/` (the old look; on the Claude Code recordings only `claude-markdown-reply` offset-0 differs, its two italic words — Claude Code emitted italic and nothing else from this set) |
+| `graphemes` | `true` since 2026-09-22 (was `false`; flipped together with `widthCache`) | core prints and rewraps by grapheme cluster; selection follows the exported spans | `…/feature-graphemes_false_widthCache_false/` (the old default against the new baseline; its `diff-offset-*.png` crop each changed row, flags off on top, on in the middle, changed pixels in red), `…/feature-widthCache_false/` (graphemes without the width cache), `baselines/glyph-probe/EVIDENCE-graphemes.json` |
 | `cursorContrast` | `false` | inverted cursor below contrast 1.5 | `…/feature-cursorContrast/` |
 | `cursorHollowUnfocused` | `false` | hollow block while unfocused | `…/feature-cursorHollowUnfocused/` |
-| `widthCache` | `false` | per-cluster letter-spacing toward the core's cell widths (Task 11: landed — `wideDriftPx`/`cjkDriftPx` in `EVIDENCE.json`); meaningful together with `graphemes`, see below | `…/feature-widthCache/`, `…/feature-graphemes_widthCache/` |
+| `widthCache` | `true` since 2026-09-22 (was `false`; flipped together with `graphemes`) | per-cluster letter-spacing toward the core's cell widths (Task 11: landed — `wideDriftPx`/`cjkDriftPx` in `EVIDENCE.json`); meaningful together with `graphemes`, see below | `…/feature-graphemes_false/` (the width cache alone — why the two flags move together), `…/feature-graphemes_false_widthCache_false/` |
 | `boxDrawing` | `false` | procedural box glyphs (Task 10: not needed — `boxGapPx` = 0, `EVIDENCE.json`) | n/a — never implemented; the flag name is accepted and read by nothing |
 
-Decision 4 stands: `attributes` defaults to `"plain"`. Flipping any default is a
+Decision 4 was reversed 2026-09-23 by the user after the side-by-sides on a recorded markdown reply: `attributes` defaults to `"warp"` (`docs/terminal/2026-09-23-day-to-day-suggestions.md` item 2). Flipping any default is a
 one-line change in `DEFAULT_FEATURES` plus a re-recorded feel baseline; the
 side-by-side screenshots above are what the user compares before that.
 
@@ -1010,7 +1013,10 @@ move during streaming repaints one row.
 - **Link grammar** (survey §6.4): port `vscode/src/vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing.ts:44-214`
   (every `file:339`, `file:339:12`, `file(339,12)`, `"file", line 339`, …
   form, with its test table) to `ts/renderer-dom/src/link-parsing.ts`;
-  candidates validated by the host (`HostCapabilities.resolvePath?`).
+  used for its suffix functions only. Hover builds the candidate spans
+  through the hovered cell, longest first, and the host checks them in one
+  batched, capped call (`HostCapabilities.resolveFirstPath?`); see
+  `TERMINAL.md` §4.23.
 - **Linkifier** (survey §3.7): hover → per-logical-line providers (OSC 8,
   regex) → underline decoration → click with the platform modifier; pointer
   hand only over a link (`TERMINAL.md` §4.12).
@@ -1035,8 +1041,39 @@ move during streaming repaints one row.
 - **Server-owned model** (survey §4.2): the mirror becomes the model of
   record and clients pull rows by `(stable row, generation)`; mobile drops
   its `xterm` fork. Its own design spec; Part 1.B/C/G are its prerequisites.
-  The design spec is Plan F's Task 1; the implementation is **Plan G**, which
-  is where the phone gains everything Parts 4 and 5 built for the desktop.
+  The design spec was written as Plan F's Task 1
+  (`2026-09-22-server-owned-terminal-model-design.md`) and is **not being
+  implemented** — dropped by the user on 2026-09-22. Claude Code lays out
+  every row itself with cursor motion rather than printing lines for the
+  terminal to wrap (`claude-long-50k`: rows advanced by `\r ESC[1B`, 10,252
+  rows filled to 110–120 of 120 columns), so the bytes carry no logical lines
+  a phone could rewrap; a row model would give the phone a better copy of the
+  desktop's picture, not a readable one.
+
+**What Plan F delivered (2026-09-22).** The measurement first
+(`2026-09-22-remote-typing-latency-measurement.md`): over the daemon's public
+tunnel a keystroke round trip is 106.7 ms median / 144.3 ms p95 (first byte),
+and the character is on screen at 111.7 ms median / 146.8 ms p95 (visible);
+on loopback the whole local pipeline is 6.7 ms median (visible). Claude's own
+turn for the cheapest prompt writable is 1071.8–1567.0 ms (median 1240.3 ms,
+p95 1494.0 ms), so network is ~8 % of the floor of a send→answer wait and
+under 1 % of a realistic one. So **predictive echo does nothing for the phone
+case** — it cannot even reach the phone (renderer-only overlay; the Flutter
+app draws with its own `xterm` fork), and the mobile composer is already
+local echo. The configuration it does help is the **desktop app against a
+remote daemon**, which pays the full ~107 ms per keystroke in Claude Code's
+prompt; the user confirmed on 2026-09-22 that they work that way often. Plan F
+therefore delivered both bullets: the §4.2 design spec
+(`2026-09-22-server-owned-terminal-model-design.md`) and predictive echo in
+the desktop renderer as an overlay in the Plan E decoration layer — default
+off, armed only above a host RTT threshold, painting in both surfaces,
+touching no row and no model. One correction the review made: Claude Code's
+prompt is on the **primary** screen (its recordings never switch to the
+alternate screen), where keys reach it through the line editor's passthrough;
+the first build hooked the echo only into the alternate screen's key handler.
+Operator turns it on from a Settings → General switch, off by default, that
+passes a 30 ms threshold; a loopback daemon measures ~7 ms, so the switch
+changes nothing on a local pane.
 
 ## Decisions needed
 
@@ -1050,7 +1087,7 @@ move during streaming repaints one row.
    equals the last committed scrollback row, drop the duplicate. A genuinely
    repeated line would also be dropped once. Yes/no.
 4. **SGR attributes default**: `"plain"` (today) or `"warp"` after the
-   side-by-side.
+   side-by-side. Decided 2026-09-23: `"warp"`.
 5. **Lazy rewrap** (1.3.F) vs eager with a bigger budget. Proposed: lazy.
 
 ## Plans this spec produces
@@ -1063,58 +1100,8 @@ move during streaming repaints one row.
 | D. Text & glyphs | Part 4 | A; each item flag-gated |
 | E. Act on output | Part 5 | B (stable rows, logical lines) |
 | F. Remote typing | Part 6 predictive echo (desktop only); §4.2 design spec | C |
-| G. One model, one terminal | Implements the §4.2 design spec Plan F produces: the pty-host mirror becomes the model of record, clients pull rows by `(stable row, generation)`, `packages/mobile/packages/xterm` is deleted and the phone renders through `packages/terminal` | F Task 1 (the spec, reviewed and its decisions settled) |
 
-Order: A → B → C → D and E in parallel → F → G.
-
-**Plan G is where the phone stops being a second, weaker terminal.** Plans D
-and E built blocks, styles, grapheme clusters, logical-line copy, links, hints,
-redaction and block timestamps in `packages/terminal/ts/renderer-dom`, which the
-Flutter client never loads — it draws with its own vendored Dart `xterm`
-(`packages/mobile/lib/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart:99`,
-`packages/mobile/packages/xterm`), so every one of those affordances stops at the
-desktop. Plan F deliberately ships the phone nothing runnable: its Task 1 writes
-the design spec and its remaining tasks are desktop predictive echo, with
-`packages/mobile` explicitly out of scope. Plan G is the implementation, and
-until it lands the mobile gap is a known gap, not an oversight
-(`TERMINAL.md` §5).
-
-Plan G cannot be written from this spec alone. Its input is the §4.2 design spec
-Plan F Task 1 produces
-(`docs/superpowers/specs/2026-09-22-server-owned-terminal-model-design.md`),
-whose `## Decisions needed` must be answered first — at minimum the mirror's
-width policy (one mirror at the largest attached grid with clients rewrapping
-logical lines locally, versus one mirror per grid, survey §4.5), what replaces
-the byte channel and what stays on it, and whether the row-delta protocol fixes
-or inherits the two ways ack accounting already fails open (`TERMINAL.md` §5,
-"Ack accounting is per pty-host CONNECTION, not per mux client"). Writing Plan G
-before those are settled would bake a guess into the protocol.
-
-What Plan G owns, at the altitude this spec can state without pre-empting the
-design spec:
-
-- The pty-host mirror as the model of record, addressed by `(stable row,
-  generation)` — Plan B's stable rows and `Delta`, Plan C's reopen/replay
-  ordering and flow-control acks, and Plan E's per-row `wrapped` and link
-  exports are its prerequisites and have all landed.
-- A row-delta transport on the mux beside today's byte channel, with the byte
-  channel kept for the shell/line-editor path and any non-daemon host, because
-  `packages/terminal` stays product-independent (`TERMINAL.md` §3.1).
-- `TerminalCore` gaining an apply-delta path beside `feed`, so the DOM renderer
-  above `snapshot()` is untouched and the local editor keeps `feed`.
-- The Flutter client rendering through `packages/terminal` and
-  `packages/mobile/packages/xterm` deleted, which is what carries Plans D and E
-  to the phone with no second implementation — and the only route by which
-  predictive echo could ever reach it.
-- Offline and reattach behaviour on the phone, which today degrades to "replay
-  the bytes again" and under a row model has to be stated deliberately.
-
-Acceptance belongs to the design spec, not here. The one number this spec
-already owns: §4.2 does **not** shorten the felt wait — the measurement
-(`docs/superpowers/specs/2026-09-22-remote-typing-latency-measurement.md`) put
-the network at ~8 % of the floor of a send→answer wait and under 1 % of a real
-one. Plan G changes *what the phone is*, not how fast it is; a plan that
-promises latency from it is mis-scoped.
+Order: A → B → C → D and E in parallel → F.
 
 ### Plan A task outline (for the plan author; each becomes TDD tasks)
 

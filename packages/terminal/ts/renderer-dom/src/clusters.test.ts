@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cellAtByte, cellAtOffset, cellCount, cellSlice, offsetAtByte, rowClusters, rowCoordinates } from "./clusters";
+import { cellAtByte, cellAtOffset, cellCount, cellSlice, cellString, offsetAtByte, rowClusters, rowCoordinates } from "./clusters";
 
 const HAN = "漢";
 const ROCKET = "\u{1f680}";
@@ -62,5 +62,18 @@ describe("rowCoordinates", () => {
 		expect(cellAtByte("a漢b", [1, 4, 2], 4)).toBe(3);
 		expect(offsetAtByte("a漢b", [1, 4, 2], 5)).toBe(3);
 		expect(cellAtOffset("x🚀y", [1, 5, 2], 3)).toBe(3);
+	});
+});
+
+describe("cellString", () => {
+	it("maps one string index to one cell, filling a wide cluster's cells with NUL", () => {
+		const text = "> 世a";
+		const spans = [2, 5, 2];
+		expect(cellString(text, spans)).toBe("> \u0000\u0000a");
+		expect(cellString(text, spans)[4]).toBe("a");
+	});
+
+	it("gives a surrogate pair without a span one NUL cell", () => {
+		expect(cellString("\u{1f600}b", [])).toBe("\u0000b");
 	});
 });

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -6,9 +8,13 @@ import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/spawn/data/model/claude_account_model.dart';
+import 'package:operator_mobile/feature/spawn/data/model/params/get_project_branches_params.dart';
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
+import 'package:operator_mobile/feature/spawn/data/model/project_branch_model.dart';
+import 'package:operator_mobile/feature/spawn/data/model/project_branches_model.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
+import 'package:operator_mobile/feature/spawn/logic/spawn_option_values.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 
 class _MockSpawnRepository extends Mock implements SpawnRepository {}
@@ -19,6 +25,15 @@ AgentCatalog get _catalog => AgentCatalog(
   supported: [_agent('claude-code'), _agent('codex')],
   installed: [_agent('claude-code'), _agent('codex')],
   authorized: [_agent('claude-code'), _agent('codex')],
+);
+
+const _branches = ProjectBranchesModel(
+  current: 'logic/home',
+  branches: [
+    ProjectBranchModel(name: 'logic/home', checkedOutAt: '/Users/me/rafeeq', isMainCheckout: true),
+    ProjectBranchModel(name: 'feat/x', isMainCheckout: false),
+    ProjectBranchModel(name: 'main', isMainCheckout: false),
+  ],
 );
 
 List<ClaudeAccountModel> get _accounts => const [
@@ -42,6 +57,19 @@ void main() {
       final params = SpawnSessionParams(projectId: 'p-1', workspaceMode: 'worktree');
       expect(params.toJson()['workspaceMode'], 'worktree');
     });
+
+    test('sends branch only when it is non-empty', () {
+      expect(const SpawnSessionParams(projectId: 'p').toJson().containsKey('branch'), isFalse);
+      expect(const SpawnSessionParams(projectId: 'p', branch: '').toJson().containsKey('branch'), isFalse);
+      expect(const SpawnSessionParams(projectId: 'p', branch: 'feat/x').toJson()['branch'], 'feat/x');
+    });
+
+    test('branch takes part in equality', () {
+      expect(
+        const SpawnSessionParams(projectId: 'p', branch: 'a'),
+        isNot(const SpawnSessionParams(projectId: 'p', branch: 'b')),
+      );
+    });
   });
 
   late _MockSpawnRepository repository;
@@ -52,7 +80,10 @@ void main() {
     return SpawnCubit(repository);
   }
 
-  setUpAll(() => registerFallbackValue(const SpawnSessionParams(projectId: 'p')));
+  setUpAll(() {
+    registerFallbackValue(const SpawnSessionParams(projectId: 'p'));
+    registerFallbackValue(const GetProjectBranchesParams(projectId: 'p'));
+  });
 
   setUp(() {
     repository = _MockSpawnRepository();
@@ -61,6 +92,220 @@ void main() {
     );
     when(() => repository.getClaudeAccounts())
         .thenAnswer((_) async => Result.success(GlobalResponse(data: _accounts)));
+    when(() => repository.getBranches(any()))
+        .thenAnswer((_) async => Result.success(GlobalResponse(data: _branches)));
+  });
+
+  Future<SpawnSessionParams> submitted(SpawnCubit cubit) async {
+    cubit.name = 'flaky login';
+    cubit.prompt = 'fix it';
+    await cubit.submit();
+    return verify(() => repository.spawn(captureAny())).captured.single as SpawnSessionParams;
+  }
+
+  group('branches', () {
+    test('load for a single-repo project and keep the daemon order', () async {
+      final cubit = buildCubit();
+      await cubit.setProject('p1', kind: 'single_repo');
+
+      verify(() => repository.getBranches(const GetProjectBranchesParams(projectId: 'p1'))).called(1);
+      expect(cubit.branches.map((b) => b.name), ['logic/home', 'feat/x', 'main']);
+      expect(cubit.currentBranch, 'logic/home');
+      expect(cubit.branchesLoading, isFalse);
+      expect(cubit.branchesError, isNull);
+      expect(cubit.selectedBranch, isNull);
+      await cubit.close();
+    });
+
+    test('branches that arrive after a failed catalog still reach the screen and keep the catalog error', () async {
+      when(() => repository.getAgents())
+          .thenAnswer((_) async => Result.failure(ServerFailure(error: 'x', message: 'catalog down')));
+      final branchesReply = Completer<Result<GlobalResponse<ProjectBranchesModel>, Failure>>();
+      when(() => repository.getBranches(any())).thenAnswer((_) => branchesReply.future);
+      final cubit = SpawnCubit(repository);
+
+      final loading = cubit.setProject('p1', kind: 'single_repo');
+      await cubit.loadCatalog();
+      expect(cubit.state, isA<CatalogFailureState>());
+      expect(cubit.branchesLoading, isTrue);
+
+      branchesReply.complete(Result.success(GlobalResponse(data: _branches)));
+      await loading;
+
+      expect(cubit.branchesLoading, isFalse);
+      final state = cubit.state;
+      expect(state, isA<CatalogFailureState>());
+      expect((state as CatalogFailureState).revision, isNonZero);
+      expect(state.failure.message, 'catalog down');
+      await cubit.close();
+    });
+
+    test('do not load for other project kinds', () async {
+      final cubit = buildCubit();
+      await cubit.setProject('p1', kind: 'workspace');
+      await cubit.setProject('p2', kind: 'scratch');
+      await cubit.setProject('p3');
+
+      verifyNever(() => repository.getBranches(any()));
+      expect(cubit.branches, isEmpty);
+      expect(cubit.branchesLoading, isFalse);
+      await cubit.close();
+    });
+
+    test('reload on every project change and drop the previous listing', () async {
+      final cubit = buildCubit();
+      await cubit.setProject('p1', kind: 'single_repo');
+      cubit.setUseWorktree(true);
+      cubit.setBranch('feat/x');
+
+      when(() => repository.getBranches(const GetProjectBranchesParams(projectId: 'p2'))).thenAnswer(
+        (_) async => Result.success(
+          GlobalResponse(data: const ProjectBranchesModel(current: 'dev', branches: [ProjectBranchModel(name: 'dev')])),
+        ),
+      );
+      await cubit.setProject('p2', kind: 'single_repo');
+
+      expect(cubit.selectedBranch, isNull);
+      expect(cubit.branches.map((b) => b.name), ['dev']);
+      expect(cubit.currentBranch, 'dev');
+
+      await cubit.setProject('p3', kind: 'scratch');
+      expect(cubit.branches, isEmpty);
+      expect(cubit.currentBranch, '');
+      await cubit.close();
+    });
+
+    test('a slow listing for a project the user left is ignored', () async {
+      final cubit = buildCubit();
+      final first = cubit.setProject('p1', kind: 'single_repo');
+      await cubit.setProject('p2', kind: 'scratch');
+      await first;
+
+      expect(cubit.branches, isEmpty);
+      expect(cubit.branchesLoading, isFalse);
+      await cubit.close();
+    });
+
+    test('toggling the worktree resets the pick', () async {
+      final cubit = buildCubit();
+      await cubit.setProject('p1', kind: 'single_repo');
+      cubit.setUseWorktree(true);
+      cubit.setBranch('feat/x');
+
+      cubit.setUseWorktree(false);
+      expect(cubit.selectedBranch, isNull);
+
+      cubit.setUseWorktree(true);
+      cubit.setBranch('main');
+      cubit.setUseWorktree(true);
+      expect(cubit.selectedBranch, isNull);
+      await cubit.close();
+    });
+
+    test('a failed load records the failure and New branch still spawns', () async {
+      when(() => repository.getBranches(any()))
+          .thenAnswer((_) async => Result.failure(ServerFailure(error: 'x', message: 'boom')));
+      final cubit = buildCubit();
+      await cubit.loadCatalog();
+      await cubit.setProject('p1', kind: 'single_repo');
+      cubit.setUseWorktree(true);
+
+      expect(cubit.branchesError, isNotNull);
+      expect(cubit.branchesLoading, isFalse);
+      expect(cubit.branches, isEmpty);
+
+      final params = await submitted(cubit);
+      expect(params.workspaceMode, 'worktree');
+      expect(params.toJson().containsKey('branch'), isFalse);
+      await cubit.close();
+    });
+
+    test('worktree with New branch sends no branch', () async {
+      final cubit = buildCubit();
+      await cubit.loadCatalog();
+      await cubit.setProject('p1', kind: 'single_repo');
+      cubit.setUseWorktree(true);
+
+      final body = (await submitted(cubit)).toJson();
+      expect(body['workspaceMode'], 'worktree');
+      expect(body.containsKey('branch'), isFalse);
+      await cubit.close();
+    });
+
+    test('worktree with a picked branch sends it', () async {
+      final cubit = buildCubit();
+      await cubit.loadCatalog();
+      await cubit.setProject('p1', kind: 'single_repo');
+      cubit.setUseWorktree(true);
+      cubit.setBranch('feat/x');
+
+      final body = (await submitted(cubit)).toJson();
+      expect(body['workspaceMode'], 'worktree');
+      expect(body['branch'], 'feat/x');
+      await cubit.close();
+    });
+
+    test('in place sends the current branch', () async {
+      final cubit = buildCubit();
+      await cubit.loadCatalog();
+      await cubit.setProject('p1', kind: 'single_repo');
+
+      final body = (await submitted(cubit)).toJson();
+      expect(body['workspaceMode'], 'in_place');
+      expect(body['branch'], 'logic/home');
+      await cubit.close();
+    });
+
+    test('in place on a detached HEAD sends no branch', () async {
+      when(() => repository.getBranches(any())).thenAnswer(
+        (_) async => Result.success(GlobalResponse(data: const ProjectBranchesModel(current: '', branches: []))),
+      );
+      final cubit = buildCubit();
+      await cubit.loadCatalog();
+      await cubit.setProject('p1', kind: 'single_repo');
+
+      final body = (await submitted(cubit)).toJson();
+      expect(body['workspaceMode'], 'in_place');
+      expect(body.containsKey('branch'), isFalse);
+      await cubit.close();
+    });
+
+    test('a non-single-repo project never sends a branch', () async {
+      final cubit = buildCubit();
+      await cubit.loadCatalog();
+      await cubit.setProject('p1', kind: 'workspace');
+      cubit.setUseWorktree(true);
+      cubit.setBranch('feat/x');
+
+      expect((await submitted(cubit)).toJson().containsKey('branch'), isFalse);
+      await cubit.close();
+    });
+
+    blocTest<SpawnCubit, SpawnState>(
+      'a spawn refused for a busy branch keeps the daemon code',
+      build: () {
+        when(() => repository.spawn(any())).thenAnswer(
+          (_) async => Result.failure(
+            ServerFailure(error: 'x', message: 'busy', statusCode: 409, apiStatus: 'BRANCH_CHECKED_OUT_ELSEWHERE'),
+          ),
+        );
+        return buildCubit();
+      },
+      act: (cubit) async {
+        await cubit.loadCatalog();
+        await cubit.setProject('p1', kind: 'single_repo');
+        cubit.setUseWorktree(true);
+        cubit.setBranch('feat/x');
+        cubit.name = 'n';
+        cubit.prompt = 'p';
+        await cubit.submit();
+      },
+      verify: (cubit) {
+        expect((cubit.state as SpawnFailureState).failure.apiStatus, 'BRANCH_CHECKED_OUT_ELSEWHERE');
+        expect(cubit.name, 'n');
+        expect(cubit.prompt, 'p');
+      },
+    );
   });
 
   blocTest<SpawnCubit, SpawnState>(
@@ -285,5 +530,43 @@ void main() {
   test('SpawnSessionParams omits claudeAccountId when absent', () {
     expect(const SpawnSessionParams(projectId: 'p').toJson().containsKey('claudeAccountId'), isFalse);
     expect(const SpawnSessionParams(projectId: 'p', claudeAccountId: 'personal').toJson()['claudeAccountId'], 'personal');
+  });
+
+  blocTest<SpawnCubit, SpawnState>(
+    'spawns in bypass permissions unless another mode is chosen',
+    build: buildCubit,
+    act: (cubit) async {
+      await cubit.loadCatalog();
+      cubit.setProject('p');
+      cubit.name = 'flaky login';
+      cubit.prompt = 'fix it';
+      await cubit.submit();
+      cubit.setPermissionMode('accept-edits');
+      await cubit.submit();
+    },
+    verify: (cubit) {
+      final captured = verify(() => repository.spawn(captureAny())).captured.cast<SpawnSessionParams>();
+      expect(captured.map((params) => params.permissionMode), ['bypass-permissions', 'accept-edits']);
+      expect(captured.first.toJson()['permissionMode'], 'bypass-permissions');
+    },
+  );
+
+  test('plan is offered only for Claude Code and falls back to bypass on another agent', () async {
+    final cubit = buildCubit();
+    await cubit.loadCatalog();
+    cubit.setHarness('claude-code');
+    cubit.setPermissionMode('plan');
+
+    cubit.setHarness('codex');
+
+    expect(cubit.permissionMode, kDefaultSpawnPermissionMode);
+    expect(SpawnOptionValues.permissionModesFor('codex'), isNot(contains('plan')));
+    expect(SpawnOptionValues.permissionModesFor('claude-code'), contains('plan'));
+    await cubit.close();
+  });
+
+  test('a params object without a permission mode sends none', () {
+    expect(const SpawnSessionParams(projectId: 'p').toJson().containsKey('permissionMode'), isFalse);
+    expect(const SpawnSessionParams(projectId: 'p', permissionMode: 'auto').toJson()['permissionMode'], 'auto');
   });
 }

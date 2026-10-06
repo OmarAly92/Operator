@@ -7,16 +7,18 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/connection/connection_signals.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
+import 'package:operator_mobile/core/preferences/preference_keys.dart';
+import 'package:operator_mobile/core/replica/replicated.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
@@ -39,6 +41,19 @@ class _StubConfigSource implements ServerConfigSource {
 
 const _configB = ServerConfig(host: '10.0.0.9', httpPort: '3011', secure: false, password: 'pw');
 
+class _Signals implements ConnectionSignals {
+  _Signals(this.retries);
+
+  @override
+  final Stream<void> retries;
+
+  @override
+  bool authFailed = false;
+
+  @override
+  bool rateLimited = false;
+}
+
 void main() {
   late _MockSessionsRepository repository;
   late _MockMuxClient mux;
@@ -48,8 +63,7 @@ void main() {
   var streamReady = false;
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
-    await CacheHelper.init();
+    AppPreferences.debugLoad(const {});
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
     source = _StubConfigSource();
@@ -61,6 +75,7 @@ void main() {
     when(() => mux.boardStreamReady).thenAnswer((_) => streamReady);
     when(() => mux.connect()).thenReturn(null);
     when(() => mux.subscribeSessions()).thenReturn(null);
+    when(() => repository.cachedBoard()).thenAnswer((_) async => null);
   });
 
   tearDown(() async {
@@ -168,6 +183,43 @@ void main() {
       pending.complete(Result.success(GlobalResponse(data: const BoardSnapshot(sessions: [SessionModel(id: 'a')]))));
       async.flushMicrotasks();
       async.elapse(const Duration(milliseconds: 200));
+      expect(cubit.sessions.map((s) => s.id), ['b']);
+      cubit.close();
+    });
+  });
+
+  test('switching away from a desktop whose fetch hangs fetches the new desktop at once', () {
+    fakeAsync((async) {
+      final hanging = Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>();
+      final third = Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>();
+      var fetches = 0;
+      when(() => repository.getBoard()).thenAnswer((_) {
+        fetches++;
+        if (fetches == 1) return hanging.future;
+        if (fetches == 2) {
+          return Future.value(Result.success(GlobalResponse(data: const BoardSnapshot(sessions: [SessionModel(id: 'b')]))));
+        }
+        return third.future;
+      });
+      final cubit = SessionsCubit(repository, mux, source);
+      async.flushMicrotasks();
+      expect(fetches, 1);
+
+      source.set(_configB);
+      async.flushMicrotasks();
+      expect(fetches, 2);
+      expect(cubit.sessions.map((s) => s.id), ['b']);
+      expect(cubit.state, isA<GetSessionsSuccessState>());
+
+      unawaited(cubit.refresh());
+      async.flushMicrotasks();
+      expect(fetches, 3);
+      hanging.complete(Result.failure(ServerFailure(error: 'x', message: 'timeout')));
+      async.flushMicrotasks();
+      unawaited(cubit.refresh());
+      async.flushMicrotasks();
+      async.elapse(const Duration(seconds: 1));
+      expect(fetches, 3);
       expect(cubit.sessions.map((s) => s.id), ['b']);
       cubit.close();
     });
@@ -475,4 +527,245 @@ void main() {
     },
     verify: (cubit) => expect(cubit.activeProjectId, kAllProjects),
   );
+
+  test('remembers the project filter per desktop', () async {
+    AppPreferences.debugLoad({PreferenceKeys.activeProject('d-a'): 'p2'});
+    when(() => repository.getBoard()).thenAnswer(
+      (_) async => Result.success(GlobalResponse(data: const BoardSnapshot())),
+    );
+    source.current = const ServerConfig(
+      host: '10.0.0.5',
+      httpPort: '3011',
+      secure: false,
+      password: 'pw',
+      desktopId: 'd-a',
+    );
+
+    final cubit = SessionsCubit(repository, mux, source);
+    expect(cubit.activeProjectId, 'p2');
+
+    source.set(const ServerConfig(host: '10.0.0.9', httpPort: '3011', secure: false, password: 'pw', desktopId: 'd-b'));
+    expect(cubit.activeProjectId, kAllProjects);
+
+    cubit.setActiveProject('p9');
+    expect(AppPreferences.activeProjectId('d-b'), 'p9');
+    expect(AppPreferences.activeProjectId('d-a'), 'p2');
+    await cubit.close();
+  });
+
+  group('replica', () {
+    Replicated<BoardSnapshot> cached(String id) => Replicated(
+      value: BoardSnapshot(sessions: [SessionModel(id: id)]),
+      fetchedAt: DateTime.utc(2026, 9, 25, 8),
+    );
+
+    test('paints the cached board before the network answers, then swaps in the fresh board', () async {
+      final gate = Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>();
+      when(() => repository.cachedBoard()).thenAnswer((_) async => cached('cached'));
+      when(() => repository.getBoard()).thenAnswer((_) => gate.future);
+
+      final cubit = SessionsCubit(repository, mux, source);
+      await cubit.cacheReady;
+
+      expect(cubit.sessions.single.id, 'cached');
+      expect(cubit.boardIsCached, isTrue);
+      expect(cubit.boardFetchedAt, DateTime.utc(2026, 9, 25, 8));
+      expect(cubit.state, isA<GetSessionsSuccessState>().having((s) => s.fromCache, 'fromCache', isTrue));
+
+      gate.complete(Result.success(GlobalResponse(data: const BoardSnapshot(sessions: [SessionModel(id: 'fresh')]))));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.sessions.single.id, 'fresh');
+      expect(cubit.boardIsCached, isFalse);
+      expect(cubit.state, isA<GetSessionsSuccessState>().having((s) => s.fromCache, 'fromCache', isFalse));
+      await cubit.close();
+    });
+
+    test('a failed refresh keeps the cached board on screen', () async {
+      when(() => repository.cachedBoard()).thenAnswer((_) async => cached('cached'));
+      when(() => repository.getBoard()).thenAnswer(
+        (_) async => Result.failure(ServerFailure(error: 'down', message: 'down', statusCode: -6)),
+      );
+
+      final cubit = SessionsCubit(repository, mux, source);
+      await cubit.cacheReady;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.sessions.single.id, 'cached');
+      expect(cubit.boardFetchedAt, DateTime.utc(2026, 9, 25, 8));
+      expect(cubit.state, isA<GetSessionsFailureState>());
+      await cubit.close();
+    });
+
+    test('a cache read that resolves after the fresh board is ignored', () async {
+      final read = Completer<Replicated<BoardSnapshot>?>();
+      when(() => repository.cachedBoard()).thenAnswer((_) => read.future);
+      when(() => repository.getBoard()).thenAnswer(
+        (_) async => Result.success(GlobalResponse(data: const BoardSnapshot(sessions: [SessionModel(id: 'fresh')]))),
+      );
+
+      final cubit = SessionsCubit(repository, mux, source);
+      await Future<void>.delayed(Duration.zero);
+      read.complete(cached('stale'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.sessions.single.id, 'fresh');
+      expect(cubit.boardIsCached, isFalse);
+      await cubit.close();
+    });
+
+    test('switching desktops never shows the previous desktop cache', () async {
+      final firstRead = Completer<Replicated<BoardSnapshot>?>();
+      var reads = 0;
+      when(() => repository.cachedBoard()).thenAnswer((_) {
+        reads++;
+        return reads == 1 ? firstRead.future : Future.value(null);
+      });
+      when(() => repository.getBoard()).thenAnswer(
+        (_) => Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>().future,
+      );
+
+      final cubit = SessionsCubit(repository, mux, source);
+      source.set(_configB);
+      firstRead.complete(cached('from-a'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.sessions, isEmpty);
+      expect(cubit.boardFetchedAt, isNull);
+      expect(cubit.accountLabels, isEmpty);
+      expect(cubit.boardIsCached, isFalse);
+      await cubit.close();
+    });
+
+    test('a cache read that lands after a failed fetch loads the rows and keeps the failure current', () async {
+      final read = Completer<Replicated<BoardSnapshot>?>();
+      final failure = ServerFailure(error: 'unauthorized', message: 'unauthorized', statusCode: 401);
+      when(() => repository.cachedBoard()).thenAnswer((_) => read.future);
+      when(() => repository.getBoard()).thenAnswer((_) async => Result.failure(failure));
+
+      final cubit = SessionsCubit(repository, mux, source);
+      final states = <SessionsState>[];
+      final sub = cubit.stream.listen(states.add);
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.state, isA<GetSessionsFailureState>());
+
+      final settled = cubit.stream.firstWhere(
+        (state) => (state is GetSessionsSuccessState && !state.fromCache) || state is GetSessionsFailureState,
+      );
+      read.complete(
+        Replicated(
+          value: const BoardSnapshot(
+            sessions: [SessionModel(id: 'cached')],
+            accountLabels: {'default': 'Default'},
+          ),
+          fetchedAt: DateTime.utc(2026, 9, 25, 8),
+        ),
+      );
+
+      expect(await settled.timeout(const Duration(seconds: 1)), isA<GetSessionsFailureState>());
+      expect(cubit.state, GetSessionsFailureState(failure));
+      expect(states.last, GetSessionsFailureState(failure));
+      expect(cubit.sessions.single.id, 'cached');
+      expect(cubit.accountLabels, {'default': 'Default'});
+      expect(cubit.boardIsCached, isTrue);
+      expect(cubit.boardFetchedAt, DateTime.utc(2026, 9, 25, 8));
+      await sub.cancel();
+      await cubit.close();
+    });
+
+    test('a desktop switch paints the new desktop cache', () async {
+      var reads = 0;
+      when(() => repository.cachedBoard()).thenAnswer((_) async {
+        reads++;
+        return reads == 1 ? null : cached('from-b');
+      });
+      when(() => repository.getBoard()).thenAnswer(
+        (_) => Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>().future,
+      );
+
+      final cubit = SessionsCubit(repository, mux, source);
+      await cubit.cacheReady;
+      source.set(_configB);
+      await cubit.cacheReady;
+
+      expect(cubit.sessions.single.id, 'from-b');
+      expect(cubit.boardIsCached, isTrue);
+      await cubit.close();
+    });
+  });
+
+  group('connection signals', () {
+    late StreamController<void> retries;
+    late _Signals signals;
+
+    setUp(() {
+      retries = StreamController<void>.broadcast();
+      signals = _Signals(retries.stream);
+    });
+
+    tearDown(() => retries.close());
+
+    test('a connection retry refreshes the board', () async {
+      var fetches = 0;
+      when(() => repository.getBoard()).thenAnswer((_) async {
+        fetches++;
+        return Result.success(GlobalResponse(data: const BoardSnapshot()));
+      });
+      final cubit = SessionsCubit(repository, mux, source, connection: signals);
+      await Future<void>.delayed(Duration.zero);
+      expect(fetches, 1);
+
+      retries.add(null);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fetches, 2);
+      await cubit.close();
+    });
+
+    test('a retry landing while a resume fetch is in flight does not fetch again', () {
+      fakeAsync((async) {
+        var fetches = 0;
+        final pending = <Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>>[];
+        when(() => repository.getBoard()).thenAnswer((_) {
+          fetches++;
+          final completer = Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>();
+          pending.add(completer);
+          return completer.future;
+        });
+        final cubit = SessionsCubit(repository, mux, source, connection: signals);
+        async.flushMicrotasks();
+        pending.removeAt(0).complete(Result.success(GlobalResponse(data: const BoardSnapshot())));
+        async.flushMicrotasks();
+        cubit.pauseUpdates();
+
+        cubit.resumeUpdates();
+        retries.add(null);
+        async.flushMicrotasks();
+        pending.removeAt(0).complete(Result.success(GlobalResponse(data: const BoardSnapshot())));
+        async.elapse(const Duration(seconds: 1));
+
+        expect(fetches, 2);
+        cubit.close();
+        async.flushMicrotasks();
+      });
+    });
+
+    test('resuming the app while re-pairing is needed spends no auth attempt', () async {
+      var fetches = 0;
+      when(() => repository.getBoard()).thenAnswer((_) async {
+        fetches++;
+        return Result.failure(ServerFailure(error: 'x', message: 'bad', statusCode: 401));
+      });
+      final cubit = SessionsCubit(repository, mux, source, connection: signals);
+      await Future<void>.delayed(Duration.zero);
+      signals.authFailed = true;
+
+      cubit.pauseUpdates();
+      cubit.resumeUpdates();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fetches, 1);
+      await cubit.close();
+    });
+  });
 }

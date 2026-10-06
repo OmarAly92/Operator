@@ -11,6 +11,7 @@ import 'package:operator_mobile/core/utils/app_constants.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/typing_dots.dart';
+import 'package:operator_mobile/core/widgets/motion/disclosure.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_question.dart';
@@ -25,6 +26,7 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_result_section.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_status_dot.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_todo_list.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/message_meta_row.dart';
 
 /// The rail-based visual kind a block renders as (`docs/design/session_detail/
 /// session_detail.md`, "ground truth extracted from the prototype"). This is
@@ -95,6 +97,8 @@ Color railNodeColor(AppSkin skin, SessionBlock block) => switch (railKindOf(bloc
 };
 
 class BlockCard extends StatelessWidget {
+  static const double itemGap = 14;
+
   const BlockCard({
     super.key,
     required this.block,
@@ -113,6 +117,8 @@ class BlockCard extends StatelessWidget {
     this.onLongPressHeader,
     this.hasFollowingRailItem = false,
     this.onOpenAgent,
+    this.showReplyMeta = false,
+    this.animateReplyMeta = false,
   });
 
   final SessionBlock block;
@@ -136,6 +142,8 @@ class BlockCard extends StatelessWidget {
   final bool hasFollowingRailItem;
 
   final void Function(SessionBlock block)? onOpenAgent;
+  final bool showReplyMeta;
+  final bool animateReplyMeta;
 
   void _showActionSheet(BuildContext context) {
     if (onAction == null || actions.isEmpty) return;
@@ -183,14 +191,33 @@ class BlockCard extends StatelessWidget {
         highlight: summaryHighlight,
         onLongPressHeader: onLongPressHeader,
         onLongPressBody: () => _showActionSheet(context),
+        selectionMode: selectionMode,
       ),
       RailKind.notice => _NoticeRow(block: block),
       RailKind.text => Padding(
-        padding: const EdgeInsets.only(bottom: 22, top: 4),
-        child: railBody,
+        padding: const EdgeInsets.only(bottom: BlockCard.itemGap),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            railBody,
+            if (showReplyMeta) ...[
+              const SizedBox(height: 4),
+              MessageMetaRow(
+                key: ValueKey('reply-meta-${block.id}'),
+                id: block.id,
+                text: block.body,
+                createdAt: block.createdAt,
+                side: MessageMetaSide.assistant,
+                animateIn: animateReplyMeta,
+                interactive: !selectionMode,
+              ),
+            ],
+          ],
+        ),
       ),
-      RailKind.group || RailKind.mcpGroup || RailKind.agent => Padding(
-        padding: EdgeInsets.only(bottom: collapsed ? 0 : 6),
+      RailKind.group || RailKind.mcpGroup => railBody,
+      RailKind.agent => Padding(
+        padding: EdgeInsets.only(bottom: collapsed ? 0 : BlockCard.itemGap),
         child: railBody,
       ),
       _ => _RailRow(
@@ -244,7 +271,7 @@ class BlockCard extends StatelessWidget {
                   child: Icon(
                     selected ? Icons.check_circle : Icons.radio_button_unchecked,
                     size: 16,
-                    color: selected ? skin.accent : skin.textTertiary,
+                    color: selected ? skin.accentText : skin.textTertiary,
                   ),
                 ),
                 Expanded(child: selectable),
@@ -291,7 +318,7 @@ class _RailRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(child: Padding(padding: const EdgeInsets.only(bottom: 14), child: body)),
+        Expanded(child: Padding(padding: const EdgeInsets.only(bottom: BlockCard.itemGap), child: body)),
       ],
     ),
   );
@@ -459,9 +486,15 @@ class _ThinkBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
+    final toggle = onToggleCollapse;
     final header = GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onToggleCollapse,
+      onTap: toggle == null
+          ? null
+          : () {
+              Haptics.select();
+              toggle();
+            },
       onLongPress: onLongPressHeader,
       child: Row(
         children: [
@@ -473,55 +506,55 @@ class _ThinkBody extends StatelessWidget {
               base: AppTextStyle.style13Medium.copyWith(color: skin.textTertiary),
             ),
           ),
-          if (onToggleCollapse != null)
-            Icon(
-              collapsed ? Icons.expand_more : Icons.expand_less,
+          if (toggle != null)
+            DisclosureChevron(
+              expanded: !collapsed,
               size: 16,
               color: skin.textTertiary,
+              expandedTurns: 0.5,
             ),
         ],
       ),
     );
 
-    if (collapsed) {
-      final preview = _reasoningPreview(display.summary);
-      if (preview.isEmpty) return header;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          header,
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: AppText(
-              preview,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyle.style10Regular.copyWith(color: skin.textFaint),
-            ),
-          ),
-        ],
-      );
-    }
-
+    final preview = _reasoningPreview(display.summary);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         header,
-        const SizedBox(height: 6),
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onLongPress: onLongPressBody,
-          child: Container(
-            padding: const EdgeInsets.only(left: 10),
-            decoration: BoxDecoration(
-              border: Border(left: BorderSide(color: skin.borderSubtle, width: 2)),
+        if (preview.isNotEmpty)
+          Disclosure(
+            expanded: collapsed,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: AppText(
+                preview,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyle.style10Regular.copyWith(color: skin.textFaint),
+              ),
             ),
-            child: _highlightedField(
-              context: context,
-              text: display.summary,
-              ranges: summaryHighlight?.ranges ?? const [],
-              base: AppTextStyle.style13Regular.copyWith(color: skin.textTertiary, height: 1.5),
-              softWrap: true,
+          ),
+        Disclosure(
+          expanded: !collapsed,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onLongPress: onLongPressBody,
+              child: Container(
+                padding: const EdgeInsets.only(left: 10),
+                decoration: BoxDecoration(
+                  border: Border(left: BorderSide(color: skin.borderSubtle, width: 2)),
+                ),
+                child: _highlightedField(
+                  context: context,
+                  text: display.summary,
+                  ranges: summaryHighlight?.ranges ?? const [],
+                  base: AppTextStyle.style13Regular.copyWith(color: skin.textTertiary, height: 1.5),
+                  softWrap: true,
+                ),
+              ),
             ),
           ),
         ),
@@ -601,9 +634,15 @@ class _GroupBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final skin = context.skin;
     final meta = _meta;
+    final toggle = onToggleCollapse;
     final header = GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onToggleCollapse,
+      onTap: toggle == null
+          ? null
+          : () {
+              Haptics.select();
+              toggle();
+            },
       onLongPress: onLongPressHeader,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 44),
@@ -623,26 +662,32 @@ class _GroupBody extends StatelessWidget {
             ),
             if (meta != null)
               Flexible(
+                fit: FlexFit.tight,
                 child: Padding(
                   padding: const EdgeInsets.only(left: 8),
-                  child: AppText(meta, maxLines: 2, style: AppTextStyle.mono11Regular.copyWith(color: skin.textTertiary)),
+                  child: AppText(
+                    meta,
+                    maxLines: 2,
+                    textAlign: TextAlign.end,
+                    style: AppTextStyle.mono11Regular.copyWith(color: skin.textTertiary),
+                  ),
                 ),
               ),
-            if (onToggleCollapse != null)
+            if (toggle != null)
               Padding(
                 padding: const EdgeInsets.only(left: 6),
-                child: Icon(
-                  collapsed ? Icons.chevron_right : Icons.expand_more,
+                child: DisclosureChevron(
+                  expanded: !collapsed,
                   size: 16,
                   color: skin.textTertiary,
+                  collapsedTurns: -0.25,
+                  expandedTurns: 0,
                 ),
               ),
           ],
         ),
       ),
     );
-
-    if (collapsed) return header;
 
     final detail = block.detail;
     final cmdLines = <Widget>[];
@@ -680,6 +725,16 @@ class _GroupBody extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         header,
+        Disclosure(expanded: !collapsed, child: _body(context, cmdLines, children)),
+      ],
+    );
+  }
+
+  Widget _body(BuildContext context, List<Widget> cmdLines, List<SessionBlock> children) {
+    final skin = context.skin;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         if (cmdLines.isNotEmpty) ...[
           const SizedBox(height: 6),
           GestureDetector(
@@ -740,6 +795,7 @@ class _GroupBody extends StatelessWidget {
           const SizedBox(height: 6),
           _RunningRow(block: block),
         ],
+        const SizedBox(height: 6),
       ],
     );
   }
@@ -1133,7 +1189,7 @@ class _NoticeRow extends StatelessWidget {
     final skin = context.skin;
     final label = (block.body.isNotEmpty ? block.body : block.title).toUpperCase();
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.only(bottom: BlockCard.itemGap),
       child: Row(
         children: [
           Expanded(child: Container(height: 1, color: skin.borderSubtle)),
@@ -1157,68 +1213,56 @@ class _UserBubble extends StatelessWidget {
     required this.highlight,
     required this.onLongPressHeader,
     required this.onLongPressBody,
+    required this.selectionMode,
   });
 
   final SessionBlock block;
   final BlockMatch? highlight;
   final VoidCallback? onLongPressHeader;
   final VoidCallback onLongPressBody;
-
-  String get _timestamp {
-    final raw = block.createdAt;
-    if (raw == null) return 'now';
-    final parsed = DateTime.tryParse(raw);
-    if (parsed == null) return 'now';
-    final local = parsed.toLocal();
-    String two(int value) => value.toString().padLeft(2, '0');
-    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
-    final period = local.hour < 12 ? 'AM' : 'PM';
-    return '$hour:${two(local.minute)} $period';
-  }
+  final bool selectionMode;
 
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.only(bottom: BlockCard.itemGap),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onLongPress: onLongPressBody,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: (MediaQuery.of(context).size.width - 32) * 0.78),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: skin.bgElevatedHover,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(18),
-                    topRight: Radius.circular(18),
-                    bottomLeft: Radius.circular(18),
-                    bottomRight: Radius.circular(4),
+            child: LayoutBuilder(
+              builder: (context, constraints) => ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.85),
+                child: Container(
+                  key: ValueKey('user-bubble-${block.id}'),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: skin.bgElevatedHover,
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                ),
-                child: _highlightedField(
-                  context: context,
-                  text: block.body,
-                  ranges: highlight?.ranges ?? const [],
-                  base: AppTextStyle.style13Regular.copyWith(color: skin.textPrimary, height: 1.4),
-                  softWrap: true,
+                  child: _highlightedField(
+                    context: context,
+                    text: block.body,
+                    ranges: highlight?.ranges ?? const [],
+                    base: AppTextStyle.style13Regular.copyWith(color: skin.textPrimary, height: 1.4),
+                    softWrap: true,
+                  ),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 4),
-          GestureDetector(
-            key: ValueKey('bubble-timestamp-${block.id}'),
-            behavior: HitTestBehavior.opaque,
-            onLongPress: onLongPressHeader,
-            child: AppText(
-              _timestamp,
-              style: AppTextStyle.mono10p5Regular.copyWith(color: skin.textTertiary),
-            ),
+          const SizedBox(height: 2),
+          MessageMetaRow(
+            id: block.id,
+            text: block.body,
+            createdAt: block.createdAt,
+            side: MessageMetaSide.user,
+            timeKey: ValueKey('bubble-timestamp-${block.id}'),
+            onLongPressTime: onLongPressHeader,
+            interactive: !selectionMode,
           ),
         ],
       ),

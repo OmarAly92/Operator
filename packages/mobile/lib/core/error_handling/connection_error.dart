@@ -1,10 +1,18 @@
 import 'package:flutter/foundation.dart';
+import 'package:operator_mobile/core/error_handling/dio_error_handler/status_code.dart';
 
 enum ConnectionFailure { notOprQr, unsupportedPayload, unreachable, auth, rateLimited, serverError, local }
 
+const Set<int> _unreachableStatuses = {
+  StatusCode.connectionTimeout,
+  StatusCode.sendTimeout,
+  StatusCode.receiveTimeout,
+  StatusCode.noInternetConnection,
+};
+
 ConnectionFailure classifyConnectionFailure(int? status) {
-  if (status == null || status < 0) return ConnectionFailure.unreachable;
-  if (status == 401 || status == 403) return ConnectionFailure.auth;
+  if (_unreachableStatuses.contains(status)) return ConnectionFailure.unreachable;
+  if (status == 401) return ConnectionFailure.auth;
   if (status == 429) return ConnectionFailure.rateLimited;
   return ConnectionFailure.serverError;
 }
@@ -49,6 +57,7 @@ ConnectionErrorCopy describeConnectionFailure(
   required String host,
   required String port,
   required TargetPlatform platform,
+  String? desktopName,
 }) {
   final showLocalNetworkHint =
       reason == ConnectionFailure.unreachable && platform == TargetPlatform.iOS && isLocalNetworkHost(host);
@@ -69,7 +78,7 @@ ConnectionErrorCopy describeConnectionFailure(
       );
     case ConnectionFailure.unreachable:
       return ConnectionErrorCopy(
-        title: 'Your desktop disconnected',
+        title: desktopName == null ? 'Your desktop disconnected' : "Can't reach $desktopName",
         message: 'Reached nothing at $host:$port. '
             'Is Connect Mobile still on, and is your phone on the same Wi-Fi?',
         showLocalNetworkHint: showLocalNetworkHint,

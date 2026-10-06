@@ -8,7 +8,7 @@
 
 **Tech Stack:** Rust (`vt-core`, `vt-wasm` via wasm-bindgen, `vt-host` C-ABI wasm run by wazero), Go (`backend/internal/adapters/runtime/ptyhost`), TypeScript (`ts/core`, `ts/renderer-dom`, `ts/react`, `frontend/`), Vite + Playwright benches, `proptest` (dev-dependency), Python 3 (recording tool, corpus import).
 
-**Spec:** `docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md` — Plan A covers the baseline harness and feel gate, §2.5, §2.1, §2.2, §2.3, §2.4 (the "Plan A task outline" section). Survey entries cited: `docs/superpowers/specs/2026-09-19-terminal-reference-survey.md` §1.14, §2.1, §2.9, §2.10, §3.3, §3.13, §5.10, §7.6. Read `TERMINAL.md` end to end before starting.
+**Spec:** `docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md` — Plan A covers the baseline harness and feel gate, §2.5, §2.1, §2.2, §2.3, §2.4 (the "Plan A task outline" section). Survey entries cited: `docs/terminal/2026-09-19-terminal-reference-survey.md` §1.14, §2.1, §2.9, §2.10, §3.3, §3.13, §5.10, §7.6. Read `TERMINAL.md` end to end before starting.
 
 ## Global Constraints
 

@@ -108,7 +108,10 @@ export function useOpenShellTerminal() {
 			if (!data) throw new Error("Daemon returned no shell terminal");
 			return toShellTerminal(data.shellTerminal);
 		},
-		onSuccess: () => {
+		onSuccess: (shell) => {
+			queryClient.setQueryData<ShellTerminal[]>(shellTerminalsQueryKey, (current) =>
+				current && !current.some((existing) => existing.handleId === shell.handleId) ? [...current, shell] : current,
+			);
 			void queryClient.invalidateQueries({ queryKey: shellTerminalsQueryKey });
 		},
 		// Without this, a failed open (worktree gone, no shell resolvable, daemon

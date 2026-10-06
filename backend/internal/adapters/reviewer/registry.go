@@ -6,31 +6,14 @@ package reviewer
 import (
 	"fmt"
 
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/agy"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/aider"
 	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/amp"
 	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/auggie"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/autohand"
 	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/claudecode"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/cline"
 	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/codex"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/continueagent"
 	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/copilot"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/crush"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/cursor"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/devin"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/droid"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/goose"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/grok"
 	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/kilocode"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/kimchi"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/kimi"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/kiro"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/muse"
 	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/opencode"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/pi"
 	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/qwen"
-	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/vibe"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
@@ -42,34 +25,20 @@ type Adapter interface {
 }
 
 // Constructors returns every reviewer adapter the daemon ships. Add a reviewer
-// here (and to domain.AllReviewerHarnesses) to register it.
+// here (and to domain.AllReviewerHarnesses) to register it; it must register
+// the Operator MCP server (ReviewInvocation.MCPServers) with its CLI, since
+// review_submit is the only way a reviewer records its result. The adapters
+// in this directory that are not listed cannot do that yet.
 func Constructors() []Adapter {
 	return []Adapter{
-		aider.New(),
-		agy.New(),
 		amp.New(),
 		auggie.New(),
-		autohand.New(),
 		claudecode.New(),
-		cline.New(),
 		codex.New(),
-		continueagent.New(),
 		copilot.New(),
-		cursor.New(),
-		devin.New(),
-		droid.New(),
-		crush.New(),
-		goose.New(),
-		grok.New(),
-		kimchi.New(),
 		kilocode.New(),
-		kiro.New(),
-		kimi.New(),
-		muse.New(),
 		opencode.New(),
-		pi.New(),
 		qwen.New(),
-		vibe.New(),
 	}
 }
 

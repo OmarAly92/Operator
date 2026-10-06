@@ -9,9 +9,12 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // DefaultPort is the LAN listener's default port for the Connect Mobile
@@ -31,6 +34,9 @@ type State struct {
 	LastPort      int    `json:"lastPort"`
 	TunnelEnabled bool   `json:"tunnelEnabled"`
 	NgrokDomain   string `json:"ngrokDomain,omitempty"`
+
+	AlertTopic        string `json:"alertTopic,omitempty"`
+	AlertTopicClaimed bool   `json:"alertTopicClaimed,omitempty"`
 }
 
 // Path returns the Connect Mobile config file location under the data dir
@@ -86,11 +92,43 @@ func Save(path string, s State) error {
 	return os.Rename(tmpName, path)
 }
 
+var stateMu sync.Mutex
+
+func Update(path string, fn func(*State) error) (State, error) {
+	stateMu.Lock()
+	defer stateMu.Unlock()
+	st, err := Load(path)
+	if isParseError(err) {
+		slog.Warn("mobile config unreadable; starting from a fresh state", "path", path, "err", err)
+		st, err = State{}, nil
+	}
+	if err != nil {
+		return State{}, err
+	}
+	if err := fn(&st); err != nil {
+		return State{}, err
+	}
+	if err := Save(path, st); err != nil {
+		return State{}, err
+	}
+	return st, nil
+}
+
+func isParseError(err error) bool {
+	var syntaxErr *json.SyntaxError
+	var typeErr *json.UnmarshalTypeError
+	return errors.As(err, &syntaxErr) || errors.As(err, &typeErr)
+}
+
 const pwAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 const TunnelPasswordLength = 22
 
+const AlertTopicLength = 32
+
 func GeneratePassword() (string, error) { return GeneratePasswordN(8) }
+
+func GenerateAlertTopic() (string, error) { return GeneratePasswordN(AlertTopicLength) }
 
 func GeneratePasswordN(n int) (string, error) {
 	if n <= 0 {

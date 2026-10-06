@@ -100,6 +100,10 @@ sql:
             go_type:
               import: "github.com/OmarAly92/operator/backend/internal/domain"
               type: "ClaudeAccountID"
+          - column: "sessions.launch_permission_mode"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "PermissionMode"
           - column: "claude_accounts.id"
             go_type:
               import: "github.com/OmarAly92/operator/backend/internal/domain"

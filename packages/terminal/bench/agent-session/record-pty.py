@@ -9,6 +9,7 @@ import signal
 import struct
 import sys
 import termios
+import time
 import tty
 
 
@@ -28,6 +29,8 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     recording = open(os.path.join(args.out, "recording"), "wb")
     sizes = [{"offset": 0, "cols": args.cols, "rows": args.rows}]
+    timing = []
+    started = time.monotonic()
     written = 0
 
     def write_sizes():
@@ -68,6 +71,7 @@ def main():
                     break
                 if not data:
                     break
+                timing.append([written, int((time.monotonic() - started) * 1000)])
                 recording.write(data)
                 recording.flush()
                 written += len(data)
@@ -81,6 +85,8 @@ def main():
         termios.tcsetattr(stdin, termios.TCSADRAIN, saved)
         recording.close()
         write_sizes()
+        with open(os.path.join(args.out, "timing.json"), "w") as handle:
+            json.dump(timing, handle)
     _, status = os.waitpid(pid, 0)
     return os.waitstatus_to_exitcode(status)
 

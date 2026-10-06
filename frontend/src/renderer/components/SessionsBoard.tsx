@@ -55,13 +55,14 @@ import { DaemonStartupLoader } from "./DaemonStartupLoader";
 import { TicketBadge } from "./tickets/TicketBadge";
 import { ArchiveTicketItem } from "./tickets/ArchiveTicketItem";
 import { useShellMaybe } from "../lib/shell-context";
+import { useTerminalTitle } from "../lib/terminal-titles";
 import { dotGlow } from "../theme/effects";
 import { useTicketsQuery } from "../hooks/useTicketsQuery";
 import { isTicketInArchive } from "../lib/ticket-presentation";
 import { LANE_DROP_ID } from "../lib/ticket-assign";
 import { PlannedColumn } from "./tickets/PlannedColumn";
 import { CreateTicketSheet } from "./tickets/CreateTicketSheet";
-import { useTicketDrag, useTicketDropTarget } from "./tickets/TicketDndProvider";
+import { useTicketDrag, useTicketDropTarget } from "./dnd/AppDndProvider";
 
 type SessionsBoardProps = {
 	/** When set, the board shows only this project's sessions. */
@@ -739,6 +740,7 @@ function SessionCard({
 			: "";
 	const showLocation = showBranch || location !== "";
 	const prSummaries = sessionPRDisplaySummaries(session, useSessionScmSummary(session.id).data);
+	const terminalTitle = useTerminalTitle(session.terminalHandleId);
 	const termination = useTerminateSessionState(session.id);
 	const showTerminate = interactive && session.isTerminated !== true && onTerminate;
 	// Same action as the sidebar row's: the daemon owns where the session lives,
@@ -859,6 +861,16 @@ function SessionCard({
 					>
 						{session.title}
 					</div>
+					{terminalTitle ? (
+						<div
+							aria-label={t("terminal.programTitleAria", { title: terminalTitle })}
+							className={cn("mt-0.5 truncate text-2xs leading-snug text-muted-foreground", cornerControlPadding)}
+							data-testid="board-terminal-title"
+							title={terminalTitle}
+						>
+							{terminalTitle}
+						</div>
+					) : null}
 					{showLocation && (
 						<div className="mt-1 flex min-w-0 items-center gap-1 font-mono text-micro leading-normal text-passive">
 							{showBranch && (
@@ -895,6 +907,7 @@ function SessionCard({
 					<span
 						className={cn("inline-flex min-w-0 items-center gap-1.5 truncate text-2xs font-medium", badge.className)}
 						style={showLiveActivity ? { color: activity.tone } : undefined}
+						title={session.statusReason}
 					>
 						<span
 							aria-hidden="true"
@@ -913,6 +926,18 @@ function SessionCard({
 						</span>
 					</div>
 				</div>
+				{session.agentReport ? (
+					<p
+						className="line-clamp-2 text-2xs leading-snug text-muted-foreground"
+						data-testid="board-agent-report"
+						title={session.agentReport.reason || undefined}
+					>
+						{session.agentReport.reason ||
+							(session.agentReport.state === "ready_for_review"
+								? t("board.agentReport.readyForReview")
+								: t("board.agentReport.needsYou"))}
+					</p>
+				) : null}
 				{prSummaries.length > 0 && (
 					<div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-2xs text-passive">
 						{groupPRsByLifecycle(prSummaries).map((group) => (

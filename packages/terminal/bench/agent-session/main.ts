@@ -8,12 +8,13 @@ import {
 	type DomBlockRenderer,
 	type RendererFeatures,
 } from "@operator/terminal-renderer-dom";
+import { BENCH_MARKS, highlightProbe, type HighlightProbe } from "./highlight-probe";
 
 type SizeEntry = { offset: number; cols: number; rows: number };
 
 declare global {
 	interface Window {
-		__agentSession: AgentSession;
+		__agentSession: AgentSession & HighlightProbe;
 		__agentSessionReady: boolean;
 	}
 }
@@ -26,6 +27,7 @@ type AgentSession = {
 	feedNext(limit: number): number;
 	feedChunk(start: number, end: number): number;
 	feedFrames(count: number, intervalMs: number): Promise<void>;
+	repaintLoop(frames: number): { frames: number; totalMs: number };
 	feedNextSynced(limit: number): number;
 	rowCount(): number;
 	renderableRowCount(): number;
@@ -44,7 +46,12 @@ type AgentSession = {
 	modelHash(): string;
 	core(): TerminalCore;
 	extendSelectionByOneRow(): Promise<number>;
-	mountPanes(count: number): Promise<void>;
+	mountPanes(count: number, mode?: "visible" | "parked"): Promise<void>;
+	parkedPaneState(): Array<{ backlog: boolean; generation: number; rows: number }>;
+	paneMemory(): { wasmBytes: number; cores: Array<{ mode: "visible" | "parked"; contentBytes: number; styleEntries: number; rows: number; blocks: number }> };
+	startSoakFeed(bytesPerSecond: number): void;
+	parkedMutations(): number;
+	resetParkedMutations(): void;
 	reopenFromReplay(frame: Uint8Array, chunks: Uint8Array[]): Promise<{ firstPaintMs: number; allRowsMs: number; rows: number }>;
 	widthChange(cols: number): Promise<{ settleMs: number; before: number; after: number; staleRows: number }>;
 	staleRowCount(): number;
@@ -87,12 +94,18 @@ let nextResize = 1;
 const longTasks: number[] = [];
 const domRenderer = (renderer as unknown as { renderer: DomBlockRenderer }).renderer;
 const featureList = params.get("features") ?? "";
-if (featureList !== "") {
-	const parsed = parseFeatureList(featureList);
-	domRenderer.setFeatures(parsed);
-	if (parsed.graphemes) core.setGraphemeClusters(true);
-}
+if (featureList !== "") domRenderer.setFeatures(parseFeatureList(featureList));
+core.setGraphemeClusters(domRenderer.features().graphemes);
 domRenderer.setFocused(params.get("focused") !== "0");
+const benchMarks = BENCH_MARKS.slice(0, Number(params.get("marks") ?? "0"));
+if (benchMarks.length > 0) domRenderer.setMarks(benchMarks);
+const benchCss = params.get("css");
+if (benchCss) {
+	const tag = document.createElement("style");
+	tag.dataset.benchCss = "";
+	tag.textContent = benchCss;
+	document.head.append(tag);
+}
 domRenderer.onPaint(() => {
 	paints += 1;
 });
@@ -171,29 +184,35 @@ async function nextFrame(): Promise<void> {
 
 const PAINT_WAIT_FRAMES = 600;
 
-async function paintAfter(action: () => void): Promise<void> {
-	const before = paints;
-	action();
+async function paintSince(before: number): Promise<void> {
 	for (let frame = 0; paints === before; frame += 1) {
 		if (frame >= PAINT_WAIT_FRAMES) throw new Error(`no paint landed within ${PAINT_WAIT_FRAMES} frames of the action`);
 		await nextFrame();
 	}
 }
 
-async function feedAll(): Promise<void> {
-	while (fed < recording.length) {
+async function paintAfter(action: () => void): Promise<void> {
+	const before = paints;
+	action();
+	await paintSince(before);
+}
+
+async function feedWhile(more: () => boolean): Promise<void> {
+	let beforeLastFeed: number | null = null;
+	while (more()) {
+		beforeLastFeed = paints;
 		feedNext(64 * 1024);
 		await nextFrame();
 	}
-	await renderer.waitForPaint().catch(() => undefined);
+	if (beforeLastFeed !== null) await paintSince(beforeLastFeed);
+}
+
+async function feedAll(): Promise<void> {
+	await feedWhile(() => fed < recording.length);
 }
 
 async function feedUntilRows(target: number): Promise<number> {
-	while (fed < recording.length && rowCount() < target) {
-		feedNext(64 * 1024);
-		await nextFrame();
-	}
-	await renderer.waitForPaint().catch(() => undefined);
+	await feedWhile(() => fed < recording.length && rowCount() < target);
 	return rowCount();
 }
 
@@ -229,19 +248,69 @@ function feedNextSynced(limit: number): number {
 	return cost;
 }
 
-const extraPanes: DomBenchmarkRenderer[] = [];
+type PaneMode = "visible" | "parked";
 
-async function mountPanes(count: number): Promise<void> {
+const extraPanes: Array<{ pane: DomBenchmarkRenderer; mode: PaneMode }> = [];
+let parkingLot: HTMLElement | null = null;
+let parkedMutations = 0;
+
+function parking(): HTMLElement {
+	if (parkingLot) return parkingLot;
+	const lot = document.createElement("div");
+	lot.setAttribute("aria-hidden", "true");
+	lot.dataset.testid = "terminal-cache-parking";
+	Object.assign(lot.style, { position: "fixed", top: "0", left: "-100000px", visibility: "hidden", pointerEvents: "none" });
+	document.body.append(lot);
+	new MutationObserver((records) => {
+		parkedMutations += records.length;
+	}).observe(lot, { childList: true, subtree: true, attributes: true, characterData: true });
+	parkingLot = lot;
+	return lot;
+}
+
+// frontend/src/renderer/components/TerminalPane.tsx parkTerminal + setTerminalPhase("parked")
+function park(paneHost: HTMLElement): void {
+	const rect = paneHost.getBoundingClientRect();
+	if (rect.width > 0) paneHost.style.width = `${rect.width}px`;
+	if (rect.height > 0) paneHost.style.height = `${rect.height}px`;
+	paneHost.inert = true;
+	paneHost.setAttribute("aria-hidden", "true");
+	paneHost.style.pointerEvents = "none";
+	paneHost.style.visibility = "hidden";
+	parking().appendChild(paneHost);
+}
+
+async function mountPanes(count: number, mode: PaneMode = "visible"): Promise<void> {
+	const visibleBox = host!.getBoundingClientRect();
 	for (let index = 0; index < count; index += 1) {
 		const paneHost = document.createElement("div");
-		paneHost.style.width = "800px";
-		paneHost.style.height = "300px";
+		paneHost.style.width = mode === "parked" ? `${visibleBox.width}px` : "800px";
+		paneHost.style.height = mode === "parked" ? `${visibleBox.height}px` : "300px";
 		document.body.append(paneHost);
 		const pane = new DomBenchmarkRenderer();
 		await pane.mount(paneHost, { columns: sizes[0].cols, rows: sizes[0].rows, scrollback });
 		(pane.getCoreForBench() as TerminalCore).setAgentTuiMode(true);
-		extraPanes.push(pane);
+		if (benchMarks.length > 0) (pane as unknown as { renderer: DomBlockRenderer }).renderer.setMarks(benchMarks);
+		if (mode === "parked") {
+			park(paneHost);
+			if (params.get("ungated") !== "1") pane.setVisible(false);
+		}
+		extraPanes.push({ pane, mode });
 	}
+}
+
+let soakTimer: ReturnType<typeof setInterval> | null = null;
+
+function startSoakFeed(bytesPerSecond: number): void {
+	let at = 0;
+	soakTimer ??= setInterval(() => {
+		if (at >= recording.length) at = 0;
+		const end = Math.min(recording.length, at + bytesPerSecond);
+		const chunk = recording.subarray(at, end);
+		core.enqueue(chunk);
+		for (const { pane } of extraPanes) (pane.getCoreForBench() as TerminalCore).enqueue(chunk);
+		at = end;
+	}, 1000);
 }
 
 async function reopenFromReplay(frame: Uint8Array, chunks: Uint8Array[]): Promise<{ firstPaintMs: number; allRowsMs: number; rows: number }> {
@@ -313,9 +382,37 @@ async function feedFrames(count: number, intervalMs: number): Promise<void> {
 	for (const end of ends) {
 		const start = fed;
 		feedChunk(start, end);
-		for (const pane of extraPanes) (pane.getCoreForBench() as TerminalCore).feed(recording.subarray(start, end));
+		for (const { pane, mode } of extraPanes) {
+			const paneCore = pane.getCoreForBench() as TerminalCore;
+			if (mode === "parked") paneCore.enqueue(recording.subarray(start, end));
+			else paneCore.feed(recording.subarray(start, end));
+		}
 		await new Promise((resolve) => setTimeout(resolve, intervalMs));
 	}
+}
+
+function visibleRenderers(): DomBlockRenderer[] {
+	return [
+		domRenderer,
+		...extraPanes
+			.filter(({ mode }) => mode === "visible")
+			.map(({ pane }) => (pane as unknown as { renderer: DomBlockRenderer }).renderer),
+	];
+}
+
+function repaintLoop(count: number): { frames: number; totalMs: number } {
+	const ends = frameEnds().filter((end) => end > fed).slice(0, count);
+	const renderers = visibleRenderers();
+	const began = performance.now();
+	for (const end of ends) {
+		const start = fed;
+		feedChunk(start, end);
+		for (const { pane, mode } of extraPanes) {
+			if (mode === "visible") (pane.getCoreForBench() as TerminalCore).feed(recording.subarray(start, end));
+		}
+		for (const paneRenderer of renderers) (paneRenderer as unknown as { repaint(): void }).repaint();
+	}
+	return { frames: ends.length, totalMs: performance.now() - began };
 }
 
 function visibleRows(): Array<{ block: string; row: number }> {
@@ -367,6 +464,7 @@ window.__agentSession = {
 	feedNext,
 	feedChunk,
 	feedFrames,
+	repaintLoop,
 	feedNextSynced,
 	rowCount,
 	renderableRowCount,
@@ -396,6 +494,26 @@ window.__agentSession = {
 	core: () => core,
 	extendSelectionByOneRow,
 	mountPanes,
+	parkedMutations: () => parkedMutations,
+	resetParkedMutations: () => {
+		parkedMutations = 0;
+	},
+	parkedPaneState: () =>
+		extraPanes
+			.filter(({ mode }) => mode === "parked")
+			.map(({ pane }) => {
+				const paneCore = pane.getCoreForBench() as TerminalCore;
+				const snapshot = paneCore.snapshot();
+				return { backlog: paneCore.hasBacklog(), generation: snapshot.generation, rows: snapshot.rows.length / 2 };
+			}),
+	paneMemory: () => ({
+		wasmBytes: core.snapshot().content.buffer.byteLength,
+		cores: [
+			{ mode: "visible" as const, ...core.memoryStats() },
+			...extraPanes.map(({ pane, mode }) => ({ mode, ...(pane.getCoreForBench() as TerminalCore).memoryStats() })),
+		],
+	}),
+	startSoakFeed,
 	reopenFromReplay,
 	widthChange,
 	staleRowCount,
@@ -418,7 +536,10 @@ window.__agentSession = {
 	enablePathLinks: (suffixes) => {
 		domRenderer.setLinkProviders([
 			...DEFAULT_LINK_PROVIDERS,
-			createPathProvider(async (path) => (suffixes.some((suffix) => path.endsWith(suffix)) ? `/probe/${path}` : null), () => "", "posix"),
+			createPathProvider(async (candidates) => {
+				const index = candidates.findIndex((candidate) => !/\s/u.test(candidate.path) && suffixes.some((suffix) => candidate.path.endsWith(suffix)));
+				return index < 0 ? null : { index, path: `/probe/${candidates[index]!.path}` };
+			}, () => ""),
 		]);
 	},
 	hintBegin: () => domRenderer.hintBegin(),
@@ -426,5 +547,6 @@ window.__agentSession = {
 	hintCancel: () => domRenderer.hintCancel(),
 	setSecretPatterns: (patterns) => domRenderer.setSecretPatterns(patterns),
 	blocks: () => decodeBlocks(core.snapshot()).length,
-} as AgentSession & { blocks(): number };
+	...highlightProbe(host, core, domRenderer),
+} as AgentSession & HighlightProbe & { blocks(): number };
 window.__agentSessionReady = true;

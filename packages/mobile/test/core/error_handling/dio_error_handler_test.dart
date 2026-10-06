@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/error_handling/dio_error_handler/dio_error_handler.dart';
@@ -87,6 +89,31 @@ void main() {
       );
 
       expect(failure.statusCode, StatusCode.noInternetConnection);
+    });
+
+    test('a bad certificate and a transform timeout read as unreachable', () {
+      for (final type in [DioExceptionType.badCertificate, DioExceptionType.transformTimeout]) {
+        final failure = handleDioError(
+          DioException(requestOptions: RequestOptions(path: '/api/v1/sessions'), type: type),
+        );
+        expect(failure.statusCode, StatusCode.noInternetConnection, reason: '$type');
+      }
+    });
+
+    test('a dropped socket after the connection opened reads as unreachable', () {
+      for (final cause in <Object>[const SocketException('reset'), const HttpException('closed'), const HandshakeException('tls')]) {
+        final failure = handleDioError(
+          DioException(requestOptions: RequestOptions(path: '/api/v1/sessions'), type: DioExceptionType.unknown, error: cause),
+        );
+        expect(failure.statusCode, StatusCode.noInternetConnection, reason: '$cause');
+      }
+    });
+
+    test('an unknown error that is not a transport failure keeps no status', () {
+      final failure = handleDioError(
+        DioException(requestOptions: RequestOptions(path: '/api/v1/sessions'), type: DioExceptionType.unknown, error: StateError('x')),
+      );
+      expect(failure.statusCode, isNull);
     });
   });
 }

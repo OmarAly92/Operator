@@ -36,3 +36,10 @@ type SCMMergeResult struct {
 type SCMMerger interface {
 	MergePullRequest(ctx context.Context, request SCMMergeRequest) (SCMMergeResult, error)
 }
+
+// SCMThreadResolver marks review threads resolved through an SCM provider.
+// threadID is the provider's review-thread identifier, as observed in
+// SCMReviewThreadObservation.ID.
+type SCMThreadResolver interface {
+	ResolveReviewThread(ctx context.Context, pr SCMPRRef, threadID string) error
+}

@@ -24,6 +24,9 @@ const (
 	chSessions  = "sessions"
 	chSystem    = "system"
 	chBlocks    = "blocks"
+
+	chNotifications = "notifications"
+	chPrograms      = "programs"
 )
 
 // client message types (ch "terminal" unless noted).
@@ -36,6 +39,8 @@ const (
 	msgSubscribe   = "subscribe"   // ch "subscribe"
 	msgUnsubscribe = "unsubscribe" // ch "blocks"
 	msgPing        = "ping"        // ch "system"
+	msgAppearance  = "appearance"
+	msgOlder       = "older"
 )
 
 // server message types.
@@ -47,9 +52,13 @@ const (
 	msgSnapshot   = "snapshot" // ch "sessions"
 	msgPong       = "pong"     // ch "system"
 	msgBlock      = "block"    // ch "blocks"
+	msgHealth     = "health"
 	// msgResize is reused as a SERVER frame too: the daemon pushes the shared
 	// PTY's authoritative grid (Cols/Rows) to every attached client so followers
 	// render the exact grid the PTY is using instead of their own fitted size.
+
+	msgNotification = "notification"
+	msgTitle        = "title"
 )
 
 // Client roles for a terminal open. A single PTY has one grid; when several
@@ -87,6 +96,13 @@ type clientMsg struct {
 	// it understands the runtime's history marks.
 	Bytes   int  `json:"bytes,omitempty"`
 	History bool `json:"history,omitempty"`
+
+	CellWidth  int    `json:"cellWidth,omitempty"`
+	CellHeight int    `json:"cellHeight,omitempty"`
+	Foreground string `json:"foreground,omitempty"`
+	Background string `json:"background,omitempty"`
+
+	Before uint64 `json:"before,omitempty"`
 }
 
 // serverMsg is one outbound frame.
@@ -101,12 +117,29 @@ type serverMsg struct {
 	Cols    uint16         `json:"cols,omitempty"`
 	Rows    uint16         `json:"rows,omitempty"`
 	Error   string         `json:"error,omitempty"`
+	Health  string         `json:"health,omitempty"`
 	Session *sessionUpdate `json:"session,omitempty"`
 	// Block is the ch "blocks" payload: one normalized agent block event.
 	Block *blockeventsvc.Record `json:"block,omitempty"`
 
 	BlockType     string              `json:"blockType,omitempty"`
 	TerminalBlock *terminalBlockFrame `json:"terminalBlock,omitempty"`
+
+	Notification *notificationFrame `json:"notification,omitempty"`
+
+	Title string `json:"title,omitempty"`
+	Body  string `json:"body,omitempty"`
+}
+
+type notificationFrame struct {
+	ID        string    `json:"id"`
+	SessionID string    `json:"sessionId"`
+	ProjectID string    `json:"projectId"`
+	Type      string    `json:"type"`
+	Title     string    `json:"title"`
+	Body      string    `json:"body"`
+	Quiet     bool      `json:"quiet"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type terminalBlockFrame struct {

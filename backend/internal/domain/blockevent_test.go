@@ -31,7 +31,7 @@ func TestParseBlockEventKind(t *testing.T) {
 func TestParseBlockEventKindAcceptsTranscriptKinds(t *testing.T) {
 	for _, name := range []string{
 		"assistant_text", "reasoning", "tool_start", "tool_result",
-		"todo", "turn_model", "compaction",
+		"todo", "turn_model", "compaction", "task_update",
 	} {
 		got, ok := ParseBlockEventKind(name)
 		if !ok || string(got) != name {

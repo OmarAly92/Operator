@@ -26,6 +26,13 @@ class ServerConfigStore implements ServerConfigSource {
     _current = active.toServerConfig(password);
   }
 
+  Stream<String?> get activeDesktopName => _desktops.watchAll().map((desktops) {
+    for (final desktop in desktops) {
+      if (desktop.isActive == true) return desktop.name;
+    }
+    return null;
+  });
+
   void set(ServerConfig config) {
     _current = config;
     _changes.add(config);

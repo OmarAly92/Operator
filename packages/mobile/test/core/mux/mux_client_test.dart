@@ -5,8 +5,10 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/connection/connection_signals.dart';
 import 'package:operator_mobile/core/mux/mux_backoff.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/mux/mux_notification.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/mux/mux_socket.dart';
 
@@ -57,6 +59,33 @@ class _SlowFakeMuxSocket implements MuxSocket {
     closed = true;
     await _incoming.close();
   }
+}
+
+class _RefusedMuxSocket implements MuxSocket {
+  @override
+  Future<void> get ready => Future<void>.error(StateError('401'));
+
+  @override
+  Stream<dynamic> get messages => const Stream.empty();
+
+  @override
+  void send(String data) {}
+
+  @override
+  Future<void> close() async {}
+}
+
+class _Signals implements ConnectionSignals {
+  final StreamController<void> controller = StreamController<void>.broadcast(sync: true);
+
+  @override
+  Stream<void> get retries => controller.stream;
+
+  @override
+  bool authFailed = false;
+
+  @override
+  bool rateLimited = false;
 }
 
 const _config = ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12');
@@ -740,6 +769,185 @@ void main() {
 
         expect(seen, isEmpty);
         client.disconnect();
+      });
+    });
+
+    test('subscribes and unsubscribes to live notifications', () {
+      fakeAsync((async) {
+        late _FakeMuxSocket socket;
+        final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
+        client.connect();
+        async.flushMicrotasks();
+
+        client.subscribeNotifications();
+        client.unsubscribeNotifications();
+
+        final frames = socket.sent
+            .map((s) => jsonDecode(s) as Map<String, dynamic>)
+            .where((m) => m['ch'] == 'notifications')
+            .toList();
+        expect(frames, [
+          {'ch': 'notifications', 'type': 'subscribe'},
+          {'ch': 'notifications', 'type': 'unsubscribe'},
+        ]);
+        client.disconnect();
+      });
+    });
+
+    test('re-sends the notification subscription after a reconnect only while subscribed', () {
+      fakeAsync((async) {
+        final sockets = <_FakeMuxSocket>[];
+        final client = MuxClient(
+          _source,
+          connect: (_, _) {
+            final socket = _FakeMuxSocket();
+            sockets.add(socket);
+            return socket;
+          },
+        );
+        client.connect();
+        async.flushMicrotasks();
+        client.subscribeNotifications();
+
+        sockets.last.closeFromServer();
+        async.elapse(const Duration(milliseconds: MuxBackoff.initialMs));
+        async.flushMicrotasks();
+        expect(sockets, hasLength(2));
+        expect(sockets.last.sent.map(jsonDecode), contains(equals({'ch': 'notifications', 'type': 'subscribe'})));
+
+        client.unsubscribeNotifications();
+        sockets.last.closeFromServer();
+        async.elapse(const Duration(milliseconds: MuxBackoff.initialMs * 4));
+        async.flushMicrotasks();
+        expect(sockets, hasLength(3));
+        expect(sockets.last.sent.map(jsonDecode), isNot(contains(equals({'ch': 'notifications', 'type': 'subscribe'}))));
+        client.disconnect();
+      });
+    });
+
+    test('emits one MuxNotification per notification frame and ignores malformed ones', () {
+      fakeAsync((async) {
+        late _FakeMuxSocket socket;
+        final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
+        final received = <MuxNotification>[];
+        client.notifications.listen(received.add);
+        client.connect();
+        async.flushMicrotasks();
+
+        socket.pushMessage({
+          'ch': 'notifications',
+          'type': 'notification',
+          'notification': {
+            'id': 'n1',
+            'sessionId': 's1',
+            'type': 'turn_finished',
+            'title': 's1 finished',
+            'body': 'done',
+            'quiet': false,
+          },
+        });
+        socket.pushMessage({'ch': 'notifications', 'type': 'notification'});
+        async.flushMicrotasks();
+
+        expect(received, [
+          const MuxNotification(
+            id: 'n1',
+            sessionId: 's1',
+            type: 'turn_finished',
+            title: 's1 finished',
+            body: 'done',
+            quiet: false,
+          ),
+        ]);
+        client.disconnect();
+      });
+    });
+
+    group('while the desktop rejects the password', () {
+      late _Signals signals;
+      late int dials;
+      late MuxClient client;
+
+      setUp(() {
+        signals = _Signals();
+        dials = 0;
+        client = MuxClient(
+          _source,
+          connect: (_, _) {
+            dials++;
+            return _RefusedMuxSocket();
+          },
+        )..bindConnection(signals);
+      });
+
+      tearDown(() => signals.controller.close());
+
+      test('stops redialing, so the stale password spends no more attempts', () {
+        fakeAsync((async) {
+          client.connect();
+          async.flushMicrotasks();
+          expect(dials, 1);
+
+          signals.authFailed = true;
+          async.elapse(const Duration(minutes: 10));
+
+          expect(dials, 1);
+          client.disconnect();
+        });
+      });
+
+      test('does not dial at all when connect is called after an auth failure', () {
+        fakeAsync((async) {
+          signals.authFailed = true;
+          client.connect();
+          async.elapse(const Duration(minutes: 1));
+
+          expect(dials, 0);
+          client.disconnect();
+        });
+      });
+
+      test('dials again once the auth failure clears', () {
+        fakeAsync((async) {
+          signals.authFailed = true;
+          client.connect();
+          async.elapse(const Duration(minutes: 1));
+
+          signals.authFailed = false;
+          signals.controller.add(null);
+          async.flushMicrotasks();
+
+          expect(dials, 1);
+          client.disconnect();
+        });
+      });
+
+      test('a retry while the socket is not parked does not dial early', () {
+        fakeAsync((async) {
+          client.connect();
+          async.flushMicrotasks();
+
+          signals.controller.add(null);
+          async.flushMicrotasks();
+
+          expect(dials, 1);
+          client.disconnect();
+        });
+      });
+
+      test('re-pairing dials the new desktop', () {
+        fakeAsync((async) {
+          signals.authFailed = true;
+          client.connect();
+          async.elapse(const Duration(minutes: 1));
+
+          signals.authFailed = false;
+          _source.set(const ServerConfig(host: '10.0.0.6', httpPort: '3011', secure: false, password: 'fresh'));
+          async.flushMicrotasks();
+
+          expect(dials, 1);
+          client.disconnect();
+        });
       });
     });
   });

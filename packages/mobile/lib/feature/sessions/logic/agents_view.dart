@@ -151,3 +151,18 @@ PrLineSummary? prLine(SessionModel session) {
 
   return PrLineSummary(text: 'PR ${parts.join(' · ')}', tone: tone);
 }
+
+/// The line an agent-reported state adds to the card: the agent's own reason,
+/// or a fallback naming the state when it gave none. Null when the agent
+/// reported nothing.
+String? agentReportLine(SessionModel session) {
+  final reason = session.agentReportReason?.trim() ?? '';
+  switch (session.agentReportState) {
+    case 'needs_you':
+      return reason.isNotEmpty ? reason : 'The agent is waiting on you';
+    case 'ready_for_review':
+      return reason.isNotEmpty ? reason : 'The agent reports this is ready for review';
+    default:
+      return null;
+  }
+}

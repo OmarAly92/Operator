@@ -1,7 +1,6 @@
-import 'dart:async';
 import 'dart:convert';
 
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
 import 'package:operator_mobile/core/telemetry/context.dart';
 import 'package:operator_mobile/core/telemetry/daily_active.dart';
 import 'package:operator_mobile/core/telemetry/events.dart';
@@ -25,14 +24,14 @@ sealed class TelemetryConfig {
       .toList();
 }
 
-class CacheActiveStorage implements ActiveStorage {
-  const CacheActiveStorage();
+class PreferencesActiveStorage implements ActiveStorage {
+  const PreferencesActiveStorage();
 
   @override
-  Future<String?> getItem(String key) async => CacheHelper.get(key) as String?;
+  Future<String?> getItem(String key) async => AppPreferences.string(key);
 
   @override
-  Future<void> setItem(String key, String value) => CacheHelper.save(key, value);
+  Future<void> setItem(String key, String value) => AppPreferences.setString(key, value);
 }
 
 sealed class TelemetryRuntime {
@@ -66,7 +65,7 @@ sealed class TelemetryRuntime {
   );
 
   static Future<void> active([DateTime? now]) async {
-    await _telemetry?.active(const CacheActiveStorage(), now);
+    await _telemetry?.active(const PreferencesActiveStorage(), now);
   }
 
   static void reset() {
@@ -78,7 +77,7 @@ sealed class TelemetryRuntime {
   static void _loadRateState() {
     if (_rateStateLoaded) return;
     _rateStateLoaded = true;
-    final raw = CacheHelper.get(CacheKeys.telemetryRateLimit) as String?;
+    final raw = AppPreferences.telemetryRateLimit;
     if (raw == null) return;
     try {
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
@@ -100,11 +99,8 @@ sealed class TelemetryRuntime {
       DateTime.now().millisecondsSinceEpoch,
     );
     _rateState = decision.state;
-    unawaited(
-      CacheHelper.save(
-        CacheKeys.telemetryRateLimit,
-        jsonEncode(_rateState.map((name, window) => MapEntry(name, window.toJson()))),
-      ),
+    AppPreferences.setTelemetryRateLimit(
+      jsonEncode(_rateState.map((name, window) => MapEntry(name, window.toJson()))),
     );
     return decision.allowed;
   }

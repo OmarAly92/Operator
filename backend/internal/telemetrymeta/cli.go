@@ -29,6 +29,7 @@ var routineInternalCLICommands = []string{
 	"opr project ls",
 	"opr project get",
 	"opr hooks",
+	"opr mcp",
 	"opr pane-capture",
 	"opr pty-host",
 }

@@ -30,6 +30,7 @@ const remoteTelemetrySchemaVersion = 2
 var remoteEventNameAliases = map[string]string{
 	"opr.app.active":              "opr.v2.app.active",
 	"opr.cli.invoked":             "opr.v2.cli.invoked",
+	"opr.mcp.tool_calls":          "opr.v2.mcp.tool_calls",
 	"opr.renderer.route_viewed":   "opr.v2.renderer.route_viewed",
 	"opr.renderer.loaded":         "opr.v2.renderer.loaded",
 	"opr.renderer.api_error":      "opr.v2.renderer.api_error",
@@ -101,6 +102,19 @@ var remotePayloadAllowlist = map[string]map[string]struct{}{
 		"actor_type":   {},
 		"command":      {},
 		"command_path": {},
+	},
+	// One daily rollup per harness, tool, outcome and report state
+	// (httpd/mcp_telemetry.go). tool, outcome and state are closed
+	// vocabularies the daemon validates; no tool argument is ever carried.
+	"opr.mcp.tool_calls": {
+		"calls":    {},
+		"day":      {},
+		"harness":  {},
+		"outcome":  {},
+		"role":     {},
+		"sessions": {},
+		"state":    {},
+		"tool":     {},
 	},
 	"opr.cli.usage_errors": {
 		"component":    {},

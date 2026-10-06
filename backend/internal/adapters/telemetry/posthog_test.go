@@ -436,3 +436,20 @@ func TestPostHogSinkStampsAppVersionWhenSupplied(t *testing.T) {
 		t.Fatalf("app_version present without the option: %#v", props["app_version"])
 	}
 }
+
+func TestMCPToolCallRollupExportsUnderV2WithItsCounts(t *testing.T) {
+	if got := remoteEventName("opr.mcp.tool_calls"); got != "opr.v2.mcp.tool_calls" {
+		t.Fatalf("remote name = %q", got)
+	}
+	payload := map[string]any{
+		"day": "2026-09-23", "harness": "codex", "tool": "session_report", "outcome": "ok",
+		"state": "needs_you", "calls": 4, "sessions": 2, "reason": "free text",
+	}
+	got := sanitizeRemotePayload("opr.mcp.tool_calls", payload)
+	if len(got) != 7 || got["calls"] != int64(4) || got["sessions"] != int64(2) || got["state"] != "needs_you" {
+		t.Fatalf("sanitized = %#v", got)
+	}
+	if _, ok := got["reason"]; ok {
+		t.Fatalf("unlisted key exported: %#v", got)
+	}
+}

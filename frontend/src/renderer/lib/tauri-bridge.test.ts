@@ -338,6 +338,24 @@ describe("tauri-bridge native integrations", () => {
 		);
 	});
 
+	it("sends every hover candidate to the native resolver in one call and returns the first that exists", async () => {
+		const invoke = vi.fn<Invoke>(async () => null);
+		const tauri = bridgeWith(invoke);
+		const candidates = [
+			{ path: "see a.md", allowDirectory: false },
+			{ path: "a.md", allowDirectory: false },
+		];
+
+		invoke.mockResolvedValueOnce({ index: 1, path: "/work/a.md" });
+		await expect(tauri.app.resolveFirstPath("/work", candidates)).resolves.toEqual({ index: 1, path: "/work/a.md" });
+		expect(invoke).toHaveBeenCalledTimes(1);
+		expect(invoke).toHaveBeenLastCalledWith("resolve_first_path", { base: "/work", candidates });
+
+		invoke.mockResolvedValueOnce(null);
+		await expect(tauri.app.resolveFirstPath(null, candidates)).resolves.toBeNull();
+		expect(invoke).toHaveBeenLastCalledWith("resolve_first_path", { base: null, candidates });
+	});
+
 	it("passes a link path and its base to the native resolver and opens a resolved path", async () => {
 		const invoke = vi.fn<Invoke>(async () => null);
 		const tauri = bridgeWith(invoke);
@@ -350,9 +368,22 @@ describe("tauri-bridge native integrations", () => {
 		await expect(tauri.app.resolvePath(null, "src/a.ts")).resolves.toBeNull();
 		expect(invoke).toHaveBeenLastCalledWith("resolve_path", { base: null, path: "src/a.ts" });
 
-		invoke.mockResolvedValueOnce(undefined);
-		await expect(tauri.app.openPath("/abs/src/a.ts")).resolves.toBeUndefined();
+		invoke.mockResolvedValueOnce({ cliMissing: false });
+		await expect(tauri.app.openPath("/abs/src/a.ts")).resolves.toEqual({ cliMissing: false });
 		expect(invoke).toHaveBeenLastCalledWith("open_path", { path: "/abs/src/a.ts" });
+	});
+
+	it("passes the line, column and editor to the native opener and reports a missing editor CLI", async () => {
+		const invoke = vi.fn<Invoke>(async () => ({ cliMissing: true }));
+		const tauri = bridgeWith(invoke);
+
+		await expect(tauri.app.openPath("/abs/my dir/a.ts", 42, 7, "cursor")).resolves.toEqual({ cliMissing: true });
+		expect(invoke).toHaveBeenLastCalledWith("open_path", {
+			path: "/abs/my dir/a.ts",
+			line: 42,
+			column: 7,
+			editor: "cursor",
+		});
 	});
 
 	it("passes the chooser title through and surfaces cancellation as null", async () => {

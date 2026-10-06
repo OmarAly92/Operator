@@ -1,6 +1,16 @@
+mod activity;
+mod block_marks;
+mod line_editor_marks;
+mod older;
+mod program;
+mod replay;
+
 use std::cell::RefCell;
 use std::collections::HashMap;
-use vt_core::{Attrs, CellStyle, StyleCode, TerminalCore};
+use vt_core::{CellStyle, TerminalCore};
+
+use block_marks::{write_block_close, write_block_open};
+use vt_core::style_sgr::{write_styled_row, write_styled_row_with};
 
 thread_local! {
     static CORES: RefCell<HashMap<u32, TerminalCore>> = RefCell::new(HashMap::new());
@@ -150,6 +160,14 @@ pub extern "C" fn vt_in_sync(handle: u32) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn vt_line_editor_state(handle: u32) -> u32 {
+    CORES.with(|c| match c.borrow().get(&handle) {
+        Some(core) => core.line_editor_state().wire(),
+        None => 0,
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn vt_alt_active(handle: u32) -> u32 {
     CORES.with(|c| match c.borrow().get(&handle) {
         Some(core) if core.alt_screen_active() => 1,
@@ -193,6 +211,12 @@ fn write_modes(text: &mut String, core: &TerminalCore, alt: bool) {
     }
     if core.application_cursor_keys() {
         text.push_str("\x1b[?1h");
+    }
+    let shape = core.pointer_shape();
+    if !shape.is_empty() {
+        text.push_str("\x1b]22;");
+        text.push_str(shape);
+        text.push_str("\x1b\\");
     }
 }
 
@@ -286,23 +310,6 @@ pub extern "C" fn vt_render_styled(handle: u32, lines: u32, out_ptr: u32, out_ca
     })
 }
 
-// Serializes the terminal's CURRENT STATE as a wire-faithful repaint: the
-// bytes a freshly attached client can apply to arrive at exactly the grid the
-// host holds right now, at the host's current geometry.
-//
-// This is what attach replay must send, and it is NOT what `vt_render_styled`
-// produces. The other renderers answer "what does the screen say", for
-// GetOutput; they emit rows terminated by bare LFs and leave the cursor
-// wherever the last row ended. A replay has to answer "how do I reproduce this
-// screen", which additionally means CR-LF row terminators (the receiving
-// terminal has LNM off, so a bare LF would stair-step every row), the
-// alternate-screen mode set when the child is in it, and a final cursor
-// placement — without which the child's next in-place redraw (cursor-up N,
-// rewrite) lands on the wrong rows and paints a second copy of its UI below
-// the first.
-//
-// Returns 0 for a genuinely empty terminal; RENDER_ERR / RENDER_TOO_BIG carry
-// the same meaning as in `vt_render`.
 #[no_mangle]
 pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32) -> u32 {
     CORES.with(|c| {
@@ -310,125 +317,9 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
         let Some(core) = cores.get(&handle) else {
             return RENDER_ERR;
         };
-        let Ok(snapshot) = core.snapshot() else {
+        let Some(out) = replay::replay_frame(core, lines) else {
             return RENDER_ERR;
         };
-
-        let mut text = String::new();
-        if let Some(alt) = &snapshot.alt {
-            // A full-screen child owns every cell of the alt grid, so the
-            // replay is absolute: enter the alternate screen, paint all rows
-            // from home, then place the cursor by absolute address.
-            text.push_str(&format!(
-                "\x1b]7000;v=1;origin={}\x1b\\",
-                frame_first_stable(&snapshot, lines)
-            ));
-            write_modes(&mut text, core, true);
-            text.push_str("\x1b[H");
-            for (i, (start, end)) in alt.row_ranges.iter().enumerate() {
-                let row_bytes = &alt.content[*start as usize..*end as usize];
-                let (pair_start, pair_end) = alt.run_ranges[i];
-                let pairs = &alt.style_pairs[pair_start as usize..pair_end as usize];
-                let last = i + 1 == alt.row_ranges.len();
-                write_styled_row_with(
-                    &mut text,
-                    row_bytes,
-                    pairs,
-                    &|id| snapshot.link_uri(id),
-                    if last { "" } else { "\r\n" },
-                );
-            }
-            write_cursor_position(&mut text, alt.cursor_row, alt.cursor_col);
-            if !alt.cursor_visible {
-                text.push_str("\x1b[?25l");
-            }
-        } else {
-            let total = snapshot.row_count();
-            let first = total.saturating_sub(lines as usize);
-            // A terminal that has drawn nothing still reports a cursor at the
-            // origin over blank rows. Replaying that is not wrong, only
-            // useless -- and the host reads 0 as "no replay frame to send".
-            let blank = snapshot.cursor_row == 0
-                && snapshot.cursor_col == 0
-                && (first..total).all(|i| snapshot.row_text(i).is_empty());
-            if total == 0 || blank {
-                let pending = core.pending_sync_bytes();
-                if pending.is_empty() {
-                    return 0;
-                }
-                if pending.len() > out_cap as usize {
-                    return RENDER_TOO_BIG;
-                }
-                unsafe {
-                    std::ptr::copy_nonoverlapping(
-                        pending.as_ptr(),
-                        out_ptr as *mut u8,
-                        pending.len(),
-                    );
-                }
-                return pending.len() as u32;
-            }
-            text.push_str(&format!(
-                "\x1b]7000;v=1;origin={}\x1b\\",
-                frame_first_stable(&snapshot, lines)
-            ));
-            write_modes(&mut text, core, false);
-            // Rows are clipped to the grid. vt-core rewraps the hot window on
-            // resize and `vt_touch_history` rewraps the cold rest before the
-            // host renders this frame, so a row wider than the grid should not
-            // exist; the clip guards the replay anyway, because a row wider
-            // than the receiving grid wraps, lands as two rows and pushes every
-            // row below it down by one -- the client's grid no longer agrees
-            // with the host's about which row is which.
-            let cols = core.columns();
-            for i in first..total {
-                let indent = snapshot.row_indent(i).min(cols.saturating_sub(1));
-                let (row_bytes, pairs) = clip_row(
-                    snapshot.row_text(i).as_bytes(),
-                    snapshot.row_style_pairs(i),
-                    cols - indent,
-                );
-                let last = i + 1 == total;
-                write_indent(&mut text, indent);
-                write_styled_row_with(
-                    &mut text,
-                    row_bytes,
-                    &pairs,
-                    &|id| snapshot.link_uri(id),
-                    if last { "" } else { "\r\n" },
-                );
-            }
-            // The cursor is addressed RELATIVELY, from the last row written.
-            // Absolute addressing would be wrong: these rows scroll up into
-            // the client's scrollback as they are written, so the row the
-            // cursor belongs on has no fixed screen coordinate.
-            let cursor_row = snapshot.cursor_row as usize;
-            let last_row = total - 1;
-            if cursor_row > last_row {
-                // The cursor sits on a trailing blank row that the snapshot
-                // does not materialise; walk down to it.
-                for _ in 0..(cursor_row - last_row) {
-                    text.push_str("\r\n");
-                }
-            } else if cursor_row < last_row {
-                text.push_str(&format!("\x1b[{}A", last_row - cursor_row));
-            }
-            text.push('\r');
-            let cursor_col = (snapshot.cursor_col as usize).min(cols.saturating_sub(1));
-            if cursor_col > 0 {
-                text.push_str(&format!("\x1b[{}C", cursor_col));
-            }
-            if !snapshot.cursor_visible {
-                text.push_str("\x1b[?25l");
-            }
-        }
-
-        let mut out = text.into_bytes();
-        out.extend_from_slice(core.pending_sync_bytes());
-        if out.is_empty() {
-            return 0;
-        }
-        out.extend_from_slice(READY_MARK.as_bytes());
         if out.len() > out_cap as usize {
             return RENDER_TOO_BIG;
         }
@@ -523,49 +414,6 @@ pub extern "C" fn vt_history_chunk(
     })
 }
 
-fn write_block_open(text: &mut String, snapshot: &vt_core::GridSnapshot, row: usize) {
-    for (index, block) in snapshot.blocks.iter().enumerate() {
-        if block.source == vt_core::BlockSource::Synthetic {
-            continue;
-        }
-        if block.first_row as usize == row {
-            text.push_str("\x1b]7000;v=1;id=");
-            text.push_str(&index.to_string());
-            text.push_str(";cmd=");
-            percent_encode_into(text, snapshot.block_command(index));
-            text.push_str("\x1b\\");
-            return;
-        }
-    }
-}
-
-fn write_block_close(text: &mut String, snapshot: &vt_core::GridSnapshot, row: usize) {
-    for block in snapshot.blocks.iter() {
-        if block.source == vt_core::BlockSource::Synthetic {
-            continue;
-        }
-        let last_row = block.first_row as usize + block.row_count as usize - 1;
-        if last_row == row {
-            if let Some(exit_code) = block.exit_code {
-                text.push_str("\x1b]7000;v=1;exit=");
-                text.push_str(&exit_code.to_string());
-                text.push_str("\x1b\\");
-            }
-            return;
-        }
-    }
-}
-
-fn percent_encode_into(text: &mut String, value: &str) {
-    for ch in value.chars() {
-        if ch.is_ascii() && matches!(ch as u8, b';' | b'=' | b'%' | 0x00..=0x1f) {
-            text.push_str(&format!("%{:02X}", ch as u8));
-        } else {
-            text.push(ch);
-        }
-    }
-}
-
 fn clip_row<'a>(
     row_bytes: &'a [u8],
     pairs: &[(u32, CellStyle)],
@@ -594,142 +442,7 @@ fn write_cursor_position(text: &mut String, row: usize, col: usize) {
     text.push_str(&format!("\x1b[{};{}H", row + 1, col + 1));
 }
 
-fn write_styled_row<'a>(
-    text: &mut String,
-    row_bytes: &[u8],
-    pairs: &[(u32, CellStyle)],
-    link_uri: &dyn Fn(u16) -> Option<&'a str>,
-) {
-    write_styled_row_with(text, row_bytes, pairs, link_uri, "\n");
-}
-
-fn write_styled_row_with<'a>(
-    text: &mut String,
-    row_bytes: &[u8],
-    pairs: &[(u32, CellStyle)],
-    link_uri: &dyn Fn(u16) -> Option<&'a str>,
-    terminator: &str,
-) {
-    let mut start = 0usize;
-    for (end, style) in pairs {
-        let end = *end as usize;
-        text.push_str("\x1b[0m");
-        if let Some(params) = style_sgr_params(*style) {
-            text.push_str("\x1b[");
-            text.push_str(&params);
-            text.push('m');
-        }
-        let uri = if style.link == 0 {
-            None
-        } else {
-            link_uri(style.link)
-        };
-        if let Some(uri) = uri {
-            text.push_str("\x1b]8;;");
-            text.push_str(uri);
-            text.push_str("\x1b\\");
-        }
-        text.push_str(std::str::from_utf8(&row_bytes[start..end]).unwrap_or(""));
-        if uri.is_some() {
-            text.push_str("\x1b]8;;\x1b\\");
-        }
-        start = end;
-    }
-    text.push_str("\x1b[0m");
-    text.push_str(terminator);
-}
-
-// Mirrors the bit layout in vt-core's `style.rs` (`TAG_INDEXED`/`TAG_RGB`,
-// neither exported) since only `StyleCode`'s public accessors cross the
-// crate boundary.
-const TAG_INDEXED: u32 = 0x0100_0000;
-const TAG_RGB: u32 = 0x0200_0000;
-
-fn colour_params(colour: StyleCode, base: u32, extended: u32) -> String {
-    let value = colour.value();
-    if value & TAG_RGB != 0 {
-        let rgb = value & 0x00ff_ffff;
-        format!(
-            "{};2;{};{};{}",
-            extended,
-            (rgb >> 16) & 0xff,
-            (rgb >> 8) & 0xff,
-            rgb & 0xff
-        )
-    } else if value & TAG_INDEXED != 0 {
-        format!("{};5;{}", extended, value & 0xff)
-    } else if value < 8 {
-        format!("{}", base + value)
-    } else {
-        format!("{}", base + 60 + (value - 8))
-    }
-}
-
-fn underline_colour_params(colour: StyleCode) -> String {
-    let value = colour.value();
-    if value & TAG_RGB != 0 {
-        let rgb = value & 0x00ff_ffff;
-        format!(
-            "58;2;{};{};{}",
-            (rgb >> 16) & 0xff,
-            (rgb >> 8) & 0xff,
-            rgb & 0xff
-        )
-    } else {
-        format!("58;5;{}", value & 0xff)
-    }
-}
-
-fn style_sgr_params(style: CellStyle) -> Option<String> {
-    let mut params = Vec::new();
-    if style.fg.is_bold() {
-        params.push("1".to_string());
-    }
-    if style.fg.is_dim() {
-        params.push("2".to_string());
-    }
-    let attrs = style.attrs;
-    if attrs.contains(Attrs::ITALIC) {
-        params.push("3".to_string());
-    }
-    let underline = [
-        (Attrs::UNDERLINE, "4:1"),
-        (Attrs::DOUBLE_UNDERLINE, "4:2"),
-        (Attrs::CURLY_UNDERLINE, "4:3"),
-        (Attrs::DOTTED_UNDERLINE, "4:4"),
-        (Attrs::DASHED_UNDERLINE, "4:5"),
-    ]
-    .into_iter()
-    .find(|(flag, _)| attrs.contains(*flag));
-    if let Some((_, code)) = underline {
-        params.push(code.to_string());
-    }
-    if attrs.contains(Attrs::BLINK) {
-        params.push("5".to_string());
-    }
-    if attrs.contains(Attrs::HIDDEN) {
-        params.push("8".to_string());
-    }
-    if attrs.contains(Attrs::STRIKE) {
-        params.push("9".to_string());
-    }
-    if attrs.contains(Attrs::OVERLINE) {
-        params.push("53".to_string());
-    }
-    if style.underline != StyleCode::DEFAULT {
-        params.push(underline_colour_params(style.underline));
-    }
-    let foreground = style.fg.colour();
-    if foreground != StyleCode::DEFAULT.colour() {
-        params.push(colour_params(foreground, 30, 38));
-    }
-    let background = style.bg.colour();
-    if background != StyleCode::DEFAULT_BACKGROUND.colour() {
-        params.push(colour_params(background, 40, 48));
-    }
-    if params.is_empty() {
-        None
-    } else {
-        Some(params.join(";"))
-    }
-}
+#[cfg(test)]
+mod replay_first_prompt_tests;
+#[cfg(test)]
+mod replay_tests;

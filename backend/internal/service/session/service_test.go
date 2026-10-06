@@ -1192,6 +1192,10 @@ type fakeCommander struct {
 	killsAtSpawn       int
 	restoreErr         error
 	restoreResult      sessionmanager.RestoreResult
+
+	restartedTerminals  []domain.SessionID
+	restartTerminalGrid ports.PaneGrid
+	permissionModes     []domain.PermissionMode
 }
 
 func (f *fakeCommander) Spawn(_ context.Context, cfg ports.SpawnConfig) (domain.SessionRecord, int, int, error) {
@@ -1233,6 +1237,14 @@ func (f *fakeCommander) RelaunchAgentFresh(_ context.Context, id domain.SessionI
 	}
 	return f.restoreResult, nil
 }
+func (f *fakeCommander) RestartTerminal(_ context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionmanager.RestoreResult, error) {
+	f.restartedTerminals = append(f.restartedTerminals, id)
+	f.restartTerminalGrid = grid
+	if f.restoreErr != nil {
+		return sessionmanager.RestoreResult{}, f.restoreErr
+	}
+	return f.restoreResult, nil
+}
 func (f *fakeCommander) ResumeAgentWithMode(_ context.Context, id domain.SessionID) (sessionmanager.RestoreResult, error) {
 	f.resumed = append(f.resumed, id)
 	if f.restoreErr != nil {
@@ -1268,6 +1280,11 @@ func (*fakeCommander) Draft(context.Context, domain.SessionID) (string, error) {
 func (*fakeCommander) Suggestion(context.Context, domain.SessionID) (string, error) {
 	return "", nil
 }
+func (f *fakeCommander) SetPermissionMode(_ context.Context, _ domain.SessionID, mode domain.PermissionMode) (sessionmanager.PermissionModeResult, error) {
+	f.permissionModes = append(f.permissionModes, mode)
+	return sessionmanager.PermissionModeResult{Mode: mode}, nil
+}
+
 func (*fakeCommander) Models(context.Context, domain.SessionID) ([]sessionmanager.ModelOption, error) {
 	return nil, nil
 }
@@ -1673,6 +1690,7 @@ func TestToAPIErrorMapsWorkspaceBranchSentinels(t *testing.T) {
 		{"runtime prerequisite missing", fmt.Errorf("spawn: %w: cannot resolve the opr executable to launch a pty-host", ports.ErrRuntimePrerequisite), apierr.KindInvalid, "RUNTIME_PREREQUISITE_MISSING"},
 		{"runtime workspace cwd mismatch", fmt.Errorf("spawn mer-1: runtime: %w: session mer-1 started in \"/deleted/shipit\", want \"/tmp/ws\"", ports.ErrRuntimeWorkspaceCwdMismatch), apierr.KindConflict, "WORKSPACE_CWD_MISMATCH"},
 		{"workspace locked", fmt.Errorf("restore mer-1: %w: \"/tmp/ws\" (branch \"opr/mer-1\") is registered but its directory is missing", ports.ErrWorkspaceLocked), apierr.KindConflict, "WORKSPACE_LOCKED"},
+		{"runtime session exists", fmt.Errorf("restore mer-1: runtime: ptyhost: session \"mer-1\" already exists; destroy before re-creating: %w", ports.ErrRuntimeSessionExists), apierr.KindConflict, "TERMINAL_HOST_RUNNING"},
 		{"unknown harness", fmt.Errorf("spawn: %w: %q", sessionmanager.ErrUnknownHarness, "bogus"), apierr.KindInvalid, "UNKNOWN_HARNESS"},
 		{"missing harness", fmt.Errorf("spawn: %w: configure project worker.agent or pass --harness", sessionmanager.ErrMissingHarness), apierr.KindInvalid, "AGENT_REQUIRED"},
 		{"awaiting decision", fmt.Errorf("send mer-1: %w", sessionmanager.ErrAwaitingDecision), apierr.KindConflict, "SESSION_AWAITING_DECISION"},
@@ -1783,6 +1801,48 @@ func TestResumeAgentMapsManagerModeToServiceView(t *testing.T) {
 	}
 	if got.Session.ID != "mer-1" || got.Mode != RestoreModeViewNative {
 		t.Fatalf("resume outcome = %+v", got)
+	}
+}
+
+func TestRestartTerminalForwardsTheGridAndMapsTheMode(t *testing.T) {
+	st := newFakeStore()
+	rec := domain.SessionRecord{
+		ID:        "mer-1",
+		ProjectID: "mer",
+		Harness:   domain.HarnessCodex,
+		Activity:  domain.Activity{State: domain.ActivityIdle},
+	}
+	fc := &fakeCommander{
+		restoreResult: sessionmanager.RestoreResult{
+			Session: rec,
+			Mode:    sessionmanager.RestoreModeNative,
+		},
+	}
+	svc := &Service{manager: fc, store: st}
+
+	got, err := svc.RestartTerminal(context.Background(), "mer-1", ports.PaneGrid{Cols: 132, Rows: 43})
+	if err != nil {
+		t.Fatalf("RestartTerminal: %v", err)
+	}
+	if got.Session.ID != "mer-1" || got.Mode != RestoreModeViewNative {
+		t.Fatalf("restart outcome = %+v", got)
+	}
+	if len(fc.restartedTerminals) != 1 || fc.restartedTerminals[0] != "mer-1" {
+		t.Fatalf("restarted = %v, want [mer-1]", fc.restartedTerminals)
+	}
+	if fc.restartTerminalGrid != (ports.PaneGrid{Cols: 132, Rows: 43}) {
+		t.Fatalf("grid = %+v, want 132x43", fc.restartTerminalGrid)
+	}
+}
+
+func TestRestartTerminalMapsATerminatedSessionToAConflict(t *testing.T) {
+	fc := &fakeCommander{restoreErr: fmt.Errorf("restart terminal mer-1: %w", sessionmanager.ErrTerminated)}
+	svc := &Service{manager: fc, store: newFakeStore()}
+
+	_, err := svc.RestartTerminal(context.Background(), "mer-1", ports.PaneGrid{})
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "SESSION_TERMINATED" {
+		t.Fatalf("restart of a terminated session = %v, want SESSION_TERMINATED", err)
 	}
 }
 
@@ -2513,5 +2573,15 @@ func TestSessionAckPreviewOpenedSurvivesRestart(t *testing.T) {
 	}
 	if err := restarted.AckPreviewOpened(ctx, "mer-1", 2); err != nil {
 		t.Fatalf("ack pending revision after restart: %v", err)
+	}
+}
+
+func TestSetPermissionModeDelegatesToTheManager(t *testing.T) {
+	fc := &fakeCommander{}
+	svc := NewWithDeps(Deps{Manager: fc})
+
+	result, err := svc.SetPermissionMode(context.Background(), "mer-1", domain.PermissionModePlan)
+	if err != nil || result.Mode != domain.PermissionModePlan || len(fc.permissionModes) != 1 {
+		t.Fatalf("result = %+v err = %v calls = %v", result, err, fc.permissionModes)
 	}
 }

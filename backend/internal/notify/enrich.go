@@ -5,7 +5,10 @@ import (
 	"strings"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/redact"
 )
+
+const turnSummaryRunes = 120
 
 func enrich(intent Intent) (domain.NotificationRecord, error) {
 	rec := domain.NotificationRecord{
@@ -15,14 +18,15 @@ func enrich(intent Intent) (domain.NotificationRecord, error) {
 		Type:      intent.Type,
 		Status:    domain.NotificationUnread,
 		CreatedAt: intent.CreatedAt,
+		Quiet:     intent.Quiet,
 	}
 	if !intent.Type.Valid() {
 		return domain.NotificationRecord{}, domain.ErrInvalidNotificationType
 	}
-	if intent.Type != domain.NotificationNeedsInput && rec.PRURL == "" {
+	if !intent.Type.SessionScoped() && rec.PRURL == "" {
 		return domain.NotificationRecord{}, domain.ErrInvalidNotificationRecord
 	}
-	rec.Title = titleForIntent(intent)
+	rec.Title = oneLine(titleForIntent(intent))
 	rec.Body = bodyForIntent(intent)
 	if err := rec.Validate(); err != nil {
 		return domain.NotificationRecord{}, err
@@ -46,6 +50,10 @@ func titleForIntent(intent Intent) string {
 		return fmt.Sprintf("%s merged", prLabel(intent))
 	case domain.NotificationPRClosedUnmerged:
 		return fmt.Sprintf("%s closed", prLabel(intent))
+	case domain.NotificationTurnFinished:
+		return fmt.Sprintf("%s finished", sessionLabel(intent))
+	case domain.NotificationAgentExited:
+		return fmt.Sprintf("%s exited", sessionLabel(intent))
 	default:
 		return "Notification"
 	}
@@ -54,6 +62,12 @@ func titleForIntent(intent Intent) string {
 func bodyForIntent(intent Intent) string {
 	switch intent.Type {
 	case domain.NotificationNeedsInput:
+		if reason := agentText(intent.AgentReportReason); reason != "" {
+			return reason
+		}
+		if question := agentText(intent.ScreenText); question != "" {
+			return question
+		}
 		return "Your agent is waiting on you to continue."
 	case domain.NotificationReadyToMerge:
 		if session := sessionLabel(intent); session != "session" {
@@ -61,8 +75,8 @@ func bodyForIntent(intent Intent) string {
 		}
 		return "CI passed with no blocking review feedback."
 	case domain.NotificationPRMerged:
-		title := strings.TrimSpace(intent.PRTitle)
-		if target := strings.TrimSpace(intent.PRTargetBranch); title != "" && target != "" {
+		title := oneLine(intent.PRTitle)
+		if target := oneLine(intent.PRTargetBranch); title != "" && target != "" {
 			return fmt.Sprintf("%s is now on %s.", title, target)
 		}
 		if title != "" {
@@ -70,17 +84,44 @@ func bodyForIntent(intent Intent) string {
 		}
 		return "The pull request was merged."
 	case domain.NotificationPRClosedUnmerged:
-		if title := strings.TrimSpace(intent.PRTitle); title != "" {
+		if title := oneLine(intent.PRTitle); title != "" {
 			return fmt.Sprintf("%s was closed without merging. Reopen it if this wasn't intended.", title)
 		}
 		return "Closed without merging. Reopen it if this wasn't intended."
+	case domain.NotificationTurnFinished:
+		if summary := agentText(intent.AssistantUpdate); summary != "" {
+			return summary
+		}
+		if summary := agentText(intent.ScreenText); summary != "" {
+			return summary
+		}
+		return "Your agent finished its turn."
+	case domain.NotificationAgentExited:
+		return "The agent process ended. Relaunch it from the session."
 	default:
 		return ""
 	}
 }
 
+func summarize(text string, limit int) string {
+	text = strings.Join(strings.Fields(text), " ")
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return text
+	}
+	return string(runes[:limit]) + "…"
+}
+
+func agentText(text string) string {
+	return summarize(redact.Clean(text), turnSummaryRunes)
+}
+
+func oneLine(text string) string {
+	return strings.Join(strings.Fields(redact.Clean(text)), " ")
+}
+
 func sessionLabel(intent Intent) string {
-	if v := strings.TrimSpace(intent.SessionDisplayName); v != "" {
+	if v := oneLine(intent.SessionDisplayName); v != "" {
 		return v
 	}
 	if intent.SessionID != "" {

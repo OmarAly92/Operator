@@ -35,8 +35,9 @@ var _ ports.ReviewerCanceller = (*Reviewer)(nil)
 var _ ports.ReviewerRestorer = (*Reviewer)(nil)
 
 // ReviewCommand launches the reviewer with an inline permission policy that
-// permits inspection and the two reporting commands while denying edits and
-// every other tool. Production launches provide the system role through an
+// permits inspection, posting the review with gh and the Operator MCP server's
+// tools (review_submit records the result) while denying edits and every other
+// tool. Production launches provide the system role through an
 // Operator-owned prompt file; direct callers without one retain the inline fallback.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	prompt := inv.Prompt
@@ -49,6 +50,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 		Prompt:           prompt,
 		SystemPromptFile: inv.SystemPromptFile,
 		Permissions:      ports.PermissionModeAuto,
+		MCPServers:       inv.MCPServers,
 	})
 	if err != nil {
 		return ports.ReviewCommandSpec{}, err
@@ -73,16 +75,16 @@ func buildReviewerConfig(taskPromptRoot string) (string, error) {
 		"read": "allow",
 		"glob": "allow",
 		"grep": "allow",
+		// OpenCode names MCP tools <server>_<tool>.
+		ports.OperatorMCPServerName + "_*": "allow",
 		"bash": map[string]string{
-			"*":                              "deny",
-			"gh api *":                       "allow",
-			"git diff*":                      "allow",
-			"git log*":                       "allow",
-			"git show*":                      "allow",
-			"git status*":                    "allow",
-			"opr review submit *":            "allow",
-			"printf * | gh api *":            "allow",
-			"printf * | opr review submit *": "allow",
+			"*":                   "deny",
+			"gh api *":            "allow",
+			"git diff*":           "allow",
+			"git log*":            "allow",
+			"git show*":           "allow",
+			"git status*":         "allow",
+			"printf * | gh api *": "allow",
 		},
 	}
 	if taskPromptRoot != "" {

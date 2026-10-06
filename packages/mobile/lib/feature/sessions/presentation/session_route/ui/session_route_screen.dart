@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/notifications/viewed_session.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
@@ -10,6 +11,7 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/
 import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
 import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/permission_mode_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/slash_menu_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/terminal_screen.dart';
@@ -37,12 +39,12 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
   }
 
   Future<void> _resolve(SessionsCubit cubit) async {
-    if (cubit.state is SessionsInitialState ||
-        cubit.state is GetSessionsLoadingState) {
+    final current = cubit.state;
+    if (current is SessionsInitialState ||
+        current is GetSessionsLoadingState ||
+        (current is GetSessionsSuccessState && current.fromCache)) {
       await cubit.stream.firstWhere(
-        (state) =>
-            state is GetSessionsSuccessState ||
-            state is GetSessionsFailureState,
+        (state) => (state is GetSessionsSuccessState && !state.fromCache) || state is GetSessionsFailureState,
       );
     } else {
       await cubit.refresh();
@@ -78,6 +80,13 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return ViewedSessionMarker(
+      sessionId: widget.sessionId,
+      child: _buildSession(context),
+    );
+  }
+
+  Widget _buildSession(BuildContext context) {
     return BlocBuilder<SessionsCubit, SessionsState>(
       buildWhen: (previous, current) =>
           current is GetSessionsLoadingState ||
@@ -114,6 +123,9 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
               BlocProvider<SessionCommandCubit>(
                 create: (_) =>
                     sl<SessionCommandCubit>(param1: args.sessionId, param2: session.activity),
+              ),
+              BlocProvider<PermissionModeCubit>(
+                create: (_) => sl<PermissionModeCubit>(param1: args.sessionId),
               ),
               BlocProvider<SlashMenuCubit>(
                 create: (context) => sl<SlashMenuCubit>(

@@ -59,6 +59,7 @@ Every product command resolves to a daemon HTTP route. Run `opr <command>
 | `opr preview start/status/stop`      | `POST/GET/DELETE /api/v1/sessions/{id}/preview/server` |
 | `opr browser ...`                    | `GET /api/v1/browser/status`, `POST /api/v1/browser/commands` |
 | `opr hooks <agent> <event>`          | `POST /api/v1/sessions/{id}/activity` (hidden) |
+| `opr mcp`                            | stdio MCP server over `GET /projects/{id}`, `/sessions`, `/sessions/{id}`, `/sessions/{id}/pr`, `/projects/{id}/tickets[/{slug}]` (hidden) |
 
 `opr agent ls` prints the daemon-supported agent catalog with local install/auth
 readiness. Use `--refresh` to rerun the bounded local probes and `--json` to
@@ -85,8 +86,9 @@ opr session agent-switch ls opr-7 --json
 The `agent-switch` command also has the `agent-switches` alias, and `ls` has the
 `list` alias.
 
-`opr session handoff submit` is the internal source-agent path for optional
-semantic enrichment, not a required human step in a normal switch. It requires
+`opr session handoff submit` submits a semantic handoff by hand. Agents do not use
+it: a source agent submits through the Operator MCP server's
+`session_handoff_submit` tool, and it is not a required step in a normal switch. It requires
 the switch ID, exact source launch generation, and a regular file containing
 one JSON object no larger than 64 KiB. `--session` defaults to
 `OPERATOR_SESSION_ID`:
@@ -151,10 +153,19 @@ needs to be open.
 
 `go run .` in `backend/` remains a compatibility wrapper around the daemon.
 
-PR actions are available through `opr pr merge` and
-`opr pr resolve-comments`. Review actions are available through `opr review ls`,
+PR actions are `opr pr merge <number>` and
+`opr pr resolve-comments <number> [comment-id...]`. The daemon needs the PR's URL,
+because a number alone is ambiguous across repositories. A merge also needs the head
+commit you saw, so a push made since then is never merged unseen. Both commands read
+these from the session's PR list (`$OPERATOR_SESSION_ID`, or `--session <id>`), the
+same data the desktop's merge button uses. `--url` and, for merge, `--head-sha`
+supply them directly instead. `resolve-comments` resolves the threads containing the
+given GitHub comment or thread node ids, or every unresolved thread when none is given.
+
+Review actions are available through `opr review ls`,
 `opr review trigger` (also `execute` and `restart`), `opr review cancel` (also
-`stop`), and `opr review submit`.
+`stop`), and `opr review submit`. Reviewer agents record results with the Operator
+MCP server's `review_submit` tool; `opr review submit` is for people and scripts.
 
 ## Configuration
 

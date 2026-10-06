@@ -93,4 +93,22 @@ void main() {
     await dao.remove('a');
     expect(await dao.getAll(), isEmpty);
   });
+
+  test('remove deletes the desktop and every replica row it owns', () async {
+    await dao.upsert(_row('a', host: '1.1.1.1'));
+    await dao.upsert(_row('b', host: '2.2.2.2'));
+    final at = DateTime.utc(2026, 9, 25);
+    await db.replicaDocumentDao.write('a', {'board.sessions': '{}'}, at);
+    await db.replicaDocumentDao.write('b', {'board.sessions': '{}'}, at);
+    await db.replicaBlockEventDao.write('a', 's', {1: '{"seq":1}'});
+    await db.replicaBlockEventDao.write('b', 's', {1: '{"seq":1}'});
+
+    await dao.remove('a');
+
+    expect((await dao.getAll()).map((desktop) => desktop.id), ['b']);
+    expect(await db.replicaDocumentDao.read('a', ['board.sessions']), isEmpty);
+    expect(await db.replicaDocumentDao.read('b', ['board.sessions']), hasLength(1));
+    expect(await db.replicaBlockEventDao.latest('a', 's'), isEmpty);
+    expect(await db.replicaBlockEventDao.latest('b', 's'), hasLength(1));
+  });
 }

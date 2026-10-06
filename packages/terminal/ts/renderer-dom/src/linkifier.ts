@@ -1,4 +1,4 @@
-// xterm.js/src/browser/Linkifier.ts (per-line providers, cache until the buffer changes, activate on click)
+// xterm.js/src/browser/Linkifier.ts (providers asked for the hovered line, activate on click)
 import type { DetectedLink, LinkProvider } from "./link-providers.js";
 import { logicalLineAt, rangeContains, rangesOverlap } from "./logical-lines.js";
 import type { SelectionPoint } from "./selection-model.js";
@@ -6,7 +6,6 @@ import type { TextRows } from "./selection-text.js";
 
 export type LinkifierDeps = Readonly<{
 	rows(): TextRows;
-	generation(): number;
 	providers(): readonly LinkProvider[];
 	onChange(): void;
 }>;
@@ -27,8 +26,7 @@ function sameRange(a: DetectedLink, b: DetectedLink): boolean {
 }
 
 export class Linkifier {
-	private readonly cache = new Map<string, Promise<readonly DetectedLink[]>>();
-	private cacheGeneration = Number.NaN;
+	private memo: Readonly<{ key: string; pending: Promise<readonly DetectedLink[]> }> | null = null;
 	private point: SelectionPoint | null = null;
 	private link: DetectedLink | null = null;
 
@@ -45,25 +43,21 @@ export class Linkifier {
 			this.setLink(null);
 			return;
 		}
-		const generation = this.deps.generation();
-		if (generation !== this.cacheGeneration) {
-			this.cache.clear();
-			this.cacheGeneration = generation;
-		}
 		const line = logicalLineAt(this.deps.rows(), point.blockId, point.row);
-		if (!line) {
+		const offset = line?.offsetAt(point.row, point.column) ?? null;
+		if (!line || offset === null) {
 			this.setLink(null);
 			return;
 		}
-		const key = `${line.blockId}:${line.firstRow}`;
-		let pending = this.cache.get(key);
-		if (!pending) {
-			pending = Promise.all(this.deps.providers().map((provider) => provider(line))).then(mergeLinks);
-			this.cache.set(key, pending);
+		const runs = line.linkRuns.map((run) => `${run.startOffset}-${run.endOffset}-${run.linkId}`).join(",");
+		const key = [line.blockId, line.firstRow, line.rowOffsets.join(","), runs, offset, line.text].join("\u0000");
+		if (this.memo?.key !== key) {
+			this.memo = { key, pending: Promise.all(this.deps.providers().map((provider) => provider(line, offset))).then(mergeLinks) };
 		}
-		void pending.then(
+		const memo = this.memo;
+		void memo.pending.then(
 			(links) => {
-				if (this.point !== point || this.cacheGeneration !== generation) return;
+				if (this.point !== point || this.memo !== memo) return;
 				this.setLink(links.find((link) => rangeContains(link.range, point.row, point.column)) ?? null);
 			},
 			() => undefined,
@@ -71,7 +65,7 @@ export class Linkifier {
 	}
 
 	invalidate(): void {
-		this.cache.clear();
+		this.memo = null;
 		this.refresh();
 	}
 
@@ -80,7 +74,7 @@ export class Linkifier {
 	}
 
 	dispose(): void {
-		this.cache.clear();
+		this.memo = null;
 		this.point = null;
 		this.link = null;
 	}

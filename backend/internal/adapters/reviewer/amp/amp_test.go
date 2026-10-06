@@ -14,7 +14,10 @@ import (
 func TestReviewCommandWritesDenyByDefaultSettings(t *testing.T) {
 	r := &Reviewer{resolveBinary: func(context.Context) (string, error) { return "/opt/amp", nil }}
 	root := t.TempDir()
-	inv := ports.ReviewInvocation{TaskPromptRoot: root, SystemPromptFile: "/opr/system.md", Prompt: "Read task."}
+	inv := ports.ReviewInvocation{
+		TaskPromptRoot: root, SystemPromptFile: "/opr/system.md", Prompt: "Read task.",
+		MCPServers: []ports.MCPServerSpec{{Name: "operator", Command: "/opt/opr", Args: []string{"mcp", "--reviewer"}}},
+	}
 	spec, err := r.ReviewCommand(context.Background(), inv)
 	if err != nil {
 		t.Fatal(err)
@@ -38,8 +41,17 @@ func TestReviewCommandWritesDenyByDefaultSettings(t *testing.T) {
 		t.Fatalf("unsafe settings = %#v", settings)
 	}
 	permissions, ok := settings["amp.permissions"].([]any)
-	if !ok || len(permissions) != 7 {
+	if !ok || len(permissions) != 8 {
 		t.Fatalf("permissions = %#v", settings["amp.permissions"])
+	}
+	// review_submit is how the reviewer records its result; the catch-all
+	// below still rejects every other MCP tool.
+	if p := permissions[3].(map[string]any); p["tool"] != "mcp__operator__*" || p["action"] != "allow" {
+		t.Fatalf("operator MCP permission = %#v", p)
+	}
+	servers, _ := settings["amp.mcpServers"].(map[string]any)
+	if operator, _ := servers["operator"].(map[string]any); len(servers) != 1 || operator["command"] != "/opt/opr" {
+		t.Fatalf("mcp servers = %#v, want only the Operator reviewer server", settings["amp.mcpServers"])
 	}
 	last := permissions[len(permissions)-1].(map[string]any)
 	if last["tool"] != "*" || last["action"] != "reject" {

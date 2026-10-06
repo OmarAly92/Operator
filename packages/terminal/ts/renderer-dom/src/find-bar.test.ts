@@ -12,7 +12,7 @@ import {
 	type TerminalCore,
 	type TerminalTheme,
 } from "@operator/terminal-core";
-import { DomBlockRenderer, warpDarkTheme } from "./index";
+import { DomBlockRenderer, terminalStyles, warpDarkTheme } from "./index";
 import { createFindBar, type FindBarHost } from "./find-bar";
 
 const wasmPath = join(
@@ -55,7 +55,7 @@ function feedBlocks(core: TerminalCore, count: number): void {
 	for (let index = 0; index < count; index += 1) {
 		core.feed(
 			encoder.encode(
-				`\x1b]133;A\x07\x1b]133;C\x07line ${index} of text\x1b]133;D;0\x07\r\n`,
+				`\x1b]133;A\x07\x1b]133;C\x07line ${index} of text\r\n\x1b]133;D;0\x07`,
 			),
 		);
 	}
@@ -111,6 +111,7 @@ function makeBarHost(
 		scrollToBlock: (id, align) => renderer.scrollToBlock(id, align),
 		invalidate: (range) => renderer.invalidate(range),
 		afterRepaint: (listener) => renderer.onPaint(listener),
+		highlightFind: (find) => renderer.setFindHighlights(find),
 	};
 }
 
@@ -171,6 +172,30 @@ describe("find-bar", () => {
 		);
 
 		bar.dispose();
+	});
+
+	it("pins the bar to the top of the visible pane in a sticky anchor, not to the scrolled content", () => {
+		const { core, host, renderer } = makeMountedCore();
+		unmount = () => renderer.dispose();
+		const bar = createFindBar({
+			core,
+			renderer: renderer as unknown as BlockRenderer,
+			host: makeBarHost(renderer),
+			strings: defaultStrings,
+		});
+		bar.mount(host);
+		bar.open();
+		const node = host.querySelector<HTMLElement>("[data-terminal-find-bar]");
+		const anchor = node?.parentElement;
+		expect(anchor?.classList.contains("terminal-find-anchor")).toBe(true);
+		expect(host.firstElementChild).toBe(anchor);
+		expect(terminalStyles).toMatch(/\.terminal-find-anchor \{[^}]*position: sticky;[^}]*top: 0;[^}]*height: 0;/);
+		expect(terminalStyles).toMatch(/\.terminal-find-anchor \{[^}]*z-index: [1-9]/);
+		bar.close();
+		expect(host.querySelector(".terminal-find-anchor")).toBeNull();
+		bar.open();
+		bar.dispose();
+		expect(host.querySelector(".terminal-find-anchor")).toBeNull();
 	});
 
 	it("labels a match from a non-zero stable base after a trim", async () => {
@@ -348,7 +373,7 @@ describe("find-bar", () => {
 		for (let index = 0; index < 600; index += 1) {
 			core.feed(
 				encoder.encode(
-					`\x1b]133;A\x07\x1b]133;C\x07line ${index} of text\x1b]133;D;0\x07\r\n`,
+					`\x1b]133;A\x07\x1b]133;C\x07line ${index} of text\r\n\x1b]133;D;0\x07`,
 				),
 			);
 		}
@@ -443,5 +468,26 @@ describe("find-bar", () => {
 		expect(count?.textContent).toMatch(/5/);
 
 		bar.dispose();
+	});
+
+	it("keeps the query and the count across park and reveal", async () => {
+		const { core, host, renderer } = makeMountedCore();
+		unmount = () => renderer.dispose();
+		const bar = createFindBar({ core, renderer: renderer as unknown as BlockRenderer, host: makeBarHost(renderer), strings: defaultStrings });
+		bar.mount(host);
+		bar.open();
+		const input = host.querySelector<HTMLInputElement>("input[data-terminal-find-input]")!;
+		input.value = "line 1";
+		input.dispatchEvent(new Event("input", { bubbles: true }));
+		await flushFrames(8);
+		const count = host.querySelector<HTMLElement>("[data-terminal-find-count]")!;
+		const before = count.textContent;
+		renderer.setVisible(false);
+		core.enqueue(new TextEncoder().encode("unrelated output\r\n"));
+		await flushFrames(8);
+		renderer.setVisible(true);
+		await flushFrames(8);
+		expect(input.value).toBe("line 1");
+		expect(count.textContent).toBe(before);
 	});
 });

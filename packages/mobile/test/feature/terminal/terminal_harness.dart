@@ -15,6 +15,9 @@ import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/get_session_blocks_params.dart';
 import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
+import 'package:operator_mobile/feature/blocks/data/model/background_task_model.dart';
+import 'package:operator_mobile/feature/blocks/data/model/params/get_session_tasks_params.dart';
+import 'package:operator_mobile/feature/blocks/data/repository/background_tasks_repository.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
@@ -24,9 +27,11 @@ import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/dictation/voice_types.dart';
 import 'package:operator_mobile/feature/preview/data/repository/preview_repository.dart';
 import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
+import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/terminal/data/model/slash_command_model.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/permission_mode_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/slash_menu_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/usage/data/repository/usage_repository.dart';
@@ -41,32 +46,39 @@ class MockPreviewRepository extends Mock implements PreviewRepository {}
 
 class MockBlocksRepository extends Mock implements BlocksRepository {}
 
+class MockBackgroundTasksRepository extends Mock implements BackgroundTasksRepository {}
+
 class MockSessionControlRepository extends Mock
     implements SessionControlRepository {}
 
 class MockUsageRepository extends Mock implements UsageRepository {}
 
-class _InertVoiceProvider implements VoiceProvider {
+class HarnessVoiceProvider implements VoiceProvider {
+  bool availableValue = false;
+  VoiceCallbacks? callbacks;
+  int stops = 0;
+  int aborts = 0;
+
   @override
-  bool get available => false;
+  bool get available => availableValue;
 
   @override
   String? get language => null;
 
   @override
-  Future<bool> requestPermission() async => false;
+  Future<bool> requestPermission() async => availableValue;
 
   @override
   Future<void> start(
     VoiceCallbacks callbacks, {
     VoiceMode mode = VoiceMode.push,
-  }) async {}
+  }) async => this.callbacks = callbacks;
 
   @override
-  void stop() {}
+  void stop() => stops++;
 
   @override
-  void abort() {}
+  void abort() => aborts++;
 }
 
 class TerminalHarness {
@@ -81,20 +93,30 @@ class TerminalHarness {
       StreamController<BlockEventEnvelope>.broadcast();
   final StreamController<List<SessionPatch>> sessionPatches =
       StreamController<List<SessionPatch>>.broadcast();
+  final StreamController<Object?> sessionChanges = StreamController<Object?>.broadcast();
+  SessionModel? session;
 
   late TerminalCubit cubit;
   late SessionViewCubit viewCubit;
   late BlocksCubit blocksCubit;
   late SessionCommandCubit commandCubit;
   late SlashMenuCubit slashMenuCubit;
+  late PermissionModeCubit permissionCubit;
+  final HarnessVoiceProvider voice = HarnessVoiceProvider();
+  final MockSessionControlRepository controlRepository = MockSessionControlRepository();
 
-  void start({bool shellOnly = false, String? harness}) {
-    if (!sl.isRegistered<VoiceInputCubit>()) {
-      sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
-        (onTranscript, _) =>
-            VoiceInputCubit(_InertVoiceProvider(), onTranscript: onTranscript),
-      );
-    }
+  void start({
+    bool shellOnly = false,
+    String? harness,
+    List<BlockEventModel> blockRecords = const [],
+    String? activity,
+    SessionModel? session,
+  }) {
+    this.session = session;
+    if (sl.isRegistered<VoiceInputCubit>()) sl.unregister<VoiceInputCubit>();
+    sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
+      (onTranscript, _) => VoiceInputCubit(voice, onTranscript: onTranscript),
+    );
     if (!sl.isRegistered<PreviewCubit>()) {
       final previewRepository = MockPreviewRepository();
       when(
@@ -113,6 +135,8 @@ class TerminalHarness {
       );
     }
     registerFallbackValue(const GetSessionBlocksParams());
+    registerFallbackValue(const GetSessionTasksParams(sessionId: ''));
+    registerFallbackValue(<String, dynamic>{});
     when(() => terminalRepository.getSlashCommands(any())).thenAnswer(
       (_) async => Result.success(GlobalResponse<List<SlashCommandModel>>(data: const [])),
     );
@@ -160,15 +184,21 @@ class TerminalHarness {
     final blocksRepository = MockBlocksRepository();
     when(
       () => blocksRepository.getSessionBlocks(any(), any()),
-    ).thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
+    ).thenAnswer((_) async => Result.success(blockRecords));
+    when(() => blocksRepository.cachedHistory(any())).thenAnswer((_) async => const []);
+    when(() => blocksRepository.rememberLive(any(), any())).thenAnswer((_) async {});
 
     viewCubit = SessionViewCubit(defaultViewMode(cubit.args));
+    final tasksRepository = MockBackgroundTasksRepository();
+    when(() => tasksRepository.getTasks(any())).thenAnswer(
+      (_) async => Result.success(GlobalResponse<List<BackgroundTaskModel>>(data: const [])),
+    );
     blocksCubit = BlocksCubit(
       mux,
       blocksRepository,
       BlocksScope(sessionId: cubit.args.sessionId, harness: harness),
+      tasks: tasksRepository,
     );
-    final controlRepository = MockSessionControlRepository();
     when(() => controlRepository.getInteractions(any())).thenAnswer(
       (_) async =>
           Result.success(GlobalResponse<List<PendingInteractionModel>>()),
@@ -182,6 +212,14 @@ class TerminalHarness {
       controlRepository,
       usageRepository,
       sessionId: cubit.args.sessionId,
+      initialActivity: activity,
+    );
+    permissionCubit = PermissionModeCubit(
+      mux,
+      controlRepository,
+      sessionId: cubit.args.sessionId,
+      session: () => this.session,
+      sessionChanges: sessionChanges.stream,
     );
   }
 
@@ -200,6 +238,7 @@ class TerminalHarness {
                   BlocProvider<BlocksCubit>.value(value: blocksCubit),
                   BlocProvider<SessionCommandCubit>.value(value: commandCubit),
                   BlocProvider<SlashMenuCubit>.value(value: slashMenuCubit),
+                  BlocProvider<PermissionModeCubit>.value(value: permissionCubit),
                   BlocProvider<PreviewCubit>(
                     create: (_) => sl<PreviewCubit>(
                       param1: cubit.args.sessionId,
@@ -222,7 +261,9 @@ class TerminalHarness {
     await blocksCubit.close();
     await commandCubit.close();
     await slashMenuCubit.close();
+    await permissionCubit.close();
     await blockEvents.close();
+    await sessionChanges.close();
     await sessionPatches.close();
     await cubit.close();
     await statuses.close();

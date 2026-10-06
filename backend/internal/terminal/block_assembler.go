@@ -2,7 +2,9 @@ package terminal
 
 import (
 	"bytes"
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -22,6 +24,7 @@ type BlockAssembler struct {
 	pending                  *pendingBlock
 	suppressAlternateCommand bool
 	recoveringGap            bool
+	alternateBeforeCapture   bool
 }
 
 type pendingBlock struct {
@@ -46,11 +49,12 @@ func NewBlockAssembler(terminalID, sessionID, epoch string, alternateOn bool, no
 		now = func() time.Time { return time.Now().UTC() }
 	}
 	return &BlockAssembler{
-		TerminalID:  terminalID,
-		SessionID:   sessionID,
-		AlternateOn: alternateOn,
-		epoch:       epoch,
-		now:         now,
+		TerminalID:             terminalID,
+		SessionID:              sessionID,
+		AlternateOn:            alternateOn,
+		alternateBeforeCapture: alternateOn,
+		epoch:                  epoch,
+		now:                    now,
 	}
 }
 
@@ -109,12 +113,14 @@ func (a *BlockAssembler) step(tok marks.Token) (domain.Block, bool) {
 	switch m.Kind {
 	case "alt_screen_enter":
 		a.AlternateOn = true
+		a.alternateBeforeCapture = false
 		return domain.Block{}, false
 	case "alt_screen_leave":
-		if a.AlternateOn && a.pending == nil {
+		if a.AlternateOn && a.pending == nil && a.alternateBeforeCapture {
 			a.suppressAlternateCommand = true
 		}
 		a.AlternateOn = false
+		a.alternateBeforeCapture = false
 		return domain.Block{}, false
 	}
 	if a.recoveringGap {
@@ -125,15 +131,18 @@ func (a *BlockAssembler) step(tok marks.Token) (domain.Block, bool) {
 		return domain.Block{}, false
 	}
 	if a.suppressAlternateCommand {
-		if m.Kind == "command_end" {
+		switch m.Kind {
+		case "command_end":
 			a.suppressAlternateCommand = false
 			a.pending = nil
-			return domain.Block{}, false
-		}
-		if m.Kind == "prompt_start" {
+		case "prompt_start":
 			a.suppressAlternateCommand = false
-			a.pending = nil
+			if a.pending != nil && (a.pending.command != "" || a.pending.haveExtExit) {
+				a.pending = nil
+			}
 			a.startBlockAtA(tok)
+		case "extension":
+			a.applyExtension(m, tok)
 		}
 		return domain.Block{}, false
 	}
@@ -158,6 +167,9 @@ func (a *BlockAssembler) step(tok marks.Token) (domain.Block, bool) {
 	case "output_start":
 		if a.pending != nil {
 			a.pending.outputStarted = true
+			if a.pending.startedAt.IsZero() {
+				a.pending.startedAt = a.now()
+			}
 		}
 		a.record(tok)
 	case "cwd_changed":
@@ -219,12 +231,39 @@ func (a *BlockAssembler) startBlockAtA(tok marks.Token) {
 		a.record(tok)
 		return
 	}
-	a.pending = &pendingBlock{
+	next := &pendingBlock{
 		startOffset: tok.Start,
 		lastOffset:  tok.Start,
 		sawPromptA:  true,
 	}
+	if p := a.pending; p != nil && !p.outputStarted {
+		next.id, next.idFromExt, next.cwd, next.branch = p.id, p.idFromExt, p.cwd, p.branch
+		writeIdentityMark(&next.raw, p.cwd, p.branch)
+	}
+	a.pending = next
 	a.record(tok)
+}
+
+func writeIdentityMark(raw *bytes.Buffer, cwd, branch string) {
+	if cwd == "" && branch == "" {
+		return
+	}
+	raw.WriteString("\x1b]7000;v=1")
+	for _, field := range [][2]string{{"cwd", cwd}, {"branch", branch}} {
+		if field[1] == "" {
+			continue
+		}
+		raw.WriteString(";" + field[0] + "=")
+		for i := 0; i < len(field[1]); i++ {
+			c := field[1][i]
+			if c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || strings.IndexByte("._~/:@!$&()*+,-", c) >= 0 {
+				raw.WriteByte(c)
+				continue
+			}
+			fmt.Fprintf(raw, "%%%02x", c)
+		}
+	}
+	raw.WriteString("\x1b\\")
 }
 
 func (a *BlockAssembler) finishBlock(tok marks.Token, m marks.Mark) (domain.Block, bool) {
@@ -274,7 +313,8 @@ func (a *BlockAssembler) record(tok marks.Token) {
 	if a.pending == nil || a.AlternateOn {
 		return
 	}
-	if len(tok.Raw) > 0 {
+	betweenBlocks := tok.Kind == marks.TokenText && !a.pending.sawPromptA && !a.pending.outputStarted
+	if len(tok.Raw) > 0 && !betweenBlocks {
 		a.pending.raw.Write(tok.Raw)
 	}
 	if tok.End > a.pending.lastOffset {

@@ -23,6 +23,7 @@ const {
 	getKeybindings,
 	setKeybindings,
 	setKeybindingRecording,
+	notifPermission,
 } = vi.hoisted(() => ({
 	getUpdate: vi.fn(),
 	setUpdate: vi.fn(),
@@ -42,6 +43,7 @@ const {
 	getKeybindings: vi.fn(),
 	setKeybindings: vi.fn(),
 	setKeybindingRecording: vi.fn(),
+	notifPermission: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -72,6 +74,14 @@ vi.mock("../lib/bridge", () => ({
 			onStatus: updOnStatus,
 		},
 		featureBuilds: { list: featListBuilds, getActive: featGetActive },
+		notifications: {
+			show: vi.fn(),
+			setBadge: vi.fn(),
+			devBounce: vi.fn(),
+			onClick: () => () => undefined,
+			permission: notifPermission,
+			openSettings: vi.fn(),
+		},
 	},
 }));
 
@@ -105,6 +115,7 @@ beforeEach(() => {
 		getKeybindings,
 		setKeybindings,
 		setKeybindingRecording,
+		notifPermission,
 	]) {
 		m.mockReset();
 	}
@@ -125,6 +136,7 @@ beforeEach(() => {
 	getKeybindings.mockResolvedValue({});
 	setKeybindings.mockImplementation(async (overrides) => overrides);
 	setKeybindingRecording.mockResolvedValue(undefined);
+	notifPermission.mockResolvedValue("unsupported");
 });
 
 describe("GlobalSettingsForm", () => {

@@ -1,7 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
+import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_launch.dart';
+import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_screen.dart';
+import 'package:operator_mobile/core/notifications/viewed_session.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/failure_widgets/app_error_widget.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_scaffold.dart';
@@ -26,6 +30,7 @@ import 'package:operator_mobile/feature/sessions/presentation/session_route/ui/s
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/ui/spawn_screen.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/permission_mode_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/slash_menu_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/terminal_screen.dart';
@@ -55,7 +60,10 @@ sealed class AppRouter {
 
       case RoutesStrings.manualConnect:
         return MaterialPageRoute<bool>(
-          builder: (context) => BlocProvider(create: (_) => sl<ManualConnectCubit>(), child: const ManualConnectScreen()),
+          builder: (context) => BlocProvider(
+            create: (_) => sl<ManualConnectCubit>(param1: ManualConnectMode.manual),
+            child: const ManualConnectScreen(),
+          ),
           settings: settings,
         );
 
@@ -137,8 +145,12 @@ sealed class AppRouter {
                     param2: terminalArgs.previewUrl,
                   ),
                 ),
+              if (!terminalArgs.shellOnly)
+                BlocProvider<PermissionModeCubit>(
+                  create: (_) => sl<PermissionModeCubit>(param1: terminalArgs.sessionId),
+                ),
             ],
-            child: const TerminalScreen(),
+            child: ViewedSessionMarker(sessionId: terminalArgs.sessionId, child: const TerminalScreen()),
           ),
           settings: settings,
         );
@@ -179,6 +191,20 @@ sealed class AppRouter {
       case RoutesStrings.usage:
         return MaterialPageRoute(
           builder: (context) => BlocProvider(create: (_) => sl<UsageCubit>(), child: const UsageScreen()),
+          settings: settings,
+        );
+
+      case RoutesStrings.glassLab:
+        if (!kDebugMode) {
+          return MaterialPageRoute(
+            builder: (context) => const AppScaffold(appBar: GlobalAppbar.sub(), body: AppErrorWidget()),
+            settings: settings,
+          );
+        }
+        return MaterialPageRoute(
+          builder: (_) => GlassLabScreen(
+            launch: GlassLabLaunch.current ?? const GlassLabLaunch(scene: 'tabbar.rest'),
+          ),
           settings: settings,
         );
 

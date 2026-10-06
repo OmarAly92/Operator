@@ -20,10 +20,14 @@ const STRINGS: TerminalStrings = {
 	findPlaceholder: "Find",
 	findLabel: "Find label",
 	findMatchCount: "%1 of %2",
+	findRegexLabel: "Regex",
 	palettePlaceholder: "Type a command",
 	paletteLabel: "Command palette",
 	paletteNoMatches: "No matching commands",
 	jumpToBottom: "Jump to bottom",
+	loadOlderOutput: "Load older output",
+	quickFixLabel: "Suggested fix",
+	quickFixUse: "Use",
 };
 
 function key(init: Partial<KeyboardEventInit> & { key: string }): KeyboardEvent {

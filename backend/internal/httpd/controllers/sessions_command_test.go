@@ -101,3 +101,11 @@ func TestSessionCommandReportsANonEmptyComposerAsAConflict(t *testing.T) {
 	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/s1/command", `{"command":"compact"}`)
 	assertErrorCode(t, body, status, http.StatusConflict, "SESSION_COMPOSER_NOT_EMPTY")
 }
+
+func TestSessionCommandDuringAnExclusiveOperationIsBusy(t *testing.T) {
+	svc := newFakeSessionService()
+	svc.commandErr = sessionmanager.ErrSessionBusy
+	srv := newSessionTestServer(t, svc)
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/s1/command", `{"command":"stop"}`)
+	assertErrorCode(t, body, status, http.StatusConflict, "SESSION_BUSY")
+}

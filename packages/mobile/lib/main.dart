@@ -6,26 +6,36 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
+import 'package:operator_mobile/core/app_routes/app_route_observer.dart';
 import 'package:operator_mobile/core/app_routes/app_router.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
+import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/logic/skin_cubit.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/themes/app_themes.dart';
+import 'package:operator_mobile/core/connection/connection_cubit.dart';
+import 'package:operator_mobile/core/database/tables/settings/settings_dao.dart';
 import 'package:operator_mobile/core/deep_link/deep_link_service.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/notifications/phone_alerts_runtime.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
+import 'package:operator_mobile/core/replica/launch_cache_wait.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/core/utils/device_kind.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_launch.dart';
 import 'package:operator_mobile/feature/onboarding/logic/onboarding.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
-  await CacheHelper.init();
   await ServiceLocator.init();
+  await AppPreferences.load(sl<SettingsDao>());
+  sl<ConnectionCubit>();
 
   LaunchDestination destination;
   try {
@@ -37,6 +47,10 @@ Future<void> main() async {
     );
   } on Object {
     destination = LaunchDestination.onboarding;
+  }
+
+  if (destination == LaunchDestination.sessions) {
+    await waitForLaunchCache(sl<SessionsCubit>().cacheReady, AppMotion.launchCacheBudget);
   }
 
   final packageInfo = await PackageInfo.fromPlatform();
@@ -51,11 +65,14 @@ Future<void> main() async {
   );
   unawaited(TelemetryRuntime.active());
 
-  final initialRoute = switch (destination) {
-    LaunchDestination.onboarding => RoutesStrings.onboarding,
-    LaunchDestination.desktops => RoutesStrings.connections,
-    LaunchDestination.sessions => RoutesStrings.sessions,
-  };
+  final labLaunch = kDebugMode ? await GlassLabLaunch.load() : null;
+  final initialRoute = labLaunch != null
+      ? RoutesStrings.glassLab
+      : switch (destination) {
+          LaunchDestination.onboarding => RoutesStrings.onboarding,
+          LaunchDestination.desktops => RoutesStrings.connections,
+          LaunchDestination.sessions => RoutesStrings.sessions,
+        };
 
   runApp(
     EasyLocalization(
@@ -77,8 +94,12 @@ class OperatorApp extends StatefulWidget {
 }
 
 class _OperatorAppState extends State<OperatorApp> {
-  late final AppLifecycleListener _lifecycle = AppLifecycleListener(
-    onResume: () => unawaited(TelemetryRuntime.active()),
+  late final AppLifecycleListener _lifecycle = phoneAlertsLifecycle(
+    () => sl<PhoneAlertsRuntime>(),
+    onResume: () {
+      unawaited(TelemetryRuntime.active());
+      sl<ConnectionCubit>().resumed();
+    },
   );
 
   @override
@@ -87,6 +108,7 @@ class _OperatorAppState extends State<OperatorApp> {
     _lifecycle.hashCode;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(sl<DeepLinkService>().start());
+      unawaited(sl<PhoneAlertsRuntime>().start());
     });
   }
 
@@ -97,28 +119,39 @@ class _OperatorAppState extends State<OperatorApp> {
   }
 
   @override
-  Widget build(BuildContext context) => BlocProvider(
-        create: (context) => SkinCubit(),
+  Widget build(BuildContext context) => MultiBlocProvider(
+        providers: [
+          BlocProvider(create: (context) => SkinCubit()),
+          BlocProvider<ConnectionCubit>.value(value: sl<ConnectionCubit>()),
+        ],
         child: BlocBuilder<SkinCubit, SkinState>(
           buildWhen: (previous, current) => current is SkinChangedState,
           builder: (context, state) {
             final skin = context.read<SkinCubit>().skin;
             return SkinScope(
               skin: skin,
-              child: ScreenUtilInit(
-                designSize: const Size(390, 844),
-                minTextAdapt: true,
-                builder: (context, child) => MaterialApp(
-                  navigatorKey: sl<GlobalKey<NavigatorState>>(),
-                  debugShowCheckedModeBanner: false,
-                  theme: AppThemes.fromSkin(skin),
-                  themeMode: skin.themeMode,
-                  localizationsDelegates: context.localizationDelegates,
-                  supportedLocales: context.supportedLocales,
-                  locale: context.locale,
-                  initialRoute: widget.initialRoute,
-                  onGenerateInitialRoutes: (name) => [AppRouter.generateRoute(RouteSettings(name: name))],
-                  onGenerateRoute: AppRouter.generateRoute,
+              child: GlassTheme(
+                data: GlassThemeData(
+                  brightness: skin.themeMode == ThemeMode.dark ? Brightness.dark : Brightness.light,
+                  accent: skin.accent,
+                  scrollEdgeTint: skin.scrollEdgeTint,
+                ),
+                child: ScreenUtilInit(
+                  designSize: const Size(390, 844),
+                  minTextAdapt: true,
+                  builder: (context, child) => MaterialApp(
+                    navigatorKey: sl<GlobalKey<NavigatorState>>(),
+                    navigatorObservers: [AppRouteObserver.instance],
+                    debugShowCheckedModeBanner: false,
+                    theme: AppThemes.fromSkin(skin),
+                    themeMode: skin.themeMode,
+                    localizationsDelegates: context.localizationDelegates,
+                    supportedLocales: context.supportedLocales,
+                    locale: context.locale,
+                    initialRoute: widget.initialRoute,
+                    onGenerateInitialRoutes: (name) => [AppRouter.generateRoute(RouteSettings(name: name))],
+                    onGenerateRoute: AppRouter.generateRoute,
+                  ),
                 ),
               ),
             );

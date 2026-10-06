@@ -9,13 +9,16 @@ repository.
 Phase 5 adds navigation on top of the block-aware renderer:
 
 - **Find.** `createFindBar({ core, renderer, host, strings })` returns a
-  `FindBar` handle. Cmd/Ctrl+F opens the bar; typing runs an incremental
-  find session; Enter walks forward, Shift+Enter walks backward, Escape
-  closes and restores focus. The find cursor is rebuilt lazily on every
-  step and held only as a `u32` session id in JS; cancellation is
-  `core.findCancel(id)`. The bench proves the gate: **29.60ms p95** at
-  the chosen `FIND_STEP_BUDGET = 1000`, under the 100ms ceiling, for a
-  500k-row scrollback.
+  `FindBar` handle. Cmd/Ctrl+F opens the bar; typing opens a find
+  session; Enter walks forward, Shift+Enter walks backward, Escape
+  closes and restores focus. The session lives in the core and is held
+  only as a `u32` id in JS: `core.findUpdate(id)` scans history once, in
+  `FIND_UPDATE_BUDGET_BYTES` steps, then only what is new, and the bar
+  calls it on every paint so new output is searched as it arrives.
+  Lowercase queries ignore case; the `.*` button switches to regular
+  expressions. Cancellation is `core.findCancel(id)`. The bench gate:
+  **36.40ms p95** to the first hit in a 500k-row scrollback, under the
+  100ms ceiling.
 - **Sticky command header.** The pinned header is the first child of
   the host, `position: sticky; top: 0`. It names the block the center
   of the viewport is scrolled into. Sticky survives `contain: strict`

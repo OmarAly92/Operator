@@ -49,6 +49,15 @@ export function rowClusters(text: string, spans: ArrayLike<number>): Cluster[] {
 	return out;
 }
 
+export function cellString(text: string, spans: ArrayLike<number>): string {
+	let out = "";
+	for (const cluster of rowClusters(text, spans)) {
+		const width = cluster.end - cluster.start;
+		out += width === 1 && cluster.text.length === 1 ? cluster.text : "\u0000".repeat(width);
+	}
+	return out;
+}
+
 export function cellCount(text: string, spans: ArrayLike<number>): number {
 	const clusters = rowClusters(text, spans);
 	return clusters.length === 0 ? 0 : clusters[clusters.length - 1]!.end;

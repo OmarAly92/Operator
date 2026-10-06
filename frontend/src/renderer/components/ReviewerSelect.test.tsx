@@ -79,17 +79,12 @@ async function openMenu() {
 }
 
 describe("ReviewerSelect", () => {
-	it("offers both interactive Kiro and Pi reviewers", async () => {
+	it("offers only reviewers that record results through the Operator MCP server", async () => {
 		render(<Harness catalog={baseCatalog} />);
 		const labels = (await openMenu()).map((option) => option.textContent);
-		expect(labels).toContain("KiroAuth unknown");
-		expect(labels).toContain("Pi");
-	});
-
-	it("offers Muse Code as a reviewer", async () => {
-		render(<Harness catalog={withAgents({ id: "muse", label: "Muse Code", authStatus: "authorized" })} />);
-		await openMenu();
-		expect(await screen.findByRole("menuitem", { name: /Muse Code/ })).toBeInTheDocument();
+		for (const retired of ["Cursor", "Goose", "Pi", "KiroAuth unknown"]) {
+			expect(labels).not.toContain(retired);
+		}
 	});
 
 	it("orders reviewers using the default agent priority", async () => {
@@ -97,66 +92,36 @@ describe("ReviewerSelect", () => {
 		const labels = (await openMenu())
 			.map((option) => option.textContent)
 			.filter((label) => label !== "Project default");
-		expect(labels).toEqual([
-			"Claude Code",
-			"Codex",
-			"Cursor",
-			"OpenCode",
-			"GitHub Copilot",
-			"Goose",
-			"Kilo Code",
-			"Pi",
-			"KiroAuth unknown",
-		]);
+		expect(labels).toEqual(["Claude Code", "Codex", "OpenCode", "GitHub Copilot", "Kilo Code"]);
 	});
 
-	it("offers the experimental host-trusted reviewer set", async () => {
+	it("offers the experimental reviewers and drops the retired ones", async () => {
 		render(
 			<Harness
 				catalog={withAgents(
 					{ id: "qwen", label: "Qwen Code", authStatus: "authorized" },
-					{ id: "devin", label: "Devin", authStatus: "authorized" },
-					{ id: "droid", label: "Droid", authStatus: "authorized" },
-					{ id: "kimi", label: "Kimi", authStatus: "authorized" },
-					{ id: "aider", label: "Aider", authStatus: "authorized" },
 					{ id: "amp", label: "Amp", authStatus: "authorized" },
-					{ id: "agy", label: "Agy", authStatus: "authorized" },
 					{ id: "auggie", label: "Auggie", authStatus: "authorized" },
-					{ id: "autohand", label: "Autohand", authStatus: "authorized" },
-					{ id: "cline", label: "Cline", authStatus: "authorized" },
-					{ id: "continue", label: "Continue", authStatus: "authorized" },
-					{ id: "crush", label: "Crush", authStatus: "authorized" },
-					{ id: "grok", label: "Grok", authStatus: "authorized" },
-					{ id: "vibe", label: "Vibe", authStatus: "authorized" },
+					{ id: "aider", label: "Aider", authStatus: "authorized" },
+					{ id: "agy", label: "Agy", authStatus: "authorized" },
+					{ id: "droid", label: "Droid", authStatus: "authorized" },
+					{ id: "muse", label: "Muse Code", authStatus: "authorized" },
 				)}
 			/>,
 		);
 		const labels = (await openMenu()).map((option) => option.textContent);
-		for (const label of [
-			"Qwen Code",
-			"Agy",
-			"Continue",
-			"Goose",
-			"Vibe",
-			"Devin",
-			"Droid",
-			"Kimi",
-			"Aider",
-			"Amp",
-			"Auggie",
-			"Autohand",
-			"Cline",
-			"Crush",
-			"Grok",
-		]) {
+		for (const label of ["Qwen Code", "Amp", "Auggie"]) {
 			expect(labels).toContain(label);
+		}
+		for (const label of ["Aider", "Agy", "Droid", "Muse Code"]) {
+			expect(labels).not.toContain(label);
 		}
 	});
 
 	it("warns when an experimental reviewer is selected", async () => {
-		render(<Harness catalog={withAgents({ id: "kimchi", label: "Kimchi", authStatus: "authorized" })} />);
+		render(<Harness catalog={withAgents({ id: "qwen", label: "Qwen Code", authStatus: "authorized" })} />);
 		await openMenu();
-		await userEvent.click(await screen.findByRole("menuitem", { name: /^Kimchi$/i }));
+		await userEvent.click(await screen.findByRole("menuitem", { name: /^Qwen Code$/i }));
 		expect(screen.getByRole("status")).toHaveTextContent("Experimental host-trusted reviewer");
 	});
 
@@ -196,10 +161,5 @@ describe("ReviewerSelect", () => {
 		render(<Harness catalog={baseCatalog} />);
 		await openMenu();
 		expect(await screen.findByRole("menuitem", { name: "Kilo Code" })).toBeEnabled();
-	});
-
-	it("offers the experimental Agy reviewer", async () => {
-		render(<Harness catalog={withAgents({ id: "agy", label: "Agy", authStatus: "authorized" })} />);
-		expect((await openMenu()).map((option) => option.textContent)).toContain("Agy");
 	});
 });

@@ -10,7 +10,7 @@ pub const COMPACTION_DIVISOR: usize = 4;
 /// it, so the two must never drift apart.
 pub const BLOCK_RECORD_WORDS: usize = 18;
 
-pub const FIND_MATCH_WORDS: usize = 5;
+pub const FIND_MATCH_WORDS: usize = 6;
 
 pub const STYLE_RUN_WORDS: usize = 6;
 

@@ -136,6 +136,7 @@ type Notification struct {
 	Status     domain.NotificationStatus
 	CreatedAt  time.Time
 	ResolvedAt sql.NullTime
+	Quiet      bool
 }
 
 type PR struct {
@@ -325,6 +326,10 @@ type Session struct {
 	PreviewOpenedRevision     int64
 	WorkspaceMode             string
 	ClaudeAccountID           domain.ClaudeAccountID
+	AgentReportState          string
+	AgentReportReason         string
+	AgentReportAt             sql.NullTime
+	LaunchPermissionMode      domain.PermissionMode
 }
 
 type SessionCleanupFact struct {
@@ -371,24 +376,25 @@ type TelemetryEvent struct {
 }
 
 type TerminalBlock struct {
-	TerminalID     string
-	SourceID       string
-	SessionID      string
-	Command        string
-	Cwd            string
-	GitBranch      string
-	ExitCode       sql.NullInt64
-	RawOutput      []byte
-	StartedAt      sql.NullTime
-	FinishedAt     time.Time
-	ShellKind      string
-	ShellVersion   string
-	TruncatedLines int64
-	TruncatedBytes int64
-	CaptureEpoch   string
-	StartOffset    int64
-	EndOffset      int64
-	CreatedAt      time.Time
+	TerminalID         string
+	SourceID           string
+	SessionID          string
+	Command            string
+	Cwd                string
+	GitBranch          string
+	ExitCode           sql.NullInt64
+	RawOutput          []byte
+	StartedAt          sql.NullTime
+	FinishedAt         time.Time
+	ShellKind          string
+	ShellVersion       string
+	TruncatedLines     int64
+	TruncatedBytes     int64
+	CaptureEpoch       string
+	StartOffset        int64
+	EndOffset          int64
+	CreatedAt          time.Time
+	RawOutputClearedAt sql.NullTime
 }
 
 type Ticket struct {

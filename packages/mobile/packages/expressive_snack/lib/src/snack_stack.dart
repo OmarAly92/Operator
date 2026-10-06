@@ -42,10 +42,13 @@ class SnackStack extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: [
                   for (final Snack snack in snacks)
-                    SnackView(
-                      key: snack.key,
-                      snack: snack,
-                      depth: depths[snack]!,
+                    Padding(
+                      padding: EdgeInsets.only(bottom: snack.bottomOffset),
+                      child: SnackView(
+                        key: snack.key,
+                        snack: snack,
+                        depth: depths[snack]!,
+                      ),
                     ),
                 ],
               );

@@ -1,5 +1,5 @@
 import type { BenchmarkRenderer } from "./harness";
-import { FIND_STEP_BUDGET, type TerminalCore } from "@operator/terminal-core";
+import { FIND_UPDATE_BUDGET_BYTES, type TerminalCore } from "@operator/terminal-core";
 
 export const FIND_SCENARIO_NAME = "find-500k";
 export const FIND_LINE_COUNT = 500000;
@@ -40,19 +40,18 @@ export async function populateScrollback(renderer: BenchmarkRenderer, bytes: Uin
 	await renderer.waitForPaint();
 }
 
-export function measureFindFirstResult(renderer: BenchmarkRenderer, budget: number = FIND_STEP_BUDGET): number {
+export function measureFindFirstResult(renderer: BenchmarkRenderer, budget: number = FIND_UPDATE_BUDGET_BYTES): number {
 	const core = domCoreOf(renderer);
 	const session = core.findOpen(FIND_QUERY, false);
 	const startedAt = performance.now();
 	let guard = 0;
 	while (guard < 1_000_000) {
-		core.findStep(session, budget);
-		const results = core.findResults();
-		if (results.length > 0) {
+		const update = core.findUpdate(session, budget);
+		if (update.added > 0) {
 			core.findCancel(session);
 			return performance.now() - startedAt;
 		}
-		if (core.findIsComplete(session)) {
+		if (update.complete) {
 			break;
 		}
 		guard += 1;

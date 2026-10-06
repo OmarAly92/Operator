@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { claudeAccountLabelForSession, useClaudeAccounts } from "../hooks/useClaudeAccounts";
 import { useRelaunchConfirm } from "../hooks/useRelaunchConfirm";
+import { useSwitchAgentAction } from "../hooks/useSwitchAgentAction";
 import type { WorkspaceSession } from "../types/workspace";
 import {
 	ContextMenu,
@@ -34,12 +35,24 @@ export function SessionAgentTabMenu({ session, children }: SessionAgentTabMenuPr
 	const isClaude = session.provider === "claude-code";
 	const currentAccountId = session.claudeAccountId?.trim() || "default";
 	const currentAccountLabel = claudeAccountLabelForSession(session, accounts);
+	const switchAgent = useSwitchAgentAction(session);
 
 	return (
 		<>
 			<ContextMenu>
 				<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
 				<ContextMenuContent className="min-w-56">
+					{switchAgent.available ? (
+						<>
+							<ContextMenuItem
+								className={switchAgent.recovery ? "text-warning" : undefined}
+								onSelect={switchAgent.open}
+							>
+								{switchAgent.label}
+							</ContextMenuItem>
+							<ContextMenuSeparator />
+						</>
+					) : null}
 					<ContextMenuItem disabled={disabled} onSelect={() => open({ mode: "cleared" })}>
 						{t("terminal.relaunchCleared")}
 					</ContextMenuItem>
@@ -79,6 +92,7 @@ export function SessionAgentTabMenu({ session, children }: SessionAgentTabMenuPr
 				</ContextMenuContent>
 			</ContextMenu>
 			{dialog}
+			{switchAgent.dialog}
 		</>
 	);
 }

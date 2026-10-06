@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -401,6 +402,7 @@ func shouldEmitSessionStartContext(agent, event string) bool {
 func (c *commandContext) emitSessionStartContext(agent, event, sessionID string) {
 	dataDir := strings.TrimSpace(os.Getenv("OPERATOR_DATA_DIR"))
 	if dataDir == "" {
+		c.reportHookFailure(agent, event, sessionID, errors.New("read system prompt: OPERATOR_DATA_DIR is not set"))
 		return
 	}
 	path := filepath.Join(dataDir, "prompts", sessionID, "system.md")

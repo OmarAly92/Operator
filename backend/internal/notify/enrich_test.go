@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -49,5 +50,119 @@ func TestEnrichReadyToMergeFallsBackWithoutPRTitle(t *testing.T) {
 
 	if want := "PR #67 is ready to merge"; rec.Title != want {
 		t.Fatalf("title = %q, want %q", rec.Title, want)
+	}
+}
+
+func TestEnrichTurnFinished(t *testing.T) {
+	at := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	long := strings.Repeat("a", 200)
+	rec, err := enrich(Intent{Type: domain.NotificationTurnFinished, SessionID: "operator-4", ProjectID: "operator", CreatedAt: at, SessionDisplayName: "split close fix", AssistantUpdate: "  " + long + "  ", Quiet: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Title != "split close fix finished" {
+		t.Fatalf("title = %q", rec.Title)
+	}
+	if len([]rune(rec.Body)) != 121 || !strings.HasSuffix(rec.Body, "…") {
+		t.Fatalf("body = %q (%d runes)", rec.Body, len([]rune(rec.Body)))
+	}
+	if !rec.Quiet {
+		t.Fatal("quiet was not carried")
+	}
+}
+
+func TestEnrichTurnFinishedWithoutAssistantText(t *testing.T) {
+	rec, err := enrich(Intent{Type: domain.NotificationTurnFinished, SessionID: "s", ProjectID: "p", CreatedAt: time.Now()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Body != "Your agent finished its turn." {
+		t.Fatalf("body = %q", rec.Body)
+	}
+}
+
+func TestEnrichAgentExited(t *testing.T) {
+	rec, err := enrich(Intent{Type: domain.NotificationAgentExited, SessionID: "s", ProjectID: "p", CreatedAt: time.Now(), SessionDisplayName: "checkout"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Title != "checkout exited" || rec.Body != "The agent process ended. Relaunch it from the session." {
+		t.Fatalf("rec = %+v", rec)
+	}
+}
+
+func TestEnrichUsesScreenTextWhenTheHookGaveNone(t *testing.T) {
+	t.Parallel()
+	needs, err := enrich(Intent{Type: domain.NotificationNeedsInput, SessionID: "s", ProjectID: "p", ScreenText: "Allow command `rm -rf build`?", CreatedAt: time.Now()})
+	if err != nil || needs.Body != "Allow command `rm -rf build`?" {
+		t.Fatalf("needs body = %q, %v", needs.Body, err)
+	}
+	done, err := enrich(Intent{Type: domain.NotificationTurnFinished, SessionID: "s", ProjectID: "p", ScreenText: "Removed build/.\nAll tests pass.", CreatedAt: time.Now()})
+	if err != nil || done.Body != "Removed build/. All tests pass." {
+		t.Fatalf("done body = %q, %v", done.Body, err)
+	}
+	hook, _ := enrich(Intent{Type: domain.NotificationTurnFinished, SessionID: "s", ProjectID: "p", AssistantUpdate: "From the hook.", ScreenText: "From the screen.", CreatedAt: time.Now()})
+	if hook.Body != "From the hook." {
+		t.Fatalf("the hook's text lost to the screen: %q", hook.Body)
+	}
+}
+
+func TestEnrichMasksAndCleansAgentTextBeforeItLeaves(t *testing.T) {
+	t.Parallel()
+	question, err := enrich(Intent{Type: domain.NotificationNeedsInput, SessionID: "s", ProjectID: "p", ScreenText: "Allow \x1b[1mcurl -H 'Authorization: Bearer abcdefghijklmnop1234'\x1b[0m?", CreatedAt: time.Now()})
+	if err != nil || question.Body != "Allow curl -H 'Authorization: Bearer [redacted]'?" {
+		t.Fatalf("question body = %q, %v", question.Body, err)
+	}
+	reason, _ := enrich(Intent{Type: domain.NotificationNeedsInput, SessionID: "s", ProjectID: "p", AgentReportReason: "Paste the token: abcdefgh12345678\x07", CreatedAt: time.Now()})
+	if reason.Body != "Paste the token: [redacted]" {
+		t.Fatalf("reason body = %q", reason.Body)
+	}
+	done, _ := enrich(Intent{Type: domain.NotificationTurnFinished, SessionID: "s", ProjectID: "p", AssistantUpdate: "Set the key to sk-abcdefghijklmnopqrstuvwxyz and pushed.\n\x1b[32mdone\x1b[0m", CreatedAt: time.Now()})
+	if done.Body != "Set the key to [redacted] and pushed. done" {
+		t.Fatalf("done body = %q", done.Body)
+	}
+}
+
+func TestEnrichMasksBeforeTruncating(t *testing.T) {
+	t.Parallel()
+	text := strings.Repeat("x ", 55) + "sk-" + strings.Repeat("a", 30) + " tail"
+	rec, err := enrich(Intent{Type: domain.NotificationTurnFinished, SessionID: "s", ProjectID: "p", ScreenText: text, CreatedAt: time.Now()})
+	if want := strings.Repeat("x ", 55) + "[redacted]…"; err != nil || rec.Body != want {
+		t.Fatalf("body = %q, want %q (%v)", rec.Body, want, err)
+	}
+}
+
+func TestEnrichCleansAndMasksTheTitle(t *testing.T) {
+	t.Parallel()
+	name := "fix \x1b]0;evil\x07\u202eauth\x1b[1m password=hunter2hunter2"
+	needs, err := enrich(Intent{Type: domain.NotificationNeedsInput, SessionID: "s", ProjectID: "p", SessionDisplayName: name, CreatedAt: time.Now()})
+	if err != nil || needs.Title != "fix auth password=[redacted] needs your input" {
+		t.Fatalf("title = %q, %v", needs.Title, err)
+	}
+	blank, _ := enrich(Intent{Type: domain.NotificationTurnFinished, SessionID: "s", ProjectID: "p", SessionDisplayName: "\x1b[0m\x07", CreatedAt: time.Now()})
+	if blank.Title != "s finished" {
+		t.Fatalf("blank name title = %q", blank.Title)
+	}
+}
+
+func TestEnrichCleansAndMasksThePRTitleInEveryPRBody(t *testing.T) {
+	t.Parallel()
+	title := "fix \x1b]0;evil\x07" + string(rune(0x202e)) + "auth\x1b[1m\n token=hunter2hunter2 ghp_abcdefghijklmnopqrstuvwxyz"
+	branch := "ma" + string(rune(0x2066)) + "in\x1b[0m"
+	for _, tc := range []struct {
+		typ  domain.NotificationType
+		want string
+	}{
+		{domain.NotificationPRMerged, "fix auth token=[redacted] [redacted] is now on main."},
+		{domain.NotificationPRClosedUnmerged, "fix auth token=[redacted] [redacted] was closed without merging. Reopen it if this wasn't intended."},
+	} {
+		rec, err := enrich(Intent{Type: tc.typ, SessionID: "s", ProjectID: "p", PRURL: "https://github.com/o/r/pull/7", PRTitle: title, PRTargetBranch: branch, CreatedAt: time.Now()})
+		if err != nil || rec.Body != tc.want {
+			t.Errorf("%s body = %q, %v; want %q", tc.typ, rec.Body, err, tc.want)
+		}
+	}
+	merged, _ := enrich(Intent{Type: domain.NotificationPRMerged, SessionID: "s", ProjectID: "p", PRURL: "https://github.com/o/r/pull/7", PRTitle: title, CreatedAt: time.Now()})
+	if merged.Body != "fix auth token=[redacted] [redacted] was merged." {
+		t.Errorf("merged without a target body = %q", merged.Body)
 	}
 }

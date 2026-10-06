@@ -19,6 +19,7 @@ impl LineEditorState {
 #[derive(Default)]
 pub struct LineEditorTracker {
     state: LineEditorState,
+    typeahead: Option<String>,
 }
 
 impl LineEditorTracker {
@@ -32,9 +33,21 @@ impl LineEditorTracker {
 
     pub fn on_input_released(&mut self) {
         self.state = LineEditorState::Released;
+        self.typeahead = None;
     }
 
     pub fn on_alt_screen_enter(&mut self) {
         self.state = LineEditorState::Released;
+        self.typeahead = None;
+    }
+
+    pub fn on_typeahead(&mut self, text: &str) {
+        if self.state == LineEditorState::Owned && !text.is_empty() {
+            self.typeahead = Some(text.to_string());
+        }
+    }
+
+    pub fn take_typeahead(&mut self) -> Option<String> {
+        self.typeahead.take()
     }
 }

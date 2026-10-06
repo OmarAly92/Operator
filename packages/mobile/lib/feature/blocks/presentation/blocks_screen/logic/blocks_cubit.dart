@@ -3,12 +3,22 @@ import 'dart:collection';
 import 'dart:math';
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/connection/connection_signals.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/core/error_handling/dio_error_handler/status_code.dart';
+import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/replica/replica_limits.dart';
+import 'package:operator_mobile/feature/blocks/data/model/background_task_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/get_session_blocks_params.dart';
+import 'package:operator_mobile/feature/blocks/data/model/params/get_session_tasks_params.dart';
+import 'package:operator_mobile/feature/blocks/data/model/params/stop_session_task_params.dart';
+import 'package:operator_mobile/feature/blocks/data/repository/background_tasks_repository.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
+import 'package:operator_mobile/feature/blocks/logic/background_tasks.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_assembly.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_harnesses.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
@@ -37,8 +47,9 @@ class BlocksScope extends Equatable {
 }
 
 class BlocksCubit extends Cubit<BlocksState> {
-  BlocksCubit(this._mux, this._repository, this.scope)
-    : supported = BlockHarnesses.covers(scope.harness),
+  BlocksCubit(this._mux, this._repository, this.scope, {required this._tasks, ConnectionSignals? connection})
+    : _signals = connection,
+      supported = BlockHarnesses.covers(scope.harness),
       super(const BlocksInitialState()) {
     if (!supported) {
       emit(BlocksUnsupportedState(harness));
@@ -47,12 +58,17 @@ class BlocksCubit extends Cubit<BlocksState> {
     _eventsSub = _mux.blockEvents.where((event) => event.sessionId == sessionId).listen(_onLive);
     _statusSub = _mux.status.listen(_onStatus);
     _patchesSub = _mux.sessionPatches.listen(_onPatches);
+    _retrySub = connection?.retries.listen((_) => _onConnectionRetry());
     _mux.subscribeBlocks(sessionId);
-    unawaited(refresh());
+    loading = true;
+    unawaited(_start());
+    unawaited(_seedTasks());
   }
 
   final MuxClient _mux;
   final BlocksRepository _repository;
+  final BackgroundTasksRepository _tasks;
+  final ConnectionSignals? _signals;
   final BlocksScope scope;
   String get sessionId => scope.sessionId;
   String? get agentId => scope.agentId;
@@ -72,39 +88,146 @@ class BlocksCubit extends Cubit<BlocksState> {
   int _answeredThroughSeq = 0;
   int _revision = 0;
   int _capacity = kBlockWindow;
+  int? _syncedThrough;
+  int _generation = 0;
+  bool _latestPending = false;
+  bool _lastFetchOk = false;
+  int _connection = 0;
+  final List<Map<String, dynamic>> _unsynced = [];
+  int? _unsyncedThrough;
+  bool _unsyncedDropped = false;
+
+  @visibleForTesting
+  int get unsyncedCount => _unsynced.length;
+
+  bool get _caughtUp => !_latestPending && _lastFetchOk;
 
   StreamSubscription<BlockEventEnvelope>? _eventsSub;
   StreamSubscription<MuxStatus>? _statusSub;
   StreamSubscription<List<SessionPatch>>? _patchesSub;
+  StreamSubscription<void>? _retrySub;
+  bool _heldForAuth = false;
 
-  int? get _highestSeq => _events.isEmpty ? null : _events.lastKey();
+  bool get _authFailed => _signals?.authFailed ?? false;
 
-  int? get _lowestSeq => _events.isEmpty ? null : _events.firstKey();
+  void _onConnectionRetry() {
+    if (isClosed || !_heldForAuth || _authFailed) return;
+    unawaited(refresh());
+    unawaited(_seedTasks());
+  }
 
-  Future<void> refresh() async {
-    loading = true;
-    _emit();
-    final result = await _repository.getSessionBlocks(
-      sessionId,
-      GetSessionBlocksParams(afterSeq: _highestSeq, agentId: agentId),
-    );
-    result.when(
-      onSuccess: (records) {
-        error = null;
-        for (final record in records) {
-          _merge(record);
-        }
-      },
-      onFailure: (failure) => error = failure.message.isEmpty
-          ? 'Could not load this session\'s blocks'
-          : failure.message,
-    );
-    loading = false;
+  int _taskSeq = 0;
+  int? _lowestTaskSeq;
+
+  int? get _highestSeq {
+    final highest = _events.isEmpty ? _taskSeq : max(_events.lastKey()!, _taskSeq);
+    return highest == 0 ? null : highest;
+  }
+
+  int? get _lowestSeq {
+    final kept = _events.isEmpty ? null : _events.firstKey();
+    final task = _lowestTaskSeq;
+    if (kept == null || task == null) return kept ?? task;
+    return min(kept, task);
+  }
+
+  Future<void> _start() async {
+    if (agentId == null) await _seedFromCache();
+    if (isClosed) return;
+    await refresh();
+  }
+
+  Future<void> _seedFromCache() async {
+    final cached = await _repository.cachedHistory(sessionId);
+    if (isClosed || cached.isEmpty) return;
+    var through = 0;
+    for (final record in cached) {
+      final seq = record.seq;
+      if (seq == null) continue;
+      through = max(through, seq);
+      if (_events.containsKey(seq)) continue;
+      _merge(record);
+    }
+    if (through > 0) _syncedThrough = _later(_syncedThrough, through);
+    if (cached.length >= ReplicaLimits.blockEventsPerSession) hasOlder = true;
     _rebuild();
   }
 
+  Future<void> refresh() async {
+    if (_authFailed) {
+      _heldForAuth = true;
+      loading = false;
+      _emit();
+      return;
+    }
+    _heldForAuth = false;
+    loading = true;
+    _emit();
+    final generation = ++_generation;
+    final connection = _connection;
+    _latestPending = true;
+    _unsynced.clear();
+    _unsyncedThrough = null;
+    _unsyncedDropped = false;
+    final result = await _repository.getSessionBlocks(
+      sessionId,
+      GetSessionBlocksParams(afterSeq: _syncedThrough, agentId: agentId),
+    );
+    final latest = generation == _generation;
+    final owns = latest && connection == _connection;
+    if (latest) _latestPending = false;
+    var dropped = false;
+    result.when(
+      onSuccess: (records) {
+        for (final record in records) {
+          _merge(record);
+          if (owns) _syncedThrough = _later(_syncedThrough, record.seq);
+        }
+        if (!owns) return;
+        error = null;
+        dropped = _unsyncedDropped;
+        _lastFetchOk = !dropped;
+      },
+      onFailure: (failure) {
+        if (!owns) return;
+        _lastFetchOk = false;
+        error = failure.message.isEmpty ? 'Could not load this session\'s blocks' : failure.message;
+      },
+    );
+    if (owns && _caughtUp) _flushUnsynced();
+    loading = _latestPending;
+    _rebuild();
+    if (dropped && !isClosed) unawaited(refresh());
+  }
+
+  void _flushUnsynced() {
+    _syncedThrough = _later(_syncedThrough, _unsyncedThrough);
+    _unsyncedThrough = null;
+    for (final row in _unsynced) {
+      unawaited(_repository.rememberLive(sessionId, row));
+    }
+    _unsynced.clear();
+  }
+
+  void _track(BlockEventEnvelope envelope, int? seq, bool main) {
+    if (_caughtUp) {
+      _syncedThrough = _later(_syncedThrough, seq);
+      if (main) unawaited(_repository.rememberLive(sessionId, envelope.block));
+      return;
+    }
+    _unsyncedThrough = _later(_unsyncedThrough, seq);
+    if (!main) return;
+    _unsynced.add(envelope.block);
+    if (_unsynced.length > ReplicaLimits.blockEventsPerSession) {
+      _unsynced.removeAt(0);
+      _unsyncedDropped = true;
+    }
+  }
+
+  static int? _later(int? a, int? b) => a == null ? b : (b == null ? a : max(a, b));
+
   Future<void> loadOlder() async {
-    if (loadingOlder || !hasOlder) return;
+    if (loadingOlder || !hasOlder || _authFailed) return;
     final before = _lowestSeq;
     if (before == null) return;
 
@@ -146,6 +269,12 @@ class BlocksCubit extends Cubit<BlocksState> {
   void _onLive(BlockEventEnvelope envelope) {
     final record = BlockEventModel.fromJson(envelope.block);
     final scopeId = record.agentId ?? '';
+    _track(envelope, record.seq, agentId == null && scopeId.isEmpty);
+    if (record.kind == 'task_update') {
+      if (agentId == null) _absorbTask(record);
+      if (scopeId == (agentId ?? '')) _merge(record);
+      return;
+    }
     if (scopeId == (agentId ?? '')) {
       if (agentId == null && record.kind == 'agent_stop' && (record.sourceId ?? '').isNotEmpty) {
         _summarise(record.sourceId!, record);
@@ -171,9 +300,84 @@ class BlocksCubit extends Cubit<BlocksState> {
   }
 
   void _onStatus(MuxStatus status) {
-    if (status != MuxStatus.open) return;
+    if (status != MuxStatus.open) {
+      _connection++;
+      _lastFetchOk = false;
+      return;
+    }
     _mux.subscribeBlocks(sessionId);
     unawaited(refresh());
+    unawaited(_seedTasks());
+  }
+
+  final Map<String, BackgroundTaskModel> _taskFeed = {};
+  Map<String, BackgroundTaskModel> get taskFeed => UnmodifiableMapView(_taskFeed);
+  bool _taskFeedMissing = false;
+  bool _seeding = false;
+  bool _reseed = false;
+
+  Future<void> reseedTasks() => _seedTasks();
+
+  Future<void> _seedTasks() async {
+    final tasks = _tasks;
+    if (agentId != null || !supported || _taskFeedMissing) return;
+    if (_authFailed) {
+      _heldForAuth = true;
+      return;
+    }
+    if (_seeding) {
+      _reseed = true;
+      return;
+    }
+    _seeding = true;
+    do {
+      _reseed = false;
+      final result = await tasks.getTasks(GetSessionTasksParams(sessionId: sessionId));
+      if (isClosed) return;
+      result.when(
+        onSuccess: (response) {
+          for (final task in response.data ?? const <BackgroundTaskModel>[]) {
+            _foldTask(task);
+          }
+          _emit();
+        },
+        onFailure: (failure) {
+          final status = failure.statusCode;
+          if (status == StatusCode.notFound || status == StatusCode.notImplemented) _taskFeedMissing = true;
+        },
+      );
+    } while (_reseed && !_taskFeedMissing);
+    _seeding = false;
+  }
+
+  void _absorbTask(BlockEventModel record) {
+    final update = BackgroundTaskModel.fromEvent(record);
+    if (update == null) return;
+    final merged = _foldTask(update);
+    if (merged.status == 'running' && merged.canStop == null) unawaited(_seedTasks());
+    _emit();
+  }
+
+  BackgroundTaskModel _foldTask(BackgroundTaskModel update) {
+    final id = update.taskId;
+    if (id == null || id.isEmpty) return update;
+    return _taskFeed[id] = mergeBackgroundTask(_taskFeed[id], update);
+  }
+
+  Future<Failure?> stopTask(String taskId) async {
+    final result = await _tasks.stopTask(StopSessionTaskParams(sessionId: sessionId, taskId: taskId));
+    Failure? failure;
+    result.when(
+      onSuccess: (response) {
+        final task = response.data?.task;
+        if (task != null && !isClosed) {
+          _foldTask(task);
+          _emit();
+        }
+      },
+      onFailure: (error) => failure = error,
+    );
+    return failure;
   }
 
   void _onPatches(List<SessionPatch> patches) {
@@ -200,9 +404,16 @@ class BlocksCubit extends Cubit<BlocksState> {
   void _merge(BlockEventModel record) {
     final seq = record.seq;
     if (seq == null) return;
+    if (record.kind == 'task_update') {
+      _taskSeq = max(_taskSeq, seq);
+      _lowestTaskSeq = min(_lowestTaskSeq ?? seq, seq);
+      return;
+    }
     _events[seq] = record;
     while (_events.length > _capacity) {
-      _events.remove(_events.firstKey());
+      final evicted = _events.firstKey()!;
+      _events.remove(evicted);
+      if ((_lowestTaskSeq ?? evicted) < evicted) _lowestTaskSeq = null;
       hasOlder = _capacity < kBlockMaxWindow;
     }
   }
@@ -223,6 +434,7 @@ class BlocksCubit extends Cubit<BlocksState> {
     unawaited(_eventsSub?.cancel());
     unawaited(_statusSub?.cancel());
     unawaited(_patchesSub?.cancel());
+    unawaited(_retrySub?.cancel());
     if (supported) _mux.unsubscribeBlocks(sessionId);
     return super.close();
   }

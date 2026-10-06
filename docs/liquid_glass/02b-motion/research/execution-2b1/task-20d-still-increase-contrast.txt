@@ -1,0 +1,29 @@
+20 scene, case and frame triples compared; 20 Flutter frames byte-identical to the 2A run
+identical flutter material.regular dark-black-increase-contrast ready: native frame max difference 0.0
+identical flutter material.regular dark-black-increase-contrast settled: native frame max difference 0.0
+identical flutter material.regular dark-photo-increase-contrast ready: native frame max difference 0.0
+identical flutter material.regular dark-photo-increase-contrast settled: native frame max difference 0.0
+identical flutter material.regular dark-stripes-increase-contrast ready: native frame max difference 0.0
+identical flutter material.regular dark-stripes-increase-contrast settled: native frame max difference 0.0
+identical flutter material.regular dark-text-increase-contrast ready: native frame max difference 0.0
+identical flutter material.regular dark-text-increase-contrast settled: native frame max difference 0.0
+identical flutter material.regular dark-white-increase-contrast ready: native frame max difference 0.0
+identical flutter material.regular dark-white-increase-contrast settled: native frame max difference 0.0
+identical flutter material.regular light-black-increase-contrast ready: native frame max difference 0.0
+identical flutter material.regular light-black-increase-contrast settled: native frame max difference 0.0
+identical flutter material.regular light-photo-increase-contrast ready: native frame max difference 0.0
+identical flutter material.regular light-photo-increase-contrast settled: native frame max difference 0.0
+identical flutter material.regular light-stripes-increase-contrast ready: native frame max difference 0.0
+identical flutter material.regular light-stripes-increase-contrast settled: native frame max difference 0.0
+identical flutter material.regular light-text-increase-contrast ready: native frame max difference 0.0
+identical flutter material.regular light-text-increase-contrast settled: native frame max difference 0.0
+identical flutter material.regular light-white-increase-contrast ready: native frame max difference 2.0
+identical flutter material.regular light-white-increase-contrast settled: native frame max difference 2.0
+material.regular light-photo-increase-contrast ready bbox_pt: 2.00 -> 2.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.regular light-photo-increase-contrast settled bbox_pt: 2.00 -> 2.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.regular light-white-increase-contrast ready mad: 0.57 -> 0.57 (pass -> pass), flutter frame max difference 0.0, native 2.0
+material.regular light-white-increase-contrast ready luminance: 0.20 -> 0.20 (pass -> pass), flutter frame max difference 0.0, native 2.0
+material.regular light-white-increase-contrast settled mad: 0.57 -> 0.57 (pass -> pass), flutter frame max difference 0.0, native 2.0
+material.regular light-white-increase-contrast settled luminance: 0.20 -> 0.20 (pass -> pass), flutter frame max difference 0.0, native 2.0
+missing: 0
+worse: 0

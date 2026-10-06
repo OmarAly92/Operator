@@ -89,6 +89,7 @@ type SessionService interface {
 	Restore(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionsvc.RestoreOutcome, error)
 	ResumeAgent(ctx context.Context, id domain.SessionID) (sessionsvc.ResumeAgentOutcome, error)
 	RelaunchAgent(ctx context.Context, id domain.SessionID, cfg sessionmanager.RelaunchAgentConfig) (sessionsvc.ResumeAgentOutcome, error)
+	RestartTerminal(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionsvc.ResumeAgentOutcome, error)
 	SwitchAgent(ctx context.Context, id domain.SessionID, in sessionsvc.SwitchAgentInput) (domain.AgentSwitch, error)
 	ListAgentSwitches(ctx context.Context, id domain.SessionID) ([]domain.AgentSwitch, error)
 	SubmitAgentHandoff(ctx context.Context, id domain.SessionID, switchID domain.AgentSwitchID, sourceGenerationID domain.AgentGenerationID, handoff json.RawMessage) (domain.AgentSwitch, error)
@@ -102,6 +103,7 @@ type SessionService interface {
 	SetReviewerHarness(ctx context.Context, id domain.SessionID, harness domain.ReviewerHarness) (domain.Session, error)
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
+	SetPermissionMode(ctx context.Context, id domain.SessionID, mode domain.PermissionMode) (sessionmanager.PermissionModeResult, error)
 	Models(ctx context.Context, id domain.SessionID) ([]sessionmanager.ModelOption, error)
 	Draft(ctx context.Context, id domain.SessionID) (string, error)
 	Suggestion(ctx context.Context, id domain.SessionID) (string, error)
@@ -118,6 +120,7 @@ type SessionService interface {
 	GetWorkspaceFile(ctx context.Context, id domain.SessionID, path string) (sessionsvc.WorkspaceFileDetail, error)
 	InvalidateWorkspaceCache(id domain.SessionID)
 	Pin(ctx context.Context, id domain.SessionID) (domain.Session, error)
+	SetAgentReport(ctx context.Context, id domain.SessionID, state domain.AgentReportState, reason string) (domain.Session, error)
 	Unpin(ctx context.Context, id domain.SessionID) (domain.Session, error)
 }
 
@@ -149,6 +152,16 @@ type BlockEventHistory interface {
 // its block-event log. Nil leaves the session view's model empty.
 type SessionModelReader interface {
 	LatestModels(ctx context.Context) (map[domain.SessionID]string, error)
+}
+
+type SessionPermissionModeReader interface {
+	LatestPermissionModes(ctx context.Context) (map[domain.SessionID]domain.PermissionModeObservation, error)
+	LatestPermissionMode(ctx context.Context, id domain.SessionID) (domain.PermissionModeObservation, bool, error)
+}
+
+type PermissionModeGate interface {
+	PermissionModeSupport(harness domain.AgentHarness, version string) bool
+	PermissionModeReadable(harness domain.AgentHarness) bool
 }
 
 // InteractionReader serves a session's currently pending dialogs. This exists
@@ -187,16 +200,19 @@ type UsageHookRecorder interface {
 // SessionsController owns the session routes. Nil keeps routes registered but
 // returns OpenAPI-backed 501s.
 type SessionsController struct {
-	Svc           SessionService
-	Activity      ActivityRecorder
-	BlockEvents   BlockEventRecorder
-	Models        SessionModelReader
-	BlockHistory  BlockEventHistory
-	Interactions  InteractionReader
-	SlashCommands SlashCommandLister
-	Usage         UsageHookRecorder
-	PreviewServer ManagedPreviewServer
-	Capabilities  SessionCapabilityValidator
+	Svc                SessionService
+	Activity           ActivityRecorder
+	BlockEvents        BlockEventRecorder
+	Models             SessionModelReader
+	PermissionModes    SessionPermissionModeReader
+	PermissionModeGate PermissionModeGate
+	BlockHistory       BlockEventHistory
+	Interactions       InteractionReader
+	SlashCommands      SlashCommandLister
+	Usage              UsageHookRecorder
+	PreviewServer      ManagedPreviewServer
+	Capabilities       SessionCapabilityValidator
+	Tasks              BackgroundTaskService
 }
 
 // Register mounts the session routes on the supplied router.
@@ -224,9 +240,12 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Post("/sessions/{sessionId}/restore", c.restore)
 	r.Post("/sessions/{sessionId}/resume-agent", c.resumeAgent)
 	r.Post("/sessions/{sessionId}/relaunch-agent", c.relaunchAgent)
+	r.Post("/sessions/{sessionId}/restart-terminal", c.restartTerminal)
 	r.Get("/sessions/{sessionId}/agent-switches", c.listAgentSwitches)
 	r.Post("/sessions/{sessionId}/agent-switches/{switchId}/handoff", c.submitAgentHandoff)
 	r.Get("/sessions/{sessionId}/blocks", c.listBlockEvents)
+	r.Get("/sessions/{sessionId}/tasks", c.listTasks)
+	r.Post("/sessions/{sessionId}/tasks/{taskId}/stop", c.stopTask)
 	r.Post("/sessions/{sessionId}/kill", c.kill)
 	r.Post("/sessions/{sessionId}/rollback", c.rollback)
 	r.Post("/sessions/{sessionId}/send", c.send)
@@ -241,6 +260,8 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Post("/sessions/{sessionId}/activity", c.activity)
 	r.Post("/sessions/{sessionId}/pin", c.pin)
 	r.Delete("/sessions/{sessionId}/pin", c.unpin)
+	r.Put("/sessions/{sessionId}/agent-report", c.setAgentReport)
+	r.Delete("/sessions/{sessionId}/agent-report", c.clearAgentReport)
 	r.Post("/sessions/delegate", c.delegateTask)
 }
 
@@ -274,6 +295,7 @@ func (c *SessionsController) list(w http.ResponseWriter, r *http.Request) {
 	}
 	views := sessionViews(sessions)
 	c.attachModels(r.Context(), views)
+	c.attachPermissionModes(views, c.latestPermissionModes(r.Context(), views))
 	envelope.WriteJSON(w, http.StatusOK, ListSessionsResponse{Sessions: views})
 }
 
@@ -344,7 +366,13 @@ func (c *SessionsController) spawn(w http.ResponseWriter, r *http.Request) {
 		}
 		workspaceMode = parsed
 	}
-	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments, WorkspaceMode: workspaceMode, Cols: in.Cols, Rows: in.Rows, ClaudeAccountID: in.ClaudeAccountID})
+	permissionMode := domain.PermissionMode(strings.TrimSpace(in.PermissionMode))
+	if !permissionMode.Valid() {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_PERMISSION_MODE",
+			"permissionMode must be one of default, accept-edits, plan, auto, bypass-permissions", nil)
+		return
+	}
+	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments, WorkspaceMode: workspaceMode, Cols: in.Cols, Rows: in.Rows, ClaudeAccountID: in.ClaudeAccountID, AgentConfig: ports.AgentConfig{Permissions: permissionMode}})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
@@ -367,9 +395,30 @@ func extensionForMimeType(mimeType string) string {
 
 	// Preferred extensions for MIME types with multiple options
 	preferredExts := map[string]string{
-		"image/jpeg": ".jpg",
-		"image/jpg":  ".jpg",
-		"text/plain": ".txt",
+		"image/jpeg":       ".jpg",
+		"image/jpg":        ".jpg",
+		"text/plain":       ".txt",
+		"text/markdown":    ".md",
+		"application/json": ".json",
+		"application/yaml": ".yaml",
+		"application/toml": ".toml",
+		"text/x-dart":      ".dart",
+		"text/x-go":        ".go",
+		"text/typescript":  ".ts",
+		"text/tsx":         ".tsx",
+		"text/javascript":  ".js",
+		"text/x-python":    ".py",
+		"text/x-ruby":      ".rb",
+		"text/x-rust":      ".rs",
+		"text/x-swift":     ".swift",
+		"text/x-kotlin":    ".kt",
+		"text/x-java":      ".java",
+		"application/x-sh": ".sh",
+		"application/sql":  ".sql",
+		"text/csv":         ".csv",
+		"application/xml":  ".xml",
+		"text/html":        ".html",
+		"text/css":         ".css",
 	}
 
 	// Check if we have a preferred extension for this MIME type
@@ -468,6 +517,7 @@ func (c *SessionsController) get(w http.ResponseWriter, r *http.Request) {
 	}
 	views := []SessionView{sessionView(sess)}
 	c.attachModels(r.Context(), views)
+	c.attachPermissionModes(views, c.latestPermissionMode(r.Context(), sess.ID))
 	envelope.WriteJSON(w, http.StatusOK, SessionResponse{Session: views[0]})
 }
 
@@ -484,6 +534,51 @@ func (c *SessionsController) attachModels(ctx context.Context, views []SessionVi
 	}
 	for i := range views {
 		views[i].Model = models[views[i].ID]
+	}
+}
+
+func (c *SessionsController) latestPermissionModes(ctx context.Context, views []SessionView) map[domain.SessionID]domain.PermissionModeObservation {
+	if c.PermissionModes == nil || len(views) == 0 {
+		return nil
+	}
+	modes, err := c.PermissionModes.LatestPermissionModes(ctx)
+	if err != nil {
+		slog.Default().Warn("session permission modes read failed", "err", err)
+		return nil
+	}
+	return modes
+}
+
+func (c *SessionsController) latestPermissionMode(ctx context.Context, id domain.SessionID) map[domain.SessionID]domain.PermissionModeObservation {
+	if c.PermissionModes == nil {
+		return nil
+	}
+	observation, ok, err := c.PermissionModes.LatestPermissionMode(ctx, id)
+	if err != nil {
+		slog.Default().Warn("session permission mode read failed", "session", id, "err", err)
+		return nil
+	}
+	if !ok {
+		return nil
+	}
+	return map[domain.SessionID]domain.PermissionModeObservation{id: observation}
+}
+
+func (c *SessionsController) attachPermissionModes(views []SessionView, observed map[domain.SessionID]domain.PermissionModeObservation) {
+	for i := range views {
+		observation, seen := observed[views[i].ID]
+		readable := c.PermissionModeGate == nil || c.PermissionModeGate.PermissionModeReadable(views[i].Harness)
+		mode := ports.NormalizePermissionMode(views[i].LaunchPermissionMode)
+		if seen {
+			mode = observation.Mode
+		} else if !readable {
+			mode = ""
+		}
+		views[i].PermissionMode = string(mode)
+		if c.PermissionModeGate == nil {
+			continue
+		}
+		views[i].Capabilities = SessionCapabilitiesView{PermissionMode: c.PermissionModeGate.PermissionModeSupport(views[i].Harness, observation.Version)}
 	}
 }
 
@@ -1086,12 +1181,11 @@ func (c *SessionsController) restore(w http.ResponseWriter, r *http.Request) {
 		apispec.NotImplemented(w, r, "POST", "/api/v1/sessions/{sessionId}/restore")
 		return
 	}
-	var in RestoreSessionRequest
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil && !errors.Is(err, io.EOF) {
-		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+	grid, ok := decodePaneGrid(w, r)
+	if !ok {
 		return
 	}
-	out, err := c.Svc.Restore(r.Context(), sessionID(r), ports.PaneGrid{Cols: in.Cols, Rows: in.Rows})
+	out, err := c.Svc.Restore(r.Context(), sessionID(r), grid)
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
@@ -1118,6 +1212,43 @@ func (c *SessionsController) unpin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sess, err := c.Svc.Unpin(r.Context(), sessionID(r))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionResponse{Session: sessionView(sess)})
+}
+
+// setAgentReport records what the agent reported about its own card. It is
+// what the Operator MCP server's session_report tool calls.
+func (c *SessionsController) setAgentReport(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "PUT", "/api/v1/sessions/{sessionId}/agent-report")
+		return
+	}
+	var in SetAgentReportRequest
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	if in.State == "" {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_AGENT_REPORT", "state is required", nil)
+		return
+	}
+	sess, err := c.Svc.SetAgentReport(r.Context(), sessionID(r), in.State, in.Reason)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionResponse{Session: sessionView(sess)})
+}
+
+func (c *SessionsController) clearAgentReport(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "DELETE", "/api/v1/sessions/{sessionId}/agent-report")
+		return
+	}
+	sess, err := c.Svc.SetAgentReport(r.Context(), sessionID(r), "", "")
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
@@ -1166,6 +1297,37 @@ func (c *SessionsController) relaunchAgent(w http.ResponseWriter, r *http.Reques
 		RelaunchMode: out.Mode,
 		Session:      sessionView(out.Session),
 	})
+}
+
+func (c *SessionsController) restartTerminal(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "POST", "/api/v1/sessions/{sessionId}/restart-terminal")
+		return
+	}
+	grid, ok := decodePaneGrid(w, r)
+	if !ok {
+		return
+	}
+	out, err := c.Svc.RestartTerminal(r.Context(), sessionID(r), grid)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, RestartTerminalResponse{
+		OK:          true,
+		SessionID:   sessionID(r),
+		RestartMode: out.Mode,
+		Session:     sessionView(out.Session),
+	})
+}
+
+func decodePaneGrid(w http.ResponseWriter, r *http.Request) (ports.PaneGrid, bool) {
+	var in RestoreSessionRequest
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil && !errors.Is(err, io.EOF) {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return ports.PaneGrid{}, false
+	}
+	return ports.PaneGrid{Cols: in.Cols, Rows: in.Rows}, true
 }
 
 func (c *SessionsController) switchAgent(w http.ResponseWriter, r *http.Request) {
@@ -1461,12 +1623,16 @@ func (c *SessionsController) command(w http.ResponseWriter, r *http.Request) {
 	command, ok := domain.ParseSessionCommand(in.Command)
 	if !ok {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_COMMAND_UNKNOWN",
-			"unknown command; expected one of stop, compact, model", nil)
+			"unknown command; expected one of stop, compact, model, permission-mode", nil)
 		return
 	}
 	if command == domain.CommandModel && strings.TrimSpace(in.Model) == "" {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_COMMAND_MODEL_REQUIRED",
 			"the model command requires a model label", nil)
+		return
+	}
+	if command == domain.CommandPermissionMode {
+		c.permissionModeCommand(w, r, in.Mode)
 		return
 	}
 
@@ -1476,6 +1642,30 @@ func (c *SessionsController) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	envelope.WriteJSON(w, http.StatusOK, SessionCommandResponse{State: "sent", Models: result.Models})
+}
+
+func (c *SessionsController) permissionModeCommand(w http.ResponseWriter, r *http.Request, raw string) {
+	mode := domain.PermissionMode(strings.TrimSpace(raw))
+	if mode == "" {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_COMMAND_MODE_REQUIRED",
+			"the permission-mode command requires a mode: one of default, accept-edits, plan, auto, bypass-permissions", nil)
+		return
+	}
+	if !mode.Valid() {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_PERMISSION_MODE",
+			"permissionMode must be one of default, accept-edits, plan, auto, bypass-permissions", nil)
+		return
+	}
+	result, err := c.Svc.SetPermissionMode(r.Context(), sessionID(r), mode)
+	if err != nil {
+		c.writeCommandError(w, r, err, nil)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionCommandResponse{
+		State:          "sent",
+		PermissionMode: string(result.Mode),
+		Restarted:      result.Restarted,
+	})
 }
 
 func (c *SessionsController) decision(w http.ResponseWriter, r *http.Request) {
@@ -1507,20 +1697,8 @@ func (c *SessionsController) decision(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteJSON(w, http.StatusOK, SessionDecisionResponse{State: "sent"})
 	case errors.Is(err, sessionmanager.ErrUnconfirmed):
 		envelope.WriteJSON(w, http.StatusOK, SessionDecisionResponse{State: "unconfirmed"})
-	case errors.Is(err, sessionmanager.ErrDialogAbsent):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
-			"the expected dialog is no longer on screen", nil)
-	case errors.Is(err, sessionmanager.ErrDialogKindMismatch):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_KIND_MISMATCH",
-			"the pending dialog is not of the kind this route answers", nil)
-	case errors.Is(err, sessionmanager.ErrNotFound):
-		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "session not found", nil)
-	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_NOT_RUNNING", "the session is not running", nil)
-	case errors.Is(err, sessionmanager.ErrAnswerInvalid):
-		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_DECISION_INVALID", err.Error(), nil)
 	default:
-		envelope.WriteError(w, r, err)
+		writeDialogError(w, r, err, "SESSION_DECISION_INVALID")
 	}
 }
 
@@ -1542,6 +1720,13 @@ func (c *SessionsController) answer(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteJSON(w, http.StatusOK, SessionAnswerResponse{State: "sent"})
 	case errors.Is(err, sessionmanager.ErrUnconfirmed):
 		envelope.WriteJSON(w, http.StatusOK, SessionAnswerResponse{State: "unconfirmed"})
+	default:
+		writeDialogError(w, r, err, "SESSION_ANSWER_INVALID")
+	}
+}
+
+func writeDialogError(w http.ResponseWriter, r *http.Request, err error, invalidCode string) {
+	switch {
 	case errors.Is(err, sessionmanager.ErrDialogAbsent):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
 			"the expected dialog is no longer on screen", nil)
@@ -1553,7 +1738,7 @@ func (c *SessionsController) answer(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_NOT_RUNNING", "the session is not running", nil)
 	case errors.Is(err, sessionmanager.ErrAnswerInvalid):
-		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_ANSWER_INVALID", err.Error(), nil)
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", invalidCode, err.Error(), nil)
 	default:
 		envelope.WriteError(w, r, err)
 	}
@@ -1579,6 +1764,15 @@ func (c *SessionsController) writeCommandError(w http.ResponseWriter, r *http.Re
 	case errors.Is(err, sessionmanager.ErrAwaitingDecision):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_AWAITING_DECISION",
 			"the session is paused on a permission decision", nil)
+	case errors.Is(err, sessionmanager.ErrPermissionModeUnsupported):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "PERMISSION_MODE_UNSUPPORTED",
+			"this session's agent cannot change permission mode from here", nil)
+	case errors.Is(err, sessionmanager.ErrPermissionModeUnconfirmed):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "PERMISSION_MODE_UNCONFIRMED",
+			"the terminal did not confirm the new permission mode", nil)
+	case errors.Is(err, sessionmanager.ErrSessionBusy):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_BUSY",
+			"another operation owns the session's terminal", nil)
 	case errors.Is(err, sessionmanager.ErrWrongActivityState):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_COMMAND_UNAVAILABLE",
 			"the command is not available in the session's current state", nil)
@@ -1716,6 +1910,7 @@ func (c *SessionsController) delegateTask(w http.ResponseWriter, r *http.Request
 		Model:           domain.SanitizeControlChars(strings.TrimSpace(in.Model)),
 		Attachments:     attachments,
 		WorkspaceMode:   workspaceMode,
+		Branch:          strings.TrimSpace(in.Branch),
 		Cols:            in.Cols,
 		Rows:            in.Rows,
 		ClaudeAccountID: domain.ClaudeAccountID(strings.TrimSpace(string(in.ClaudeAccountID))),

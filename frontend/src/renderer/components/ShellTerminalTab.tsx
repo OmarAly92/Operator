@@ -17,7 +17,7 @@ type ShellTerminalTabProps = {
 	onRename?: (title: string) => void;
 };
 
-// One standalone-shell tab, shared by the session pane's tab strip (CenterPane)
+// One standalone-shell tab, shared by the split pane's tab strip (PaneTabStrip)
 // and the standalone /terminals screen (ShellTerminalsView) so the two never
 // drift. Session-pane tabs use a connected treatment that visually continues
 // into xterm below; the standalone terminals screen keeps its compact pill.

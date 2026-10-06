@@ -1,14 +1,15 @@
 mod dispatch;
 mod edit;
+mod print;
+mod prompt;
+mod resize;
 mod scroll;
 mod snapshot;
 
 pub use snapshot::AltSnapshot;
 
-use unicode_width::UnicodeWidthChar;
-
 use crate::style::{CellStyle, StyleCode};
-use crate::width::{self, WidthMode};
+use crate::width::WidthMode;
 
 pub const MAX_DIMENSION: usize = 1000;
 
@@ -63,6 +64,10 @@ impl Cell {
             Some(text) => text,
             None => self.ch.encode_utf8(buffer),
         }
+    }
+
+    pub(crate) fn is_plain_ascii(&self) -> bool {
+        self.ch.is_ascii() && self.extra.is_none()
     }
 
     pub fn is_blank(&self) -> bool {
@@ -371,6 +376,10 @@ impl ScreenGrid {
         self.set_row_wrapped(to, wrapped);
     }
 
+    pub(crate) fn pending_wrap(&self) -> bool {
+        self.pending_wrap
+    }
+
     pub(crate) fn clear_pending_wrap(&mut self) {
         self.pending_wrap = false;
     }
@@ -413,108 +422,6 @@ impl ScreenGrid {
         }
     }
 
-    pub fn print(&mut self, ch: char, style: CellStyle) {
-        if self.width_mode == WidthMode::Grapheme && self.join_previous(ch, style) {
-            return;
-        }
-        let width = UnicodeWidthChar::width(ch).unwrap_or(0);
-        if width == 0 {
-            self.attach_zerowidth(ch);
-            return;
-        }
-        if self.pending_wrap || self.col + width > self.cols {
-            self.set_row_wrapped(self.row, true);
-            self.carriage_return();
-            self.line_feed();
-        }
-        self.raise_max_cursor_row(self.row);
-        self.set(self.row, self.col, Cell::new(ch, style));
-        for offset in 1..width {
-            self.set(self.row, self.col + offset, Cell::new('\0', style));
-        }
-        self.col += width;
-        if self.col >= self.cols {
-            self.col = self.cols - 1;
-            self.pending_wrap = true;
-        }
-    }
-
-    fn previous_cell(&self) -> Option<(usize, usize)> {
-        let mut col = self.col;
-        if !self.pending_wrap {
-            col = col.checked_sub(1)?;
-        }
-        if self
-            .cell_ref(self.row, col)
-            .is_some_and(|cell| cell.ch == '\0')
-        {
-            col = col.checked_sub(1)?;
-        }
-        (self.row < self.rows && col < self.cols).then_some((self.row, col))
-    }
-
-    fn cell_width_at(&self, row: usize, col: usize) -> usize {
-        1 + (col + 1..self.cols)
-            .take_while(|next| {
-                self.cell_ref(row, *next)
-                    .is_some_and(|cell| cell.ch == '\0')
-            })
-            .count()
-    }
-
-    fn join_previous(&mut self, ch: char, style: CellStyle) -> bool {
-        let Some((row, col)) = self.previous_cell() else {
-            return false;
-        };
-        let index = self.phys_start(row) + col;
-        let mut buffer = [0u8; 4];
-        let previous = self.cells[index].text(&mut buffer).to_string();
-        if !width::joins_previous(&previous, ch) {
-            return false;
-        }
-        let old_width = self.cell_width_at(row, col);
-        self.cells[index].append_scalar(ch);
-        let new_width = width::cluster_width(self.cells[index].text(&mut buffer));
-        if new_width > old_width && col + 1 < self.cols {
-            self.set(row, col + 1, Cell::new('\0', style));
-            if self.row == row && self.col == col + 1 {
-                self.col += 1;
-                if self.col >= self.cols {
-                    self.col = self.cols - 1;
-                    self.pending_wrap = true;
-                }
-            }
-        }
-        self.raise_max_cursor_row(row);
-        self.mark_dirty(row);
-        true
-    }
-
-    /// Attaches a zero-width scalar to the cell that owns it. Warp resolves the
-    /// same target at `grid/ansi_handler.rs:201-215`: the column before the
-    /// cursor unless a wrap is pending, stepping back once more off a
-    /// wide-character spacer so the scalar lands on the base cell.
-    fn attach_zerowidth(&mut self, ch: char) {
-        let mut col = self.col;
-        if !self.pending_wrap {
-            col = col.saturating_sub(1);
-        }
-        if self
-            .cell_ref(self.row, col)
-            .is_some_and(|cell| cell.ch == '\0')
-        {
-            col = col.saturating_sub(1);
-        }
-        let row = self.row;
-        self.raise_max_cursor_row(row);
-        if row >= self.rows || col >= self.cols {
-            return;
-        }
-        let index = self.phys_start(row) + col;
-        self.cells[index].append_scalar(ch);
-        self.mark_dirty(row);
-    }
-
     pub fn row_text(&self, row: usize) -> String {
         let mut out = String::new();
         let mut buffer = [0u8; 4];
@@ -541,84 +448,6 @@ impl ScreenGrid {
         self.scroll_bottom = self.rows - 1;
         self.pending_wrap = false;
         self.cursor_visible = true;
-        self.saved = None;
-    }
-
-    pub fn resize(&mut self, rows: usize, cols: usize) {
-        let rows = clamp_dimension(rows);
-        let cols = clamp_dimension(cols);
-        if !self.reflow_on_resize {
-            self.resize_cells(rows, cols);
-            return;
-        }
-        let before = self.evicted.len();
-        for row in 0..self.frame_rows() {
-            self.record_eviction(row);
-        }
-        if self.evicted.len() > before {
-            self.reset_cells(rows, cols);
-        } else {
-            self.resize_cells(rows, cols);
-        }
-    }
-
-    fn reset_cells(&mut self, rows: usize, cols: usize) {
-        self.cells = vec![Cell::BLANK; rows * cols];
-        self.wrapped = vec![false; rows];
-        self.dirty = vec![true; rows];
-        self.first = 0;
-        self.rows = rows;
-        self.cols = cols;
-        self.scroll_top = 0;
-        self.scroll_bottom = rows - 1;
-        self.row = 0;
-        self.col = 0;
-        self.max_cursor_row = 0;
-        self.pending_wrap = false;
-        self.saved = None;
-    }
-
-    pub(crate) fn resize_without_reflow(&mut self, rows: usize, cols: usize) {
-        self.resize_cells(clamp_dimension(rows), clamp_dimension(cols));
-    }
-
-    /// Rows that a height shrink cannot keep come off the bottom first and only
-    /// then off the top, which is what `tmux`'s `screen_resize_y` does: it
-    /// deletes the lines below the cursor, then pushes the lines above it into
-    /// history and walks the cursor up. Dropping only from the bottom would
-    /// clamp a cursor that sits below the new last row and leave the screen
-    /// frozen several pages behind whatever the application drew next.
-    fn shrink_from_top(&self, rows: usize) -> usize {
-        let needed = self.rows.saturating_sub(rows);
-        let below_cursor = self.rows - 1 - self.row;
-        needed.saturating_sub(below_cursor)
-    }
-
-    fn resize_cells(&mut self, rows: usize, cols: usize) {
-        let dropped = self.shrink_from_top(rows);
-        for row in 0..dropped {
-            self.record_eviction(row);
-        }
-        let mut next = vec![Cell::BLANK; rows * cols];
-        let mut wrapped = vec![false; rows];
-        for row in 0..rows.min(self.rows - dropped) {
-            for col in 0..cols.min(self.cols) {
-                next[row * cols + col] = self.cells[self.phys_start(row + dropped) + col].clone();
-            }
-            wrapped[row] = cols == self.cols && self.row_wrapped(row + dropped);
-        }
-        self.cells = next;
-        self.wrapped = wrapped;
-        self.dirty = vec![true; rows];
-        self.first = 0;
-        self.rows = rows;
-        self.cols = cols;
-        self.scroll_top = 0;
-        self.scroll_bottom = rows - 1;
-        self.row = self.row.saturating_sub(dropped).min(rows - 1);
-        self.max_cursor_row = self.max_cursor_row.saturating_sub(dropped).min(rows - 1);
-        self.col = self.col.min(cols - 1);
-        self.pending_wrap = false;
         self.saved = None;
     }
 }

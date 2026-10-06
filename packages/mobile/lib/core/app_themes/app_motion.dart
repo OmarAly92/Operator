@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/animation.dart';
 
 /// Motion constants extracted from the design prototype
@@ -17,8 +19,50 @@ sealed class AppMotion {
   /// Entrance stagger duration (fade-up/pop/slide-up), sheet/dialog pop-in.
   static const Duration slow = Duration(milliseconds: 260);
 
+  static const Duration sheetPush = Duration(milliseconds: 350);
+
   /// Skeleton shimmer sweep.
   static const Duration shimmer = Duration(milliseconds: 1400);
+
+  static const Duration chatReply = Duration(milliseconds: 220);
+
+  static const Duration disclosure = Duration(milliseconds: 180);
+
+  static const Duration disclosureIn = Duration(milliseconds: 140);
+
+  static const Duration disclosureOut = Duration(milliseconds: 120);
+
+  static const Duration control = Duration(milliseconds: 240);
+
+  static const Duration controlFade = Duration(milliseconds: 180);
+
+  static const Duration jumpToLatest = Duration(milliseconds: 320);
+
+  static const Duration statusLineTick = Duration(seconds: 30);
+
+  static const Duration composerMorph = Duration(milliseconds: 220);
+
+  static const Duration shimmerSweep = Duration(milliseconds: 1350);
+
+  static const Duration shimmerPause = Duration(milliseconds: 1450);
+
+  static const Duration chatActionSwap = Duration(milliseconds: 160);
+
+  static const Duration streamingHapticGap = Duration(milliseconds: 320);
+
+  static const Duration copyConfirm = Duration(milliseconds: 1200);
+
+  static const Duration freshReplyWindow = Duration(seconds: 3);
+
+  static const Duration runningTasksSpin = Duration(seconds: 6);
+
+  static const Duration taskStopErrorHold = Duration(seconds: 4);
+
+  static const Duration taskStopConfirmTimeout = Duration(seconds: 10);
+
+  static const Duration launchCacheBudget = Duration(milliseconds: 400);
+
+  static const Duration pairingSuccessHold = Duration(milliseconds: 1200);
 
   /// Expressive loader shape-morph container spin.
   static const Duration loaderSpin = Duration(milliseconds: 1730);
@@ -66,6 +110,8 @@ sealed class AppMotion {
   /// scrims, and most one-shot transitions.
   static const Curve easeOut = Cubic(0.22, 0.61, 0.36, 1);
 
+  static const Curve sheetPushCurve = CriticallyDampedCurve(8);
+
   /// `cubic-bezier(.65,0,.35,1)` — symmetric ease for looping animations
   /// (dot bounce, orb float).
   static const Curve easeInOut = Cubic(0.65, 0, 0.35, 1);
@@ -74,6 +120,8 @@ sealed class AppMotion {
   /// feedback, sheet/dialog pop-in and slide-up, and the toggle thumb.
   /// The `1.4` second control point is what produces the overshoot.
   static const Curve spring = Cubic(0.34, 1.4, 0.64, 1);
+
+  static const Curve controlCurve = Cubic(0.33, 1, 0.68, 1);
 
   // ---------------------------------------------------------------------
   // Keyframe deltas
@@ -113,4 +161,15 @@ sealed class AppMotion {
 
   /// The chat composer send button.
   static const double pressScaleSend = 0.92;
+}
+
+class CriticallyDampedCurve extends Curve {
+  const CriticallyDampedCurve(this.omega);
+
+  final double omega;
+
+  double _raw(double t) => 1 - (1 + omega * t) * math.exp(-omega * t);
+
+  @override
+  double transformInternal(double t) => _raw(t) / _raw(1);
 }

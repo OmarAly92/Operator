@@ -19,7 +19,7 @@ class ContextReadoutChip extends StatelessWidget {
     final readoutColor = switch (current.severity) {
       ContextSeverity.critical => skin.red,
       ContextSeverity.warn => skin.amber,
-      ContextSeverity.normal => skin.accent,
+      ContextSeverity.normal => skin.accentText,
     };
     final percentLabel = current.percentLabel;
 

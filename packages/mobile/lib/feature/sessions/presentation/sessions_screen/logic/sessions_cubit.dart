@@ -4,11 +4,12 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/connection/connection_signals.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
 import 'package:operator_mobile/core/telemetry/events.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
@@ -21,7 +22,17 @@ part 'sessions_state.dart';
 const String kAllProjects = 'all';
 
 class SessionsCubit extends Cubit<SessionsState> {
-  SessionsCubit(this._repository, this._muxClient, this._configSource) : super(const SessionsInitialState()) {
+  SessionsCubit(
+    this._repository,
+    this._muxClient,
+    this._configSource, {
+    ConnectionSignals? connection,
+    DateTime Function()? clock,
+  }) : _connection = connection,
+       _clock = clock ?? DateTime.now,
+       super(const SessionsInitialState()) {
+    _desktopId = _configSource.current?.desktopId;
+    activeProjectId = _savedProject(_desktopId);
     _muxSub = _muxClient.boardChanges.listen((_) {
       _syncFallback();
       _scheduleRefresh();
@@ -31,8 +42,10 @@ class SessionsCubit extends Cubit<SessionsState> {
       if (status == MuxStatus.open) _scheduleRefresh();
     });
     _configSub = _configSource.changes.listen(_onConfigChanged);
+    _retrySub = connection?.retries.listen((_) => _onConnectionRetry());
     _muxClient.connect();
     _muxClient.subscribeSessions();
+    _cacheReady = _primeFromCache(_boardEpoch);
     scheduleMicrotask(() => unawaited(_refreshBoard()));
     _syncFallback();
   }
@@ -40,11 +53,24 @@ class SessionsCubit extends Cubit<SessionsState> {
   final SessionsRepository _repository;
   final MuxClient _muxClient;
   final ServerConfigSource _configSource;
+  final ConnectionSignals? _connection;
+  final DateTime Function() _clock;
 
   List<SessionModel> sessions = [];
   List<ProjectModel> projects = [];
   Map<String, String> accountLabels = const {};
-  String activeProjectId = (CacheHelper.get(CacheKeys.activeProjectId) as String?) ?? kAllProjects;
+  String activeProjectId = kAllProjects;
+  String? _desktopId;
+  DateTime? boardFetchedAt;
+  bool boardIsCached = false;
+  bool _freshLoaded = false;
+  GetSessionsFailureState? _freshFailure;
+  Future<void> _cacheReady = Future<void>.value();
+
+  Future<void> get cacheReady => _cacheReady;
+
+  static String _savedProject(String? desktopId) =>
+      desktopId == null ? kAllProjects : AppPreferences.activeProjectId(desktopId) ?? kAllProjects;
 
   List<SessionModel> get visibleSessions => activeProjectId == kAllProjects
       ? sessions
@@ -52,7 +78,8 @@ class SessionsCubit extends Cubit<SessionsState> {
 
   void setActiveProject(String id) {
     activeProjectId = id;
-    CacheHelper.save(CacheKeys.activeProjectId, id);
+    final desktopId = _desktopId;
+    if (desktopId != null) AppPreferences.setActiveProjectId(desktopId, id);
     _emitSessions();
   }
 
@@ -60,6 +87,7 @@ class SessionsCubit extends Cubit<SessionsState> {
   StreamSubscription<void>? _muxSub;
   StreamSubscription<MuxStatus>? _statusSub;
   StreamSubscription<ServerConfig?>? _configSub;
+  StreamSubscription<void>? _retrySub;
   int _boardEpoch = 0;
   Timer? _refreshTimer;
   Future<void>? _refreshFuture;
@@ -73,6 +101,19 @@ class SessionsCubit extends Cubit<SessionsState> {
 
   void _emitSessions() => emit(GetSessionsSuccessState(++_revision));
 
+  Future<void> _primeFromCache(int epoch) async {
+    final cached = await _repository.cachedBoard();
+    if (cached == null || isClosed || epoch != _boardEpoch || _freshLoaded) return;
+    sessions = cached.value.sessions;
+    projects = cached.value.projects;
+    accountLabels = cached.value.accountLabels;
+    boardFetchedAt = cached.fetchedAt;
+    boardIsCached = true;
+    emit(GetSessionsSuccessState(++_revision, fromCache: true));
+    final failure = _freshFailure;
+    if (failure != null) emit(failure);
+  }
+
   Future<void> _refreshBoard() async {
     if (_stopped || _paused || isClosed) return;
     if (_refreshFuture != null) {
@@ -81,14 +122,17 @@ class SessionsCubit extends Cubit<SessionsState> {
     }
     _refreshTimer?.cancel();
     _refreshTimer = null;
-    _refreshFuture = _loadBoard();
+    final future = _loadBoard();
+    _refreshFuture = future;
     try {
-      await _refreshFuture;
+      await future;
     } finally {
-      _refreshFuture = null;
-      if (_refreshQueued) {
-        _refreshQueued = false;
-        _scheduleRefresh();
+      if (identical(_refreshFuture, future)) {
+        _refreshFuture = null;
+        if (_refreshQueued) {
+          _refreshQueued = false;
+          _scheduleRefresh();
+        }
       }
     }
   }
@@ -98,9 +142,17 @@ class SessionsCubit extends Cubit<SessionsState> {
     _boardEpoch++;
     _refreshTimer?.cancel();
     _refreshTimer = null;
+    _refreshFuture = null;
     _refreshQueued = false;
     sessions = [];
     projects = [];
+    _desktopId = next?.desktopId;
+    activeProjectId = _savedProject(_desktopId);
+    accountLabels = const {};
+    boardFetchedAt = null;
+    boardIsCached = false;
+    _freshLoaded = false;
+    _freshFailure = null;
     _needsRetry = false;
     _connectionOpen = false;
     _revision = 0;
@@ -111,6 +163,7 @@ class SessionsCubit extends Cubit<SessionsState> {
       _fallbackTimer = null;
       return;
     }
+    _cacheReady = _primeFromCache(_boardEpoch);
     unawaited(refresh());
   }
 
@@ -126,6 +179,10 @@ class SessionsCubit extends Cubit<SessionsState> {
         sessions = board.sessions;
         projects = board.projects;
         accountLabels = board.accountLabels;
+        _freshLoaded = true;
+        _freshFailure = null;
+        boardFetchedAt = _clock();
+        boardIsCached = false;
         if (!_connectionOpen) {
           _connectionOpen = true;
           TelemetryRuntime.capture(MobileEvents.connected, {
@@ -138,7 +195,9 @@ class SessionsCubit extends Cubit<SessionsState> {
       onFailure: (failure) {
         _needsRetry = true;
         _connectionOpen = false;
-        emit(GetSessionsFailureState(failure));
+        final state = GetSessionsFailureState(failure);
+        _freshFailure = state;
+        emit(state);
         if (!shouldKeepPolling(failure.statusCode)) {
           _stopped = true;
           _fallbackTimer?.cancel();
@@ -175,6 +234,12 @@ class SessionsCubit extends Cubit<SessionsState> {
   void resumeUpdates() {
     if (!_paused) return;
     _paused = false;
+    if (_connection?.authFailed ?? false) return;
+    unawaited(refresh());
+  }
+
+  void _onConnectionRetry() {
+    if (_refreshFuture != null) return;
     unawaited(refresh());
   }
 
@@ -204,6 +269,7 @@ class SessionsCubit extends Cubit<SessionsState> {
     unawaited(_muxSub?.cancel());
     unawaited(_statusSub?.cancel());
     unawaited(_configSub?.cancel());
+    unawaited(_retrySub?.cancel());
     return super.close();
   }
 }

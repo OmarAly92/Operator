@@ -34,6 +34,16 @@ export function isCopyChord(
 	return event.ctrlKey && event.shiftKey && !event.metaKey;
 }
 
+export function isFindChord(
+	event: { key: string; code: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean },
+	mac: boolean,
+): boolean {
+	if (event.altKey) return false;
+	if (event.key.toLowerCase() !== "f" && event.code !== "KeyF") return false;
+	if (mac) return event.metaKey && !event.ctrlKey && !event.shiftKey;
+	return event.ctrlKey && event.shiftKey && !event.metaKey;
+}
+
 // wezterm/wezterm-gui/src/commands.rs:828 (QuickSelect default key)
 export function isHintChord(event: { key: string; code: string; ctrlKey: boolean; shiftKey: boolean; metaKey: boolean; altKey: boolean }): boolean {
 	if (!event.ctrlKey || !event.shiftKey || event.metaKey || event.altKey) return false;
@@ -46,4 +56,8 @@ export function linkModifierHeld(
 ): boolean {
 	if (event.altKey || event.shiftKey) return false;
 	return mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+}
+
+export function rectangleModifierHeld(event: { altKey: boolean }): boolean {
+	return event.altKey;
 }

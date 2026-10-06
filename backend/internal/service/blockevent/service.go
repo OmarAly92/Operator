@@ -2,6 +2,7 @@ package blockevent
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -115,6 +116,14 @@ func (s *Service) RecordTranscript(
 	if ev.Kind == "" {
 		return nil
 	}
+	detail := ev.Detail
+	if ev.Kind == domain.BlockEventTaskUpdate {
+		redactedDetail, ok := redactTaskDetail(detail)
+		if !ok {
+			return nil
+		}
+		detail = redactedDetail
+	}
 	text, textTruncated := capText(ev.Text, maxTranscriptTextBytes)
 	input, inputTruncated := capText(ev.ToolInput, maxTranscriptToolInputBytes)
 	redacted := redact.Text(text)
@@ -135,7 +144,7 @@ func (s *Service) RecordTranscript(
 		ErrorType:      ev.ErrorType,
 		TruncatedLines: textTruncated + inputTruncated,
 		AgentID:        ev.AgentID,
-		Detail:         ev.Detail,
+		Detail:         detail,
 		CreatedAt:      time.Now().UTC(),
 	})
 }
@@ -152,6 +161,29 @@ func (s *Service) LatestModels(ctx context.Context) (map[domain.SessionID]string
 		out[domain.SessionID(id)] = model
 	}
 	return out, nil
+}
+
+func (s *Service) LatestPermissionModes(ctx context.Context) (map[domain.SessionID]domain.PermissionModeObservation, error) {
+	rows, err := s.store.SelectLatestPermissionModes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[domain.SessionID]domain.PermissionModeObservation, len(rows))
+	for id, detail := range rows {
+		if observation, ok := domain.ParsePermissionModeObservation(detail); ok {
+			out[domain.SessionID(id)] = observation
+		}
+	}
+	return out, nil
+}
+
+func (s *Service) LatestPermissionMode(ctx context.Context, id domain.SessionID) (domain.PermissionModeObservation, bool, error) {
+	detail, ok, err := s.store.SelectLatestPermissionMode(ctx, string(id))
+	if err != nil || !ok {
+		return domain.PermissionModeObservation{}, false, err
+	}
+	observation, ok := domain.ParsePermissionModeObservation(detail)
+	return observation, ok, nil
 }
 
 // History returns persisted events after afterSeq so a reconnecting client can
@@ -171,6 +203,25 @@ func (s *Service) HistoryBefore(ctx context.Context, sessionID domain.SessionID,
 		limit = s.retain
 	}
 	return s.store.SelectBlockEventsBeforeSeq(ctx, string(sessionID), agentID, beforeSeq, limit)
+}
+
+func (s *Service) TaskUpdates(ctx context.Context, sessionID domain.SessionID) ([]Record, error) {
+	return s.store.SelectTaskUpdates(ctx, string(sessionID))
+}
+
+func redactTaskDetail(detail string) (string, bool) {
+	var task domain.BackgroundTask
+	if err := json.Unmarshal([]byte(detail), &task); err != nil || task.TaskID == "" {
+		return "", false
+	}
+	task.Description = redact.Text(task.Description).Text
+	task.Command = redact.Text(task.Command).Text
+	task.Summary = redact.Text(task.Summary).Text
+	encoded, err := json.Marshal(task)
+	if err != nil {
+		return "", false
+	}
+	return string(encoded), true
 }
 
 func capText(s string, limit int) (string, int) {

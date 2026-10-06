@@ -1,0 +1,315 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:operator_mobile/core/app_themes/app_motion.dart';
+import 'package:operator_mobile/core/widgets/motion/disclosure.dart';
+
+class _Counter extends StatefulWidget {
+  const _Counter({super.key});
+
+  @override
+  State<_Counter> createState() => _CounterState();
+}
+
+class _CounterState extends State<_Counter> {
+  int count = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('$count'),
+        TextButton(onPressed: () => setState(() => count++), child: const Text('inc')),
+      ],
+    );
+  }
+}
+
+void main() {
+  Widget chevronHost(bool expanded, {bool reduceMotion = false}) => MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(disableAnimations: reduceMotion),
+          child: Scaffold(body: DisclosureChevron(expanded: expanded)),
+        ),
+      );
+
+  Widget disclosureHost(bool expanded, {bool reduceMotion = false, Widget? child, bool? initiallyExpanded}) => MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(disableAnimations: reduceMotion),
+          child: Scaffold(
+            body: Disclosure(
+              expanded: expanded,
+              initiallyExpanded: initiallyExpanded,
+              child: child ?? const SizedBox(height: 40, width: 100),
+            ),
+          ),
+        ),
+      );
+
+  group('DisclosureChevron', () {
+    testWidgets('rotation is between the two turn values at half duration', (tester) async {
+      await tester.pumpWidget(chevronHost(false));
+      await tester.pumpWidget(chevronHost(true));
+      await tester.pump(AppMotion.disclosure ~/ 2);
+
+      final turns = tester
+          .widget<RotationTransition>(
+            find.descendant(of: find.byType(DisclosureChevron), matching: find.byType(RotationTransition)),
+          )
+          .turns
+          .value;
+
+      expect(turns, greaterThan(0));
+      expect(turns, lessThan(0.25));
+    });
+
+    testWidgets('settles at expandedTurns when expanded', (tester) async {
+      await tester.pumpWidget(chevronHost(false));
+      await tester.pumpWidget(chevronHost(true));
+      await tester.pumpAndSettle();
+
+      final turns = tester
+          .widget<RotationTransition>(
+            find.descendant(of: find.byType(DisclosureChevron), matching: find.byType(RotationTransition)),
+          )
+          .turns
+          .value;
+
+      expect(turns, 0.25);
+    });
+
+    testWidgets('rotates instantly under reduce motion', (tester) async {
+      await tester.pumpWidget(chevronHost(false, reduceMotion: true));
+      await tester.pumpWidget(chevronHost(true, reduceMotion: true));
+      await tester.pump();
+
+      final turns = tester
+          .widget<RotationTransition>(
+            find.descendant(of: find.byType(DisclosureChevron), matching: find.byType(RotationTransition)),
+          )
+          .turns
+          .value;
+
+      expect(turns, 0.25);
+    });
+  });
+
+  group('Disclosure', () {
+    testWidgets('height is 0 while collapsed', (tester) async {
+      await tester.pumpWidget(disclosureHost(false));
+
+      expect(tester.getSize(find.byType(Disclosure)).height, 0);
+    });
+
+    testWidgets('height is strictly between 0 and full at half duration', (tester) async {
+      await tester.pumpWidget(disclosureHost(false));
+      await tester.pumpWidget(disclosureHost(true));
+      await tester.pump(AppMotion.disclosure ~/ 2);
+
+      final height = tester.getSize(find.byType(Disclosure)).height;
+
+      expect(height, greaterThan(0));
+      expect(height, lessThan(40));
+    });
+
+    testWidgets('height reaches full at full duration', (tester) async {
+      await tester.pumpWidget(disclosureHost(false));
+      await tester.pumpWidget(disclosureHost(true));
+      await tester.pump(AppMotion.disclosure);
+
+      expect(tester.getSize(find.byType(Disclosure)).height, 40);
+    });
+
+    testWidgets('collapsing reaches 0', (tester) async {
+      await tester.pumpWidget(disclosureHost(true));
+      await tester.pump(AppMotion.disclosure);
+      expect(tester.getSize(find.byType(Disclosure)).height, 40);
+
+      await tester.pumpWidget(disclosureHost(false));
+      await tester.pumpAndSettle();
+
+      expect(tester.getSize(find.byType(Disclosure)).height, 0);
+    });
+
+    testWidgets('height jumps instantly under reduce motion', (tester) async {
+      await tester.pumpWidget(disclosureHost(false, reduceMotion: true));
+      await tester.pumpWidget(disclosureHost(true, reduceMotion: true));
+      await tester.pump();
+
+      expect(tester.getSize(find.byType(Disclosure)).height, 40);
+    });
+
+    testWidgets('collapsing is strictly between full and 0 at half duration', (tester) async {
+      await tester.pumpWidget(disclosureHost(true));
+      await tester.pump(AppMotion.disclosure);
+      expect(tester.getSize(find.byType(Disclosure)).height, 40);
+
+      await tester.pumpWidget(disclosureHost(false));
+      await tester.pump(AppMotion.disclosure ~/ 2);
+      final height = tester.getSize(find.byType(Disclosure)).height;
+      expect(height, greaterThan(0));
+      expect(height, lessThan(40));
+
+      await tester.pump(AppMotion.disclosure ~/ 2);
+      expect(tester.getSize(find.byType(Disclosure)).height, 0);
+    });
+
+    testWidgets('content fades out within disclosureOut while collapsing', (tester) async {
+      await tester.pumpWidget(disclosureHost(true));
+      await tester.pumpWidget(disclosureHost(false));
+      await tester.pump(AppMotion.disclosureOut);
+
+      final fade = tester.widget<FadeTransition>(
+        find.descendant(of: find.byType(Disclosure), matching: find.byType(FadeTransition)),
+      );
+      expect(fade.opacity.value, 0);
+      expect(tester.getSize(find.byType(Disclosure)).height, greaterThan(0));
+    });
+
+    testWidgets('content fades in within disclosureIn while expanding', (tester) async {
+      await tester.pumpWidget(disclosureHost(false));
+      await tester.pumpWidget(disclosureHost(true));
+      await tester.pump(AppMotion.disclosureIn);
+
+      final fade = tester.widget<FadeTransition>(
+        find.descendant(of: find.byType(Disclosure), matching: find.byType(FadeTransition)),
+      );
+      expect(fade.opacity.value, 1);
+      expect(tester.getSize(find.byType(Disclosure)).height, lessThan(40));
+    });
+
+    testWidgets('re-expanding mid-collapse reverses from where it is', (tester) async {
+      await tester.pumpWidget(disclosureHost(true));
+      await tester.pumpWidget(disclosureHost(false));
+      await tester.pump(AppMotion.disclosure ~/ 2);
+      final mid = tester.getSize(find.byType(Disclosure)).height;
+
+      await tester.pumpWidget(disclosureHost(true));
+      await tester.pump(const Duration(milliseconds: 16));
+      final after = tester.getSize(find.byType(Disclosure)).height;
+      expect(after, greaterThan(mid));
+      expect(after, lessThan(40));
+    });
+
+    testWidgets('mounting with initiallyExpanded false animates open from 0', (tester) async {
+      await tester.pumpWidget(disclosureHost(true, initiallyExpanded: false));
+      expect(tester.getSize(find.byType(Disclosure)).height, 0);
+
+      await tester.pump(AppMotion.disclosure ~/ 2);
+      final height = tester.getSize(find.byType(Disclosure)).height;
+      expect(height, greaterThan(0));
+      expect(height, lessThan(40));
+
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byType(Disclosure)).height, 40);
+    });
+
+    testWidgets('initiallyExpanded is ignored under reduce motion', (tester) async {
+      await tester.pumpWidget(disclosureHost(true, initiallyExpanded: false, reduceMotion: true));
+
+      expect(tester.getSize(find.byType(Disclosure)).height, 40);
+    });
+
+    testWidgets('keeps child state when a collapse is reversed mid-way', (tester) async {
+      const key = ValueKey('counter');
+      await tester.pumpWidget(disclosureHost(true, child: const _Counter(key: key)));
+      await tester.tap(find.text('inc'));
+      await tester.pump();
+
+      await tester.pumpWidget(disclosureHost(false, child: const _Counter(key: key)));
+      await tester.pump(AppMotion.disclosure ~/ 2);
+      await tester.pumpWidget(disclosureHost(true, child: const _Counter(key: key)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1'), findsOneWidget);
+    });
+
+    testWidgets('keeps painting the last expanded child while collapsing to an empty child', (tester) async {
+      const content = SizedBox(height: 40, width: 100, child: Text('strip'));
+      await tester.pumpWidget(disclosureHost(true, child: content));
+      await tester.pump(AppMotion.disclosure);
+
+      await tester.pumpWidget(disclosureHost(false, child: const SizedBox.shrink()));
+      await tester.pump(AppMotion.disclosure ~/ 4);
+
+      expect(find.text('strip'), findsOneWidget);
+      final fade = tester.widget<FadeTransition>(
+        find.descendant(of: find.byType(Disclosure), matching: find.byType(FadeTransition)),
+      );
+      expect(fade.opacity.value, greaterThan(0));
+      final height = tester.getSize(find.byType(Disclosure)).height;
+      expect(height, greaterThan(0));
+      expect(height, lessThan(40));
+
+      await tester.pumpAndSettle();
+      expect(find.text('strip'), findsNothing);
+      expect(tester.getSize(find.byType(Disclosure)).height, 0);
+    });
+
+    testWidgets('the retained child ignores taps while collapsing', (tester) async {
+      var taps = 0;
+      Widget content() => SizedBox(
+            height: 40,
+            width: 100,
+            child: GestureDetector(onTap: () => taps++, child: const Text('strip')),
+          );
+      await tester.pumpWidget(disclosureHost(true, child: content()));
+      await tester.pump(AppMotion.disclosure);
+
+      await tester.pumpWidget(disclosureHost(false, child: const SizedBox.shrink()));
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.tap(find.text('strip'), warnIfMissed: false);
+
+      expect(taps, 0);
+    });
+
+    testWidgets('re-expanding mid-collapse shows the new child', (tester) async {
+      await tester.pumpWidget(disclosureHost(true, child: const Text('old')));
+      await tester.pump(AppMotion.disclosure);
+      await tester.pumpWidget(disclosureHost(false, child: const SizedBox.shrink()));
+      await tester.pump(AppMotion.disclosure ~/ 4);
+      expect(find.text('old'), findsOneWidget);
+
+      await tester.pumpWidget(disclosureHost(true, child: const Text('new')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('old'), findsNothing);
+      expect(find.text('new'), findsOneWidget);
+    });
+
+    testWidgets('collapses to an empty child instantly under reduce motion', (tester) async {
+      await tester.pumpWidget(disclosureHost(true, reduceMotion: true, child: const Text('strip')));
+      await tester.pumpWidget(disclosureHost(false, reduceMotion: true, child: const SizedBox.shrink()));
+      await tester.pump();
+
+      expect(find.text('strip'), findsNothing);
+      expect(tester.getSize(find.byType(Disclosure)).height, 0);
+    });
+
+    testWidgets('keeps child state when reduce motion is switched on while expanded', (tester) async {
+      const key = ValueKey('counter');
+      await tester.pumpWidget(disclosureHost(true, child: const _Counter(key: key)));
+      await tester.tap(find.text('inc'));
+      await tester.pump();
+
+      await tester.pumpWidget(disclosureHost(true, reduceMotion: true, child: const _Counter(key: key)));
+      await tester.pump();
+
+      expect(find.text('1'), findsOneWidget);
+    });
+
+    testWidgets('keeps child state while expanded across rebuilds', (tester) async {
+      const key = ValueKey('counter');
+      await tester.pumpWidget(disclosureHost(true, child: const _Counter(key: key)));
+
+      await tester.tap(find.text('inc'));
+      await tester.pump();
+      expect(find.text('1'), findsOneWidget);
+
+      await tester.pumpWidget(disclosureHost(true, child: const _Counter(key: key)));
+      await tester.pump();
+
+      expect(find.text('1'), findsOneWidget);
+    });
+  });
+}

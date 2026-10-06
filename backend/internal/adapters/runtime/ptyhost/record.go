@@ -2,9 +2,11 @@ package ptyhost
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 const recordEnv = "OPERATOR_PTY_RECORD"
@@ -18,6 +20,8 @@ type recordSize struct {
 type recorder struct {
 	mu        sync.Mutex
 	recording *os.File
+	timing    *os.File
+	started   time.Time
 	sizesPath string
 	sizes     []recordSize
 	written   int64
@@ -32,8 +36,15 @@ func openRecorder(dir, sessionID string, cols, rows int) (*recorder, error) {
 	if err != nil {
 		return nil, err
 	}
+	timing, err := os.OpenFile(filepath.Join(dir, sessionID+".timing.jsonl"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		_ = recording.Close()
+		return nil, err
+	}
 	r := &recorder{
 		recording: recording,
+		timing:    timing,
+		started:   time.Now(),
 		sizesPath: filepath.Join(dir, sessionID+".size.json"),
 		sizes:     []recordSize{{Offset: 0, Cols: cols, Rows: rows}},
 	}
@@ -48,6 +59,10 @@ func (r *recorder) write(batch []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.err != nil {
+		return
+	}
+	if _, err := fmt.Fprintf(r.timing, "[%d,%d]\n", r.written, time.Since(r.started).Milliseconds()); err != nil {
+		r.err = err
 		return
 	}
 	n, err := r.recording.Write(batch)
@@ -88,6 +103,9 @@ func (r *recorder) close() error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if err := r.timing.Close(); err != nil && r.err == nil {
+		r.err = err
+	}
 	if err := r.recording.Close(); err != nil && r.err == nil {
 		r.err = err
 	}

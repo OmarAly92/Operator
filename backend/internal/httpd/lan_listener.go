@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/terminal"
 )
 
 // LANManager owns the daemon's second, network-facing HTTP listener. It binds
@@ -37,12 +38,18 @@ func NewLANManager(handler http.Handler, state *authState, defaultPort int, log 
 	lock := newLockout(5, time.Minute, time.Now)
 	trust := &forwardedTrust{}
 	return &LANManager{
-		handler:     lanControlBlock(authMiddleware(state, lock, newMobileConnectReporter(sink, time.Now), trust)(handler)),
+		handler:     lanControlBlock(authMiddleware(state, lock, newMobileConnectReporter(sink, time.Now), trust)(markRemoteOrigin(handler))),
 		defaultPort: defaultPort,
 		log:         loggerOrDefault(log),
 		state:       state,
 		forwarded:   trust,
 	}
+}
+
+func markRemoteOrigin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r.WithContext(terminal.WithRemoteOrigin(r.Context())))
+	})
 }
 
 func (m *LANManager) SetTrustedForwardHeader(name string) {

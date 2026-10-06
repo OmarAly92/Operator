@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
 	workeramp "github.com/OmarAly92/operator/backend/internal/adapters/agent/amp"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
@@ -43,7 +44,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 	if inv.TaskPromptRoot == "" {
 		return ports.ReviewCommandSpec{Argv: []string{binary}}, nil
 	}
-	settingsPath, err := writeReviewerSettings(inv.TaskPromptRoot)
+	settingsPath, err := writeReviewerSettings(inv.TaskPromptRoot, inv.MCPServers)
 	if err != nil {
 		return ports.ReviewCommandSpec{}, err
 	}
@@ -64,7 +65,7 @@ func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInv
 	return cmd, true, err
 }
 
-func writeReviewerSettings(root string) (string, error) {
+func writeReviewerSettings(root string, servers []ports.MCPServerSpec) (string, error) {
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return "", fmt.Errorf("create amp reviewer settings directory: %w", err)
 	}
@@ -72,11 +73,15 @@ func writeReviewerSettings(root string) (string, error) {
 		"amp.dangerouslyAllowAll":          false,
 		"amp.remoteThreadCreation.enabled": false,
 		"amp.updates.mode":                 "disabled",
-		"amp.mcpServers":                   map[string]any{},
+		// Only Operator's reviewer server: review_submit records the result.
+		"amp.mcpServers": agentbase.MCPServersMap(servers),
 		"amp.permissions": []map[string]any{
 			{"tool": "Read", "action": "allow"},
 			{"tool": "Grep", "action": "allow"},
 			{"tool": "Glob", "action": "allow"},
+			// Amp names MCP tools mcp__<server>__<tool> (checked with
+			// `amp permissions test`).
+			{"tool": "mcp__" + ports.OperatorMCPServerName + "__*", "action": "allow"},
 			{"tool": "Bash", "action": "ask"},
 			{"tool": "Edit", "action": "reject"},
 			{"tool": "Write", "action": "reject"},

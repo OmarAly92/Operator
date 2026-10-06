@@ -138,6 +138,13 @@ export type WorkspaceSession = {
 	status: SessionStatus;
 	/** Stack-aware PR context derived by the daemon independently of runtime activity. */
 	scmStatus?: SessionStatus;
+	/** One-line daemon explanation of `status`, e.g. "CI failing on PR #12". */
+	statusReason?: string;
+	/**
+	 * What the agent reported about its own card through the Operator MCP server:
+	 * waiting on the user (needs_you) or done with nothing to review in a PR.
+	 */
+	agentReport?: { state: "needs_you" | "ready_for_review"; reason: string };
 	/** Durable runtime fact from the daemon; independent of the derived SCM-aware status. */
 	isTerminated?: boolean;
 	/** Daemon holds a saved task prompt it can replay into a fresh conversation. */

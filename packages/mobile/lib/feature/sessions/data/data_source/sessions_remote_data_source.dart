@@ -1,12 +1,10 @@
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
-import 'package:operator_mobile/core/api/models/global_response.dart';
-import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
-import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
-import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
+import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/feature/sessions/data/model/board_payload.dart';
 
 abstract class SessionsRemoteDataSource {
-  Future<GlobalResponse<BoardSnapshot>> getBoard();
+  Future<BoardPayload> getBoard();
   Future<void> kill(String id);
   Future<void> restore(String id);
 }
@@ -17,53 +15,29 @@ class SessionsRemoteDataSourceImp implements SessionsRemoteDataSource {
   final ApiConsumer _apiConsumer;
 
   @override
-  Future<GlobalResponse<BoardSnapshot>> getBoard() async {
+  Future<BoardPayload> getBoard() async {
     final sessionsResponse = await _apiConsumer.get(EndPoints.sessions);
+    final sessions = sessionsResponse.data;
+    if (sessions is! Map<String, dynamic>) {
+      throw MappingFailure(error: 'sessions body is ${sessions.runtimeType}', stacktrace: StackTrace.current);
+    }
 
-    final projectsFuture = _fetchProjects();
-    final accountsFuture = _fetchAccountLabels();
+    final projectsFuture = _optionalBody(EndPoints.projects);
+    final accountsFuture = _optionalBody(EndPoints.claudeAccounts);
     final projects = await projectsFuture;
-    final accountLabels = await accountsFuture;
+    final accounts = await accountsFuture;
 
-    return GlobalResponse<BoardSnapshot>.fromJson(
-      sessionsResponse.data as Map<String, dynamic>,
-      withDataKey: false,
-      fromJsonT: (json) => BoardSnapshot(
-        sessions: _rows(json).map(SessionModel.fromJson).toList(),
-        projects: projects,
-        accountLabels: accountLabels,
-      ),
-    );
+    return BoardPayload(sessions: sessions, projects: projects, accounts: accounts);
   }
 
-  Future<Map<String, String>> _fetchAccountLabels() async {
+  Future<Map<String, dynamic>?> _optionalBody(String path) async {
     try {
-      final response = await _apiConsumer.get(EndPoints.claudeAccounts);
-      final body = response.data as Map<String, dynamic>;
-      return {
-        for (final account in (body['accounts'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>())
-          if (account['id'] is String) account['id'] as String: (account['label'] as String?) ?? account['id'] as String,
-      };
+      final response = await _apiConsumer.get(path);
+      return response.data as Map<String, dynamic>;
     } catch (_) {
-      return const {};
+      return null;
     }
   }
-
-  Future<List<ProjectModel>> _fetchProjects() async {
-    try {
-      final response = await _apiConsumer.get(EndPoints.projects);
-      final body = response.data as Map<String, dynamic>;
-      return (body['projects'] as List<dynamic>? ?? const [])
-          .map((p) => ProjectModel.fromJson(p as Map<String, dynamic>))
-          .toList();
-    } catch (_) {
-      return const [];
-    }
-  }
-
-  static List<Map<String, dynamic>> _rows(dynamic body) =>
-      ((body as Map<String, dynamic>?)?['sessions'] as List<dynamic>? ?? const [])
-          .cast<Map<String, dynamic>>();
 
   @override
   Future<void> kill(String id) async {

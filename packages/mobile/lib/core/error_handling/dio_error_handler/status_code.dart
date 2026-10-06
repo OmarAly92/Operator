@@ -17,6 +17,8 @@ sealed class StatusCode {
   /// failure, crash in server side
   static const int internalServerError = 500;
 
+  static const int notImplemented = 501;
+
   /// failure, not found
   static const int notFound = 404;
 

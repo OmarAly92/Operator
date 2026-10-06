@@ -30,6 +30,10 @@ pub struct BlockGrid {
     retreat_slack: usize,
     clock_ms: u64,
     trailing_started_at_ms: Option<u64>,
+    open_start_fixed: bool,
+    open_output_started: bool,
+    open_output_row: Option<usize>,
+    command_end: Option<(BlockId, usize, usize, bool)>,
 }
 
 impl BlockGrid {
@@ -45,6 +49,10 @@ impl BlockGrid {
             retreat_slack: 0,
             clock_ms: 0,
             trailing_started_at_ms: None,
+            open_start_fixed: false,
+            open_output_started: false,
+            open_output_row: None,
+            command_end: None,
         }
     }
 
@@ -139,7 +147,10 @@ impl BlockGrid {
             source
         };
         self.pending_extension = false;
+        self.open_output_started = false;
+        self.open_output_row = None;
         let mut meta = std::mem::take(&mut self.pending_meta);
+        self.open_start_fixed = meta.started_at_ms.is_some();
         meta.started_at_ms.get_or_insert(self.clock_ms);
         self.trailing_started_at_ms = None;
         self.open = Some(Block {
@@ -151,6 +162,29 @@ impl BlockGrid {
             meta,
         });
         self.next_id += 1;
+    }
+
+    pub(crate) fn note_command_end(&mut self, point: Option<(usize, usize)>, starts_line: bool) {
+        let Some(open) = self.open.as_ref() else {
+            return;
+        };
+        self.command_end = point.and_then(|(row, col)| {
+            (self.origin + row)
+                .checked_sub(self.retreat_slack)
+                .map(|stable| (open.id, stable, col, starts_line))
+        });
+    }
+
+    pub fn command_end(&self) -> Option<(usize, usize)> {
+        let (id, row, col, _) = self.command_end?;
+        let finished = self
+            .closed
+            .iter()
+            .any(|block| block.id == id && block.state == BlockState::Finished);
+        if !finished || row < self.origin {
+            return None;
+        }
+        Some((row - self.origin + self.retreat_slack, col))
     }
 
     /// Close the currently open block with an optional exit code. A close
@@ -168,10 +202,33 @@ impl BlockGrid {
         self.closed.push(block);
     }
 
+    pub(crate) fn repaint_open_prompt(&mut self, first_row: usize, may_move_down: bool) -> bool {
+        let row = self.origin + first_row;
+        let Some(open) = self.open.as_mut() else {
+            return false;
+        };
+        if self.open_output_started
+            || !open.meta.command.is_empty()
+            || open.meta.exit_code.is_some()
+            || (row > open.first_row && !may_move_down)
+        {
+            return false;
+        }
+        open.first_row = row;
+        self.next_row = row;
+        true
+    }
+
     pub(crate) fn start_output(&mut self, first_row: usize) {
         if let Some(block) = self.open.as_mut() {
+            self.open_output_started = true;
+            self.open_output_row = Some(self.origin + first_row);
             if !block.meta.command.is_empty() {
                 block.first_row = self.origin + first_row;
+            }
+            if !self.open_start_fixed {
+                block.meta.started_at_ms = Some(self.clock_ms);
+                self.open_start_fixed = true;
             }
         }
     }
@@ -190,6 +247,27 @@ impl BlockGrid {
 
     pub fn next_row(&self) -> usize {
         self.next_row - self.origin
+    }
+
+    pub fn open_block_ref(&self) -> Option<&Block> {
+        self.open.as_ref()
+    }
+
+    pub fn open_output_started(&self) -> bool {
+        self.open.is_some() && self.open_output_started
+    }
+
+    pub fn closed_end(&self) -> usize {
+        match self.closed.len() {
+            0 => self.retreat_slack,
+            len => self
+                .closed
+                .get(len - 1)
+                .map_or(self.retreat_slack, |block| {
+                    let (first, count) = self.flat_extent(block);
+                    first + count
+                }),
+        }
     }
 
     pub fn has_open_block(&self) -> bool {
@@ -265,6 +343,9 @@ impl BlockGrid {
         let recognised = match key {
             "cmd" => {
                 meta.command = value.to_string();
+                if let Some(row) = self.open_output_row.filter(|_| !value.is_empty()) {
+                    block.first_row = block.first_row.max(row);
+                }
                 true
             }
             "cwd" => {
@@ -290,6 +371,7 @@ impl BlockGrid {
             "start_ms" => {
                 if let Ok(ts) = value.parse::<u64>() {
                     meta.started_at_ms = Some(ts);
+                    self.open_start_fixed = true;
                 }
                 // See "exit" above for why a recognised key still
                 // upgrades on a parse failure.
@@ -339,6 +421,7 @@ impl BlockGrid {
         if let Some(block) = self.open.as_mut() {
             block.first_row = block.first_row.min(limit);
         }
+        self.open_output_row = self.open_output_row.map(|row| row.min(limit));
         let needs_clamp = self
             .closed
             .iter()
@@ -387,7 +470,15 @@ impl BlockGrid {
         if let Some(block) = self.open.as_mut() {
             block.first_row = remap(block.first_row);
         }
+        self.open_output_row = self.open_output_row.map(remap);
         self.next_row = remap(self.next_row);
+        self.command_end = self.command_end.and_then(|(id, stable, col, starts_line)| {
+            let row = stable.checked_sub(origin)?;
+            if row < old_len && !(starts_line && map[row + 1] == map[row] + 1) {
+                return None;
+            }
+            Some((id, remap(stable), col, starts_line))
+        });
     }
 
     /// Every block, closed and open, in insertion order. The open block
@@ -423,229 +514,4 @@ impl Default for BlockGrid {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn opening_a_block_closes_the_previous_one_as_abandoned() {
-        let mut grid = BlockGrid::new();
-        grid.open_block(BlockSource::Osc133);
-        grid.note_row_completed();
-        grid.open_block(BlockSource::Osc133);
-
-        let blocks: Vec<_> = grid.blocks().collect();
-        assert_eq!(blocks.len(), 2);
-        assert_eq!(blocks[0].state, BlockState::Abandoned);
-        assert_eq!(blocks[1].state, BlockState::Running);
-    }
-
-    #[test]
-    fn closing_records_the_exit_code_and_marks_finished() {
-        let mut grid = BlockGrid::new();
-        grid.open_block(BlockSource::Osc133);
-        grid.close_block(Some(3));
-        let blocks: Vec<_> = grid.blocks().collect();
-        assert_eq!(blocks[0].state, BlockState::Finished);
-        assert_eq!(blocks[0].meta.exit_code, Some(3));
-    }
-
-    #[test]
-    fn closing_with_no_open_block_is_ignored() {
-        let mut grid = BlockGrid::new();
-        grid.close_block(Some(0));
-        assert_eq!(grid.blocks().count(), 0);
-    }
-
-    #[test]
-    fn trimming_drops_blocks_whose_rows_are_all_gone() {
-        let mut grid = BlockGrid::new();
-        grid.open_block(BlockSource::Osc133);
-        grid.note_row_completed();
-        grid.note_row_completed();
-        grid.close_block(Some(0));
-        grid.open_block(BlockSource::Osc133);
-        grid.note_row_completed();
-
-        grid.advance_origin(2);
-
-        let blocks: Vec<_> = grid.blocks().collect();
-        assert_eq!(blocks.len(), 1);
-        assert_eq!(
-            blocks[0].first_row, 2,
-            "the open block keeps its stable row"
-        );
-        assert_eq!(grid.flat_extent(blocks[0]), (0, 1));
-        assert_eq!(grid.origin(), 2);
-    }
-
-    #[test]
-    fn a_partially_trimmed_block_keeps_its_surviving_rows() {
-        let mut grid = BlockGrid::new();
-        grid.open_block(BlockSource::Osc133);
-        for _ in 0..5 {
-            grid.note_row_completed();
-        }
-        grid.advance_origin(2);
-
-        let blocks: Vec<_> = grid.blocks().collect();
-        assert_eq!(blocks.len(), 1);
-        assert_eq!(blocks[0].first_row, 0);
-        assert_eq!(grid.flat_extent(blocks[0]), (0, 3));
-    }
-
-    #[test]
-    fn extension_fields_upgrade_the_open_block_source() {
-        let mut grid = BlockGrid::new();
-        grid.open_block(BlockSource::Osc133);
-        grid.set_meta_field("cmd", "git status");
-        let blocks: Vec<_> = grid.blocks().collect();
-        assert_eq!(blocks[0].source, BlockSource::Extension);
-        assert_eq!(blocks[0].meta.command, "git status");
-    }
-
-    #[test]
-    fn trim_inside_a_closed_block_does_not_underflow() {
-        let mut grid = BlockGrid::new();
-        grid.open_block(BlockSource::Osc133);
-        for _ in 0..5 {
-            grid.note_row_completed();
-        }
-        grid.close_block(Some(0));
-        grid.open_block(BlockSource::Osc133);
-        grid.note_row_completed();
-        grid.advance_origin(2);
-
-        let blocks: Vec<_> = grid.blocks().collect();
-        assert_eq!(blocks.len(), 2);
-        assert_eq!(grid.flat_extent(blocks[0]), (0, 3));
-        assert_eq!(grid.flat_extent(blocks[1]), (3, 1));
-    }
-
-    #[test]
-    fn trim_after_popping_all_closed_blocks_keeps_open_block_rows() {
-        let mut grid = BlockGrid::new();
-        grid.open_block(BlockSource::Osc133);
-        grid.note_row_completed();
-        grid.note_row_completed();
-        grid.close_block(Some(0));
-        grid.open_block(BlockSource::Osc133);
-        for _ in 0..6 {
-            grid.note_row_completed();
-        }
-        grid.advance_origin(5);
-
-        let blocks: Vec<_> = grid.blocks().collect();
-        assert_eq!(blocks.len(), 1);
-        assert_eq!(
-            grid.flat_extent(blocks[0]),
-            (0, 3),
-            "rows 5..8 of the open block survive (pre-trim pos 2, 6 rows)"
-        );
-    }
-
-    #[test]
-    fn partial_trim_rebases_an_open_block_after_an_unmarked_prefix() {
-        let mut grid = BlockGrid::new();
-        grid.sync_next_row(2);
-        grid.open_block(BlockSource::Osc133);
-        for _ in 0..6 {
-            grid.note_row_completed();
-        }
-
-        grid.advance_origin(5);
-
-        let blocks: Vec<_> = grid.blocks().collect();
-        assert_eq!(blocks.len(), 1);
-        assert_eq!(grid.flat_extent(blocks[0]), (0, 3));
-    }
-
-    #[test]
-    fn remapping_rows_moves_every_block_with_the_rows_it_owns() {
-        let mut grid = BlockGrid::new();
-        grid.open_block(BlockSource::Osc133);
-        grid.note_row_completed();
-        grid.note_row_completed();
-        grid.close_block(Some(0));
-        grid.open_block(BlockSource::Osc133);
-        grid.note_row_completed();
-
-        grid.remap_rows(&[0, 3, 4, 6]);
-
-        let blocks: Vec<_> = grid.blocks().collect();
-        assert_eq!((blocks[0].first_row, blocks[0].row_count), (0, 4));
-        assert_eq!(blocks[1].first_row, 4);
-        assert_eq!(grid.next_row, 6);
-    }
-
-    #[test]
-    fn remapping_rows_shifts_a_block_that_starts_on_the_screen() {
-        let mut grid = BlockGrid::new();
-        grid.sync_next_row(5);
-        grid.open_block(BlockSource::Osc133);
-
-        grid.remap_rows(&[0, 2, 4]);
-
-        assert_eq!(grid.blocks().next().unwrap().first_row, 7);
-    }
-
-    #[test]
-    fn bookmark_round_trips_through_close() {
-        let mut grid = BlockGrid::new();
-        grid.open_block(BlockSource::Osc133);
-        grid.note_row_completed();
-        grid.close_block(Some(0));
-        let id = grid.blocks().next().unwrap().id;
-        assert!(!grid.block_bookmarked(id), "fresh block is not bookmarked");
-        grid.set_block_bookmarked(id, true);
-        assert!(grid.block_bookmarked(id), "the close keeps the bookmark");
-        grid.set_block_bookmarked(id, false);
-        assert!(!grid.block_bookmarked(id), "the bookmark clears");
-    }
-
-    #[test]
-    fn bookmark_round_trips_through_open() {
-        let mut grid = BlockGrid::new();
-        grid.open_block(BlockSource::Osc133);
-        let id = grid.open.as_ref().unwrap().id;
-        assert!(!grid.block_bookmarked(id));
-        grid.set_block_bookmarked(id, true);
-        assert!(grid.block_bookmarked(id), "open block can be bookmarked");
-    }
-
-    #[test]
-    fn bookmark_unknown_id_is_a_no_op() {
-        let mut grid = BlockGrid::new();
-        grid.set_block_bookmarked(99, true);
-        assert!(!grid.block_bookmarked(99));
-    }
-
-    #[test]
-    fn retreat_origin_keeps_existing_blocks_at_their_stable_rows() {
-        let mut grid = BlockGrid::new();
-        grid.sync_next_row(4);
-        grid.push_synthetic(0, 4, BlockState::Finished, Some(0));
-        let stable_before = grid.get(0).expect("block").first_row;
-        grid.retreat_origin(3);
-        assert_eq!(grid.origin(), 0);
-        assert_eq!(grid.get(0).expect("block").first_row, stable_before);
-        assert_eq!(grid.flat_extent(grid.get(0).expect("block")), (3, 4));
-    }
-
-    #[test]
-    fn prepended_blocks_sort_before_the_existing_ones() {
-        let mut grid = BlockGrid::new();
-        grid.sync_next_row(2);
-        grid.push_synthetic(0, 2, BlockState::Finished, Some(0));
-        grid.retreat_origin(2);
-        grid.prepend_blocks(vec![Block {
-            id: 900,
-            first_row: 0,
-            row_count: 2,
-            state: BlockState::Finished,
-            source: BlockSource::Synthetic,
-            meta: BlockMeta::default(),
-        }]);
-        let ids: Vec<_> = grid.blocks().map(|block| block.id).collect();
-        assert_eq!(ids, vec![900, 0]);
-    }
-}
+mod tests;

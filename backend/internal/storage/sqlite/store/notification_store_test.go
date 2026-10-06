@@ -3,6 +3,7 @@ package store_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -406,5 +407,148 @@ func TestNotificationStore_MarkNotificationsReadOnlyTouchesGivenIDs(t *testing.T
 	count, err := s.CountUnreadNotifications(ctx)
 	if err != nil || count != 1 {
 		t.Fatalf("unread count = %d err=%v, want 1 (ntf_3 must stay reachable)", count, err)
+	}
+}
+
+func TestNotificationStore_ResolvedButUnreadDoesNotBlockTheNextAlert(t *testing.T) {
+	for _, typ := range []domain.NotificationType{domain.NotificationNeedsInput, domain.NotificationTurnFinished, domain.NotificationAgentExited} {
+		t.Run(string(typ), func(t *testing.T) {
+			s := newTestStore(t)
+			ctx := context.Background()
+			seedProject(t, s, "mer")
+			sess, err := s.CreateSession(ctx, sampleRecord("mer"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Now().UTC().Truncate(time.Second)
+			first := domain.NotificationRecord{ID: "ntf_1", SessionID: sess.ID, ProjectID: sess.ProjectID, Type: typ, Title: "x", Status: domain.NotificationUnread, CreatedAt: now}
+			if _, inserted, err := s.CreateNotification(ctx, first); err != nil || !inserted {
+				t.Fatalf("first inserted=%v err=%v", inserted, err)
+			}
+			second := first
+			second.ID = "ntf_2"
+			second.CreatedAt = now.Add(time.Minute)
+			if _, inserted, err := s.CreateNotification(ctx, second); err != nil || inserted {
+				t.Fatalf("while unresolved inserted=%v err=%v, want false", inserted, err)
+			}
+			if _, err := s.ResolveSessionNotifications(ctx, sess.ID, typ, now.Add(2*time.Minute)); err != nil {
+				t.Fatal(err)
+			}
+			if _, inserted, err := s.CreateNotification(ctx, second); err != nil || !inserted {
+				t.Fatalf("after resolve, still unread: inserted=%v err=%v, want true", inserted, err)
+			}
+		})
+	}
+}
+
+func TestNotificationStore_UnreadMergeStillBlocksADuplicate(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "mer")
+	sess, _ := s.CreateSession(ctx, sampleRecord("mer"))
+	rec := domain.NotificationRecord{ID: "ntf_1", SessionID: sess.ID, ProjectID: sess.ProjectID, PRURL: "https://github.com/o/r/pull/1", Type: domain.NotificationPRMerged, Title: "PR #1 merged", Status: domain.NotificationUnread, CreatedAt: time.Now()}
+	if _, inserted, err := s.CreateNotification(ctx, rec); err != nil || !inserted {
+		t.Fatalf("inserted=%v err=%v", inserted, err)
+	}
+	dup := rec
+	dup.ID = "ntf_2"
+	if _, inserted, err := s.CreateNotification(ctx, dup); err != nil || inserted {
+		t.Fatalf("duplicate merge inserted=%v err=%v, want false", inserted, err)
+	}
+}
+
+func TestNotificationStore_QuietRoundTrips(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "mer")
+	sess, _ := s.CreateSession(ctx, sampleRecord("mer"))
+	created, inserted, err := s.CreateNotification(ctx, domain.NotificationRecord{ID: "ntf_q", SessionID: sess.ID, ProjectID: sess.ProjectID, Type: domain.NotificationTurnFinished, Title: "x finished", Status: domain.NotificationUnread, CreatedAt: time.Now(), Quiet: true})
+	if err != nil || !inserted || !created.Quiet {
+		t.Fatalf("created=%+v inserted=%v err=%v", created, inserted, err)
+	}
+}
+
+func TestNotificationStore_UnresolvedListIncludesNewSessionTypes(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "mer")
+	sess, _ := s.CreateSession(ctx, sampleRecord("mer"))
+	for i, typ := range []domain.NotificationType{domain.NotificationTurnFinished, domain.NotificationAgentExited} {
+		if _, _, err := s.CreateNotification(ctx, domain.NotificationRecord{ID: fmt.Sprintf("ntf_%d", i), SessionID: sess.ID, ProjectID: sess.ProjectID, Type: typ, Title: "x", Status: domain.NotificationUnread, CreatedAt: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	count, err := s.CountUnresolvedNotifications(ctx)
+	if err != nil || count != 2 {
+		t.Fatalf("unresolved count = %d err=%v, want 2", count, err)
+	}
+}
+
+func TestNotificationStore_ReconcileResolvesStaleTurnFinishedAndAgentExited(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "mer")
+	now := time.Now().UTC().Truncate(time.Second)
+
+	newSession := func(state domain.ActivityState, terminated bool) domain.SessionID {
+		rec, err := s.CreateSession(ctx, sampleRecord("mer"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec.Activity = domain.Activity{State: state, LastActivityAt: now}
+		rec.IsTerminated = terminated
+		rec.UpdatedAt = now
+		if err := s.UpdateSession(ctx, rec); err != nil {
+			t.Fatal(err)
+		}
+		return rec.ID
+	}
+
+	turnStillRunning := newSession(domain.ActivityIdle, false)
+	turnWentActive := newSession(domain.ActivityActive, false)
+	turnSessionTerminated := newSession(domain.ActivityIdle, true)
+	exitedStillExited := newSession(domain.ActivityExited, false)
+	exitedWentIdle := newSession(domain.ActivityIdle, false)
+	exitedSessionTerminated := newSession(domain.ActivityExited, true)
+
+	seedOpen := func(id string, sessionID domain.SessionID, typ domain.NotificationType) {
+		rec := domain.NotificationRecord{
+			ID: id, SessionID: sessionID, ProjectID: "mer", Type: typ,
+			Title: id, Status: domain.NotificationUnread, CreatedAt: now,
+		}
+		if _, inserted, err := s.CreateNotification(ctx, rec); err != nil || !inserted {
+			t.Fatalf("seed %s inserted=%v err=%v", id, inserted, err)
+		}
+	}
+	seedOpen("ntf_turn_still", turnStillRunning, domain.NotificationTurnFinished)
+	seedOpen("ntf_turn_went_active", turnWentActive, domain.NotificationTurnFinished)
+	seedOpen("ntf_turn_terminated", turnSessionTerminated, domain.NotificationTurnFinished)
+	seedOpen("ntf_exit_still", exitedStillExited, domain.NotificationAgentExited)
+	seedOpen("ntf_exit_went_idle", exitedWentIdle, domain.NotificationAgentExited)
+	seedOpen("ntf_exit_terminated", exitedSessionTerminated, domain.NotificationAgentExited)
+
+	resolved, err := s.ReconcileResolvedNotifications(ctx, now.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("ReconcileResolvedNotifications: %v", err)
+	}
+	resolvedIDs := map[string]bool{}
+	for _, r := range resolved {
+		resolvedIDs[r.ID] = true
+	}
+	wantResolved := []string{"ntf_turn_went_active", "ntf_turn_terminated", "ntf_exit_went_idle", "ntf_exit_terminated"}
+	for _, id := range wantResolved {
+		if !resolvedIDs[id] {
+			t.Errorf("%s was not resolved, want resolved", id)
+		}
+	}
+	wantOpen := []string{"ntf_turn_still", "ntf_exit_still"}
+	for _, id := range wantOpen {
+		if resolvedIDs[id] {
+			t.Errorf("%s was resolved, want still open", id)
+		}
+	}
+	count, err := s.CountUnresolvedNotifications(ctx)
+	if err != nil || count != 2 {
+		t.Fatalf("unresolved count = %d err=%v, want 2", count, err)
 	}
 }

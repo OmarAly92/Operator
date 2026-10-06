@@ -69,7 +69,8 @@ fixtures and `crates/vt-core/tests/ref`), start the daemon with
 `OPERATOR_PTY_RECORD=<dir>`; each pty-host writes `<dir>/<session-id>.recording` and
 `<dir>/<session-id>.size.json` (`[{offset, cols, rows}, …]`, one entry per grid change).
 The variable reaches the pty-host through the daemon's environment, so it works for
-`npm run tauri:dev` too.
+`npm run tauri:dev` too. It also writes `<id>.timing.jsonl` (`[offset,ms]` per batch);
+`jq -cs . < <id>.timing.jsonl > timing.json` gives the fixture layout.
 
 **Terminal 2 — talk to it while it runs:**
 

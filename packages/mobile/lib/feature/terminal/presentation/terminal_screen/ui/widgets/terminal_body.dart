@@ -1,17 +1,20 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
+import 'package:operator_mobile/core/utils/keyboard_inset.dart';
+import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
 import 'package:operator_mobile/core/widgets/dialog/app_dialog.dart';
+import 'package:operator_mobile/core/widgets/glass/frosted_header.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart';
-import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/subagent_strip.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_chat_header.dart';
-import 'package:operator_mobile/core/utils/keyboard_inset.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/raw_terminal_pane.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_chat_header.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_dead_overlay.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_key_row.dart';
@@ -24,7 +27,48 @@ class TerminalBody extends StatefulWidget {
 }
 
 class _TerminalBodyState extends State<TerminalBody> {
+  static const double kDockSide = 8;
+
   final GlobalKey<BlocksBodyState> _blocks = GlobalKey<BlocksBodyState>();
+  late final ValueNotifier<double> _dockHeight;
+  final ValueNotifier<double> _frost = ValueNotifier<double>(0);
+  final ValueNotifier<double> _clear = ValueNotifier<double>(0);
+  double _topExtra = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _dockHeight = ValueNotifier<double>(
+      context.read<TerminalCubit>().args.shellOnly
+          ? TerminalComposer.restHeight
+          : TerminalComposer.agentRestHeight,
+    );
+  }
+
+  @override
+  void dispose() {
+    _dockHeight.dispose();
+    _frost.dispose();
+    _clear.dispose();
+    super.dispose();
+  }
+
+  bool _onScroll(Notification notification) {
+    final metrics = switch (notification) {
+      ScrollNotification(:final metrics, depth: 0) => metrics,
+      ScrollMetricsNotification(:final metrics, depth: 0) => metrics,
+      _ => null,
+    };
+    if (metrics != null && metrics.axis == Axis.vertical) {
+      _frost.value = FrostedBand.visibilityFor(metrics.pixels - metrics.minScrollExtent);
+    }
+    return false;
+  }
+
+  void _onTopExtra(double height) {
+    if (!mounted || height == _topExtra) return;
+    setState(() => _topExtra = height);
+  }
 
   Future<void> _confirmKill(BuildContext context) async {
     final cubit = context.read<TerminalCubit>();
@@ -53,6 +97,7 @@ class _TerminalBodyState extends State<TerminalBody> {
     final skin = context.skin;
     final keyboard = MediaQuery.of(context).viewInsets.bottom;
     final safeBottom = MediaQuery.of(context).padding.bottom;
+    final gap = math.max(dockInset(keyboard, safeBottom), kMinDockInset);
 
     return Padding(
       padding: EdgeInsets.only(bottom: keyboard),
@@ -68,63 +113,97 @@ class _TerminalBodyState extends State<TerminalBody> {
                     context.read<SessionViewCubit>().mode ==
                     SessionViewMode.blocks;
 
-                return Column(
-                  children: [
-                    TerminalChatHeader(
-                      onFind: () => _blocks.currentState?.openFind(),
-                      onKill: () => _confirmKill(context),
-                    ),
-                    if (banner != null)
-                      InkWell(
-                        onTap: cubit.dismissBanner,
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: skin.bgElevated,
-                            border: Border(
-                              bottom: BorderSide(color: skin.borderDefault),
-                            ),
-                          ),
-                          child: AppText(
-                            '$banner (tap to dismiss)',
-                            style: AppTextStyle.style12Regular.copyWith(
-                              color: skin.attention,
-                            ),
-                            maxLines: 3,
+                final top = TerminalChatHeader.heightOf(context) + _topExtra;
+
+                return ChatInsets(
+                  bottom: _dockHeight,
+                  gap: gap,
+                  top: top,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: blocksMode
+                            ? NotificationListener<Notification>(
+                                onNotification: _onScroll,
+                                child: BlocksBody(
+                                  key: _blocks,
+                                  onRerun: _fillComposer,
+                                  workingSince: () => TerminalChatHeader.workingSinceOf(context),
+                                  stopped: cubit.notFound,
+                                  showRunningTasks: !cubit.args.shellOnly,
+                                  parentTitle: cubit.args.title,
+                                ),
+                              )
+                            : ValueListenableBuilder<double>(
+                                valueListenable: _dockHeight,
+                                builder: (context, height, child) => Padding(
+                                  padding: EdgeInsets.only(top: top, bottom: height + gap),
+                                  child: child,
+                                ),
+                                child: const RawTerminalPane(),
+                              ),
+                      ),
+                      Positioned(
+                        left: kDockSide,
+                        right: kDockSide,
+                        bottom: gap,
+                        child: MeasuredHeight(
+                          onHeight: (height) => _dockHeight.value = height,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (!blocksMode) const TerminalKeyRow(),
+                              const TerminalComposer(),
+                            ],
                           ),
                         ),
                       ),
-                    if (cubit.notFound) const TerminalDeadOverlay(),
-                    Expanded(
-                      child: blocksMode
-                          ? BlocksBody(key: _blocks, onRerun: _fillComposer)
-                          : const RawTerminalPane(),
-                    ),
-                    Container(
-                      padding: EdgeInsets.only(
-                        bottom: dockInset(keyboard, safeBottom),
-                      ),
-                      decoration: BoxDecoration(
-                        color: skin.bgChrome,
-                        border: Border(
-                          top: BorderSide(color: skin.borderSubtle),
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            TerminalChatHeader(
+                              onFind: () => _blocks.currentState?.openFind(),
+                              onKill: () => _confirmKill(context),
+                              frost: blocksMode ? _frost : _clear,
+                            ),
+                            MeasuredHeight(
+                              onHeight: _onTopExtra,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  if (banner != null)
+                                    InkWell(
+                                      onTap: cubit.dismissBanner,
+                                      child: Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: skin.bgElevated,
+                                          border: Border(bottom: BorderSide(color: skin.borderDefault)),
+                                        ),
+                                        child: AppText(
+                                          '$banner (tap to dismiss)',
+                                          style: AppTextStyle.style12Regular.copyWith(color: skin.attentionText),
+                                          maxLines: 3,
+                                        ),
+                                      ),
+                                    ),
+                                  if (cubit.notFound) const TerminalDeadOverlay(),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (blocksMode && !cubit.args.shellOnly)
-                            SubagentStrip(parentTitle: cubit.args.title),
-                          if (!blocksMode) const TerminalKeyRow(),
-                          const TerminalComposer(),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 );
               },
             ),

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -68,5 +69,36 @@ func TestNilRecorderIsANoOp(t *testing.T) {
 	rec.resize(1, 1)
 	if err := rec.close(); err != nil {
 		t.Fatalf("close: %v", err)
+	}
+}
+
+func TestRecorderWritesOneTimingLinePerBatch(t *testing.T) {
+	dir := t.TempDir()
+	r, err := openRecorder(dir, "sess-timing", 80, 24)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	r.write([]byte("first"))
+	r.write([]byte("second!"))
+	if err := r.close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "sess-timing.timing.jsonl"))
+	if err != nil {
+		t.Fatalf("read timing: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("timing lines = %q, want 2", lines)
+	}
+	var first, second [2]int64
+	if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
+		t.Fatalf("line 0: %v", err)
+	}
+	if err := json.Unmarshal([]byte(lines[1]), &second); err != nil {
+		t.Fatalf("line 1: %v", err)
+	}
+	if first[0] != 0 || second[0] != 5 || second[1] < first[1] {
+		t.Fatalf("timing = %v %v, want offsets 0 and 5 with time not going back", first, second)
 	}
 }

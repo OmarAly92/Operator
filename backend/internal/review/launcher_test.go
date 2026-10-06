@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -827,5 +828,53 @@ func TestLauncherPreflightEnvPrefixWithMissingBinary(t *testing.T) {
 	l := NewLauncher(fakeReviewerResolver{reviewer: reviewer, ok: true}, &fakeRuntime{}, "")
 	if err := l.Preflight(context.Background(), domain.ReviewerClaudeCode, "/ws/mer-1"); err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Fatalf("err = %v, want 'not found'", err)
+	}
+}
+
+// A reviewer records its result only through review_submit, so every launch
+// carries the reviewer-role Operator MCP server, aimed at the reviewed worker.
+func TestLauncherGivesTheReviewerTheOperatorMCPServer(t *testing.T) {
+	reviewer := &fakeReviewer{}
+	rt := &fakeRuntime{}
+	dataDir := t.TempDir()
+	l := NewLauncher(fakeReviewerResolver{reviewer: reviewer, ok: true}, rt, dataDir,
+		WithOperatorMCP(func() (string, error) { return "/opt/operator/opr", nil }, "/run/opr/running.json"))
+
+	if _, err := l.Spawn(context.Background(), launchSpec()); err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	servers := reviewer.gotInv.MCPServers
+	if len(servers) != 1 {
+		t.Fatalf("mcp servers = %#v, want the reviewer server", servers)
+	}
+	srv := servers[0]
+	if srv.Name != "operator" || srv.Command != "/opt/operator/opr" || !reflect.DeepEqual(srv.Args, []string{"mcp", "--reviewer"}) {
+		t.Fatalf("server = %#v", srv)
+	}
+	want := map[string]string{
+		"OPERATOR_REVIEW_WORKER_SESSION_ID": "mer-1",
+		"OPERATOR_REVIEW_HARNESS":           "claude-code",
+		"OPERATOR_DATA_DIR":                 dataDir,
+		"OPERATOR_RUN_FILE":                 "/run/opr/running.json",
+	}
+	for k, v := range want {
+		if srv.Env[k] != v {
+			t.Fatalf("env[%s] = %q, want %q (env %#v)", k, srv.Env[k], v, srv.Env)
+		}
+	}
+	if _, ok := srv.Env["OPERATOR_SESSION_ID"]; ok {
+		t.Fatalf("the reviewer server must never carry a worker session id: %#v", srv.Env)
+	}
+}
+
+func TestLauncherRegistersNoMCPServerWhenDaemonIsNotOpr(t *testing.T) {
+	reviewer := &fakeReviewer{}
+	l := NewLauncher(fakeReviewerResolver{reviewer: reviewer, ok: true}, &fakeRuntime{}, t.TempDir(),
+		WithOperatorMCP(func() (string, error) { return "/tmp/go-build/review.test", nil }, ""))
+	if _, err := l.Spawn(context.Background(), launchSpec()); err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	if reviewer.gotInv.MCPServers != nil {
+		t.Fatalf("mcp servers = %#v, want none", reviewer.gotInv.MCPServers)
 	}
 }

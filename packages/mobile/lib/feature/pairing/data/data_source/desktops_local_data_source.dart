@@ -25,7 +25,16 @@ class DesktopsLocalDataSourceImp implements DesktopsLocalDataSource {
   final DesktopDao _dao;
   final FlutterSecureStorage _secureStorage;
 
-  static String passwordKey(String id) => 'server.password.$id';
+  static const String _passwordPrefix = 'server.password.';
+
+  static String passwordKey(String id) => '$_passwordPrefix$id';
+
+  static Future<void> purgePasswords(FlutterSecureStorage storage) async {
+    final entries = await storage.readAll();
+    for (final key in entries.keys) {
+      if (key.startsWith(_passwordPrefix)) await storage.delete(key: key);
+    }
+  }
 
   @override
   Stream<List<DesktopModel>> watchAll() =>

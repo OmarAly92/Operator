@@ -100,6 +100,10 @@ type DialogObserver interface {
 	DialogOnScreen(ctx context.Context, id domain.SessionID) (bool, error)
 }
 
+type QuestionWatcher interface {
+	WatchesQuestions(id domain.SessionID) bool
+}
+
 type pendingLaunch struct {
 	launchID string
 	ready    chan struct{}
@@ -149,9 +153,10 @@ type Manager struct {
 	operationGateMu  sync.RWMutex
 	operationGate    sessionOperationGate
 
-	interactionsMu sync.RWMutex
-	interactions   InteractionRegistry
-	dialogObserver DialogObserver
+	interactionsMu  sync.RWMutex
+	interactions    InteractionRegistry
+	dialogObserver  DialogObserver
+	questionWatcher QuestionWatcher
 
 	mu        sync.Mutex
 	window    time.Duration
@@ -160,7 +165,14 @@ type Manager struct {
 	telemetry ports.EventSink
 	// flights tracks, per session, the in-flight tool executions and the
 	// pending permission dialog's identity (see toolFlight). Guarded by mu.
-	flights map[domain.SessionID]*toolFlight
+	flights  map[domain.SessionID]*toolFlight
+	hookAt   map[domain.SessionID]time.Time
+	alerted  map[domain.SessionID]alertedQuestion
+	screenAt map[domain.SessionID]time.Time
+	held     map[domain.SessionID]*heldAlert
+	closed   bool
+
+	afterFunc func(time.Duration, func()) func() bool
 	// pendingLaunches closes the small ordering gap between starting a supervised
 	// process and durably recording its generation in MarkSpawned. A hook from
 	// that exact generation waits on ready instead of being discarded as stale.
@@ -180,6 +192,52 @@ type Manager struct {
 	// record.
 	echoMu      sync.Mutex
 	pendingEcho map[domain.SessionID]map[string]struct{}
+
+	recencyMu sync.RWMutex
+	recency   InputRecency
+}
+
+type alertedQuestion struct {
+	identity string
+	at       time.Time
+}
+
+type heldAlert struct {
+	ctx      context.Context
+	intent   *ports.NotificationIntent
+	launchID string
+	stop     func() bool
+}
+
+const questionRealertAfter = 2 * time.Minute
+
+const questionTextWait = 4 * time.Second
+
+const quietInputWindow = 3 * time.Second
+
+type InputRecency interface {
+	LastInputAt(terminalID string) time.Time
+}
+
+func (m *Manager) SetInputRecency(r InputRecency) {
+	m.recencyMu.Lock()
+	m.recency = r
+	m.recencyMu.Unlock()
+}
+
+func (m *Manager) typedRecently(rec domain.SessionRecord) bool {
+	m.recencyMu.RLock()
+	r := m.recency
+	m.recencyMu.RUnlock()
+	if r == nil {
+		return false
+	}
+	id := rec.Metadata.RuntimeHandleID
+	if id == "" {
+		id = string(rec.ID)
+	}
+	last := r.LastInputAt(id)
+	return !last.IsZero() && m.clock().Sub(last) < quietInputWindow
 }
 
 // New builds a Lifecycle Manager over the session store it writes and the messenger it uses for agent nudges.
@@ -195,6 +253,11 @@ func New(store sessionStore, messenger ports.AgentMessenger, opts ...Option) *Ma
 		clock:           clock,
 		react:           newReactionState(),
 		flights:         map[domain.SessionID]*toolFlight{},
+		hookAt:          map[domain.SessionID]time.Time{},
+		alerted:         map[domain.SessionID]alertedQuestion{},
+		screenAt:        map[domain.SessionID]time.Time{},
+		held:            map[domain.SessionID]*heldAlert{},
+		afterFunc:       func(d time.Duration, f func()) func() bool { return time.AfterFunc(d, f).Stop },
 		pendingLaunches: map[domain.SessionID]pendingLaunch{},
 		steerActive:     func(domain.AgentHarness) bool { return false },
 	}
@@ -262,6 +325,66 @@ func (m *Manager) SetDialogObserver(o DialogObserver) {
 	m.interactionsMu.Lock()
 	defer m.interactionsMu.Unlock()
 	m.dialogObserver = o
+}
+
+func (m *Manager) SetQuestionWatcher(w QuestionWatcher) {
+	m.interactionsMu.Lock()
+	defer m.interactionsMu.Unlock()
+	m.questionWatcher = w
+}
+
+func (m *Manager) watchesQuestions(id domain.SessionID) bool {
+	m.interactionsMu.RLock()
+	w := m.questionWatcher
+	m.interactionsMu.RUnlock()
+	return w != nil && w.WatchesQuestions(id)
+}
+
+func (m *Manager) Close() {
+	m.mu.Lock()
+	m.closed = true
+	held := m.held
+	m.held = map[domain.SessionID]*heldAlert{}
+	m.mu.Unlock()
+	for _, h := range held {
+		h.stop()
+	}
+}
+
+func (m *Manager) holdLocked(ctx context.Context, id domain.SessionID, intent *ports.NotificationIntent, launchID string) {
+	m.dropHeldLocked(id)
+	h := &heldAlert{ctx: context.WithoutCancel(ctx), intent: intent, launchID: launchID}
+	m.held[id] = h
+	h.stop = m.afterFunc(questionTextWait, func() { m.releaseHeld(id, h) })
+}
+
+func (m *Manager) takeHeldLocked(id domain.SessionID) *heldAlert {
+	h, ok := m.held[id]
+	if !ok {
+		return nil
+	}
+	delete(m.held, id)
+	h.stop()
+	return h
+}
+
+func (m *Manager) dropHeldLocked(id domain.SessionID) {
+	m.takeHeldLocked(id)
+}
+
+func (m *Manager) releaseHeld(id domain.SessionID, h *heldAlert) {
+	m.mu.Lock()
+	if m.held[id] != h {
+		m.mu.Unlock()
+		return
+	}
+	delete(m.held, id)
+	rec, ok, err := m.store.GetSession(h.ctx, id)
+	stale := err == nil && (!ok || rec.IsTerminated || !rec.Activity.State.NeedsInput() || rec.Metadata.RuntimeLaunchID != h.launchID)
+	m.mu.Unlock()
+	if !stale {
+		m.emitNotification(h.ctx, h.intent)
+	}
 }
 
 func (m *Manager) observeDialogAbsent(ctx context.Context, id domain.SessionID, s ports.ActivitySignal) ports.ActivitySignal {
@@ -385,7 +508,7 @@ func (m *Manager) mutate(ctx context.Context, id domain.SessionID, fn func(domai
 	m.mu.Unlock()
 	// Notification side effects run outside the reducer lock, like the activity
 	// path does: a slow notification store must never stall lifecycle writes.
-	m.resolveNotifications(ctx, needsInputResolutions(rec, next, now)...)
+	m.resolveNotifications(ctx, sessionResolutions(rec, next, now)...)
 	return nil
 }
 
@@ -406,6 +529,60 @@ func needsInputResolutions(prev, next domain.SessionRecord, now time.Time) []por
 	}}
 }
 
+func sessionResolutions(prev, next domain.SessionRecord, now time.Time) []ports.NotificationResolution {
+	out := needsInputResolutions(prev, next, now)
+	if next.IsTerminated && prev.AgentReport.NeedsYou() && !prev.Activity.State.NeedsInput() {
+		out = append(out, ports.NotificationResolution{Type: domain.NotificationNeedsInput, SessionID: next.ID, ResolvedAt: now})
+	}
+	if next.IsTerminated || (prev.Activity.State != domain.ActivityActive && next.Activity.State == domain.ActivityActive) {
+		out = append(out, ports.NotificationResolution{Type: domain.NotificationTurnFinished, SessionID: next.ID, ResolvedAt: now})
+	}
+	if next.IsTerminated || (prev.Activity.State == domain.ActivityExited && next.Activity.State != domain.ActivityExited) {
+		out = append(out, ports.NotificationResolution{Type: domain.NotificationAgentExited, SessionID: next.ID, ResolvedAt: now})
+	}
+	return out
+}
+
+func (m *Manager) sessionIntent(typ domain.NotificationType, rec domain.SessionRecord) *ports.NotificationIntent {
+	intent := &ports.NotificationIntent{
+		Type:               typ,
+		SessionID:          rec.ID,
+		ProjectID:          rec.ProjectID,
+		CreatedAt:          rec.Activity.LastActivityAt,
+		SessionDisplayName: rec.DisplayName,
+		Quiet:              m.typedRecently(rec),
+	}
+	if typ == domain.NotificationTurnFinished {
+		intent.AssistantUpdate = rec.Metadata.LatestAssistantUpdate
+	}
+	return intent
+}
+
+func (m *Manager) rememberQuestionOnScreenLocked(id domain.SessionID, cur domain.ActivityState, s ports.ActivitySignal, now time.Time) {
+	if s.ScreenReading != domain.ScreenQuestion || s.ScreenIdentity == "" || s.ScreenReassert || !cur.NeedsInput() {
+		return
+	}
+	if last, ok := m.alerted[id]; ok && last.identity == s.ScreenIdentity {
+		return
+	}
+	m.alerted[id] = alertedQuestion{identity: s.ScreenIdentity, at: now}
+}
+
+func (m *Manager) forgetSignalsLocked(id domain.SessionID) {
+	m.dropHeldLocked(id)
+	delete(m.hookAt, id)
+	delete(m.alerted, id)
+	delete(m.screenAt, id)
+}
+
+func (m *Manager) alertedRecently(id domain.SessionID, identity string, now time.Time) bool {
+	if identity == "" {
+		return false
+	}
+	last, ok := m.alerted[id]
+	return ok && last.identity == identity && now.Sub(last.at) < questionRealertAfter
+}
+
 // ApplyRuntimeObservation only writes when runtime liveness is unambiguous. A
 // failed probe or liveness disagreement is ignored. Runtime death keeps the
 // existing recent-activity guard; supervised workload death is independently
@@ -420,6 +597,7 @@ func (m *Manager) ApplyRuntimeObservation(ctx context.Context, id domain.Session
 		terminationLaunch   string
 		terminationRevision time.Time
 		shouldTerminate     bool
+		exited              *ports.NotificationIntent
 	)
 	if err := m.mutate(ctx, id, func(cur domain.SessionRecord, now time.Time) (domain.SessionRecord, bool) {
 		if cur.IsTerminated || !matchesLaunch(cur) {
@@ -433,6 +611,9 @@ func (m *Manager) ApplyRuntimeObservation(ctx context.Context, id domain.Session
 			next := cur
 			next.Activity = domain.Activity{State: domain.ActivityExited, LastActivityAt: timeOr(f.ObservedAt, now)}
 			delete(m.flights, id)
+			if !m.sessionMutationInProgress(id) {
+				exited = m.sessionIntent(domain.NotificationAgentExited, next)
+			}
 			return next, true
 		}
 		if !runtimeClearlyDead(f, cur.Activity, now, m.window) {
@@ -447,6 +628,9 @@ func (m *Manager) ApplyRuntimeObservation(ctx context.Context, id domain.Session
 		shouldTerminate = true
 		return cur, false
 	}); err != nil || !shouldTerminate {
+		if err == nil {
+			m.emitNotification(ctx, exited)
+		}
 		return err
 	}
 
@@ -461,6 +645,7 @@ func (m *Manager) ApplyRuntimeObservation(ctx context.Context, id domain.Session
 		next := cur
 		next.IsTerminated = true
 		next.Activity = domain.Activity{State: domain.ActivityExited, LastActivityAt: timeOr(f.ObservedAt, now)}
+		m.forgetSignalsLocked(id)
 		// Reaper-driven death (crash/SIGKILL) never fires a session-end hook,
 		// so this is the last chance to release the session's tool-flight
 		// state; a leaked entry would otherwise persist for the daemon's life
@@ -524,6 +709,12 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	}
 	s = m.observeDialogAbsent(ctx, id, s)
 	var intent *ports.NotificationIntent
+	var released *heldAlert
+	defer func() {
+		if released != nil {
+			m.emitNotification(released.ctx, released.intent)
+		}
+	}()
 	m.mu.Lock()
 	for {
 		pending, ok := m.pendingLaunches[id]
@@ -551,6 +742,7 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	now := m.clock()
 	if rec.IsTerminated {
 		delete(m.flights, id)
+		m.forgetSignalsLocked(id)
 		m.mu.Unlock()
 		return nil
 	}
@@ -562,10 +754,31 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		m.mu.Unlock()
 		return nil
 	}
+	if s.Valid && s.ScreenReading == domain.ScreenQuestion && s.ScreenIdentity != "" && !s.ScreenReassert && rec.Activity.State.NeedsInput() {
+		if released = m.takeHeldLocked(id); released != nil {
+			released.intent.ScreenText = s.ScreenText
+			m.alerted[id] = alertedQuestion{identity: s.ScreenIdentity, at: now}
+		}
+	}
 	if !s.ExpectedUpdatedAt.IsZero() &&
 		!rec.UpdatedAt.Equal(s.ExpectedUpdatedAt) {
 		m.mu.Unlock()
 		return nil
+	}
+	if s.Valid && s.ScreenReading != "" {
+		m.rememberQuestionOnScreenLocked(id, rec.Activity.State, s, now)
+		merged, apply := domain.MergeScreenReading(domain.ScreenMerge{
+			Current:         rec.Activity.State,
+			Reading:         s.ScreenReading,
+			LastHookAt:      m.hookAt[id],
+			ScreenChangedAt: m.screenAt[id],
+			Reassert:        s.ScreenReassert,
+		}, now)
+		if !apply {
+			m.mu.Unlock()
+			return nil
+		}
+		s.State = merged
 	}
 	// An explicit prompt submission is proof that an agent was relaunched in the
 	// preserved shell. Other same-generation callbacks may have been delayed
@@ -574,6 +787,23 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		(s.State != domain.ActivityActive || s.Event != "user-prompt-submit") {
 		m.mu.Unlock()
 		return nil
+	}
+	// A new user turn ends whatever the agent last reported about its card.
+	if rec.AgentReport != nil && clearsAgentReport(rec.Activity.State, s) {
+		if store, ok := m.store.(agentReportStore); ok {
+			cleared, err := store.ClearSessionAgentReport(ctx, id, now)
+			if err != nil {
+				m.mu.Unlock()
+				return err
+			}
+			if cleared {
+				if rec.AgentReport.NeedsYou() {
+					// Runs after every return path below has released m.mu.
+					defer m.resolveNotifications(ctx, agentReportResolutions(rec, now)...)
+				}
+				rec.AgentReport = nil
+			}
+		}
 	}
 	// Event-tagged signals fold through the session's tool-flight state first:
 	// they may be suppressed (state write skipped) by the blocked-precedence
@@ -586,6 +816,9 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		(s.TranscriptPath != "" && rec.Metadata.NativeTranscriptPath != s.TranscriptPath)
 	if s.Valid {
 		s = m.applyToolPrecedenceLocked(id, rec.Activity.State, s)
+	}
+	if s.Valid && s.ScreenReading == "" && !ports.IsScreenEvent(s.Event) {
+		m.hookAt[id] = now
 	}
 	if !s.Valid && !metadataChanged {
 		m.mu.Unlock()
@@ -630,7 +863,7 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	}
 	next := rec
 	next.Activity = act
-	if next.FirstSignalAt.IsZero() {
+	if next.FirstSignalAt.IsZero() && s.ScreenReading == "" {
 		next.FirstSignalAt = timeOr(s.Timestamp, now)
 	}
 	if s.State == domain.ActivityExited {
@@ -651,21 +884,48 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		m.mu.Unlock()
 		return nil
 	}
+	if s.ScreenReading != "" {
+		m.screenAt[id] = now
+	}
 	// Transition into the needs-input family (waiting_input or blocked) pings
 	// the user; an in-family escalation (waiting_input -> blocked) does not
 	// re-notify — the user was already pinged once for this pause.
-	if !rec.Activity.State.NeedsInput() && next.Activity.State.NeedsInput() && !next.IsTerminated {
-		intent = &ports.NotificationIntent{
-			Type:               domain.NotificationNeedsInput,
-			SessionID:          next.ID,
-			ProjectID:          next.ProjectID,
-			CreatedAt:          next.Activity.LastActivityAt,
-			SessionDisplayName: next.DisplayName,
+	gated := m.sessionMutationInProgress(id)
+	switch {
+	case !rec.Activity.State.NeedsInput() && next.Activity.State.NeedsInput() && !next.IsTerminated:
+		if !m.alertedRecently(id, s.ScreenIdentity, now) {
+			intent = m.sessionIntent(domain.NotificationNeedsInput, next)
+			intent.ScreenText = s.ScreenText
+			if s.ScreenReading == "" && intent.ScreenText == "" && !m.closed && m.watchesQuestions(id) {
+				m.holdLocked(ctx, id, intent, next.Metadata.RuntimeLaunchID)
+				intent = nil
+			}
 		}
+		if s.ScreenIdentity != "" {
+			m.alerted[id] = alertedQuestion{identity: s.ScreenIdentity, at: now}
+		}
+	case !gated && s.Event != "notification" && s.Event != ports.EventUserInterrupt && rec.Activity.State == domain.ActivityActive && next.Activity.State == domain.ActivityIdle && !next.IsTerminated:
+		// A turn that ends on a needs_you report is a Needs you alert carrying
+		// the agent's reason, not a plain "finished" ping.
+		if next.AgentReport.NeedsYou() {
+			intent = m.agentReportIntent(next)
+		} else {
+			intent = m.sessionIntent(domain.NotificationTurnFinished, next)
+			intent.ScreenText = s.ScreenText
+			if s.ScreenReading != "" {
+				intent.AssistantUpdate = ""
+			}
+		}
+	case !gated && rec.Activity.State != domain.ActivityExited && next.Activity.State == domain.ActivityExited && !next.IsTerminated:
+		intent = m.sessionIntent(domain.NotificationAgentExited, next)
 	}
-	// Leaving the needs-input family is the user answering: the notification
-	// that pinged them has nothing left to resolve.
-	resolutions := needsInputResolutions(rec, next, now)
+	if next.Activity.State == domain.ActivityIdle {
+		delete(m.alerted, id)
+	}
+	if !next.Activity.State.NeedsInput() {
+		m.dropHeldLocked(id)
+	}
+	resolutions := sessionResolutions(rec, next, now)
 	waitingEvents := m.waitingInputEvents(next, prevState, prevAt, now)
 	m.mu.Unlock()
 	if err := m.acknowledgeAgentSwitchTarget(ctx, id, s, now); err != nil {
@@ -677,6 +937,30 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	m.emitNotification(ctx, intent)
 	m.resolveNotifications(ctx, resolutions...)
 	return nil
+}
+
+// ApplyUserInterrupt ends the turn the user just interrupted. The harness
+// fires no Stop hook for an interrupt, so without this the session keeps
+// reading active (or blocked, for an interrupted dialog) until the next
+// prompt. The signal is fenced to the session's current launch and revision:
+// anything that lands between the read and the write wins over it.
+func (m *Manager) ApplyUserInterrupt(ctx context.Context, id domain.SessionID) error {
+	rec, ok, err := m.store.GetSession(ctx, id)
+	if err != nil || !ok || rec.IsTerminated {
+		return err
+	}
+	switch rec.Activity.State {
+	case domain.ActivityActive, domain.ActivityBlocked, domain.ActivityWaitingInput:
+	default:
+		return nil
+	}
+	return m.ApplyActivitySignal(ctx, id, ports.ActivitySignal{
+		Valid:             true,
+		State:             domain.ActivityIdle,
+		Event:             ports.EventUserInterrupt,
+		LaunchID:          rec.Metadata.RuntimeLaunchID,
+		ExpectedUpdatedAt: rec.UpdatedAt,
+	})
 }
 
 // stagePendingAgentSwitchNativeMetadata persists provider-assigned startup
@@ -802,7 +1086,7 @@ func isPostToolUseEvent(event string) bool {
 // composer, and a turn cannot end (or the session exit) with one on screen.
 func isTurnBoundaryEvent(event string) bool {
 	return event == "user-prompt-submit" || event == "stop" || event == "session-end" ||
-		event == "process-exited"
+		event == "process-exited" || event == ports.EventUserInterrupt
 }
 
 // applyToolPrecedenceLocked folds an event-tagged activity signal through the
@@ -914,7 +1198,8 @@ func (m *Manager) applyToolPrecedenceLocked(id domain.SessionID, cur domain.Acti
 		// Paused on a decision: only a turn boundary or the correlated post
 		// may change the state.
 		switch {
-		case isTurnBoundaryEvent(s.Event), s.Event == ports.EventDialogAbsent:
+		case isTurnBoundaryEvent(s.Event), s.Event == ports.EventDialogAbsent,
+			s.Event == ports.EventScreenWorking, s.Event == ports.EventScreenSettled, s.Event == ports.EventScreenWaiting:
 			delete(m.flights, id)
 			m.clearInteractions(id)
 			return s
@@ -1026,6 +1311,7 @@ func (m *Manager) resolveNotifications(ctx context.Context, resolutions ...ports
 // MarkSpawned marks a newly spawned or restored session live and stores runtime/workspace handles.
 func (m *Manager) MarkSpawned(ctx context.Context, id domain.SessionID, metadata domain.SessionMetadata) error {
 	launchID := strings.TrimSpace(metadata.RuntimeLaunchID)
+	var resolutions []ports.NotificationResolution
 	reactivator, err := func() (sessionUsageReactivator, error) {
 		m.mu.Lock()
 		defer m.mu.Unlock()
@@ -1038,6 +1324,8 @@ func (m *Manager) MarkSpawned(ctx context.Context, id domain.SessionID, metadata
 			return nil, fmt.Errorf("lifecycle: MarkSpawned for unknown session %q", id)
 		}
 		now := m.clock()
+		prev := rec
+		m.forgetSignalsLocked(id)
 		rec.IsTerminated = false
 		rec.Activity = domain.Activity{State: domain.ActivityIdle, LastActivityAt: now}
 		// Each spawn/restore must re-prove its hook pipeline: clear the receipt so
@@ -1049,11 +1337,13 @@ func (m *Manager) MarkSpawned(ctx context.Context, id domain.SessionID, metadata
 		if err := m.store.UpdateSession(ctx, rec); err != nil {
 			return nil, err
 		}
+		resolutions = sessionResolutions(prev, rec, now)
 		return m.usageReactivator, nil
 	}()
 	if err != nil {
 		return err
 	}
+	m.resolveNotifications(ctx, resolutions...)
 	reactivateSessionUsage(ctx, id, launchID, reactivator)
 	return nil
 }
@@ -1135,6 +1425,7 @@ func (m *Manager) MarkTerminated(ctx context.Context, id domain.SessionID) error
 				cur.IsTerminated = true
 				cur.Activity = domain.Activity{State: domain.ActivityExited, LastActivityAt: now}
 				delete(m.flights, id) // runs under m.mu (mutate holds it)
+				m.forgetSignalsLocked(id)
 				outcome = terminationApplied
 				return cur, true
 			}

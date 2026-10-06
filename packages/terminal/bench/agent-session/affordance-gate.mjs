@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -10,8 +10,10 @@ const configFile = path.join(benchDir, "vite.config.ts");
 const baselinesDir = path.join(agentDir, "baselines", "act-probe");
 const argv = process.argv.slice(2);
 const action = argv.includes("--action") ? argv[argv.indexOf("--action") + 1] : undefined;
+const outArg = argv.includes("--out") ? argv[argv.indexOf("--out") + 1] : undefined;
+const compareDir = argv.includes("--compare") ? path.resolve(argv[argv.indexOf("--compare") + 1]) : undefined;
 if (!action) {
-	process.stderr.write("usage: affordance-gate.mjs --action <hover|hint|redact>\n");
+	process.stderr.write("usage: affordance-gate.mjs --action <hover|hint|redact|select|find|marks> [--out <dir>] [--compare <dir>]\n");
 	process.exit(2);
 }
 
@@ -57,6 +59,45 @@ const actions = {
 		await page.evaluate(() => window.__agentSession.setSecretPatterns([]));
 		return [["redact-boxes", painted, null]];
 	},
+	async select(page, shoot) {
+		await page.evaluate(() => window.__agentSession.selectCells(0, 5, 2, 12));
+		await shoot("select-rows");
+		await page.evaluate(() => window.__agentSession.selectCells(3, 6, 3, 20));
+		await shoot("select-one-row");
+		await page.evaluate(() => window.__agentSession.selectionClear());
+		await shoot("select-cleared");
+		return [];
+	},
+	async find(page, shoot) {
+		const first = await page.evaluate(() => window.__agentSession.findShow("example", 0));
+		await shoot("find-first");
+		const next = await page.evaluate(() => window.__agentSession.findShow("example", 1));
+		await shoot("find-next");
+		await page.evaluate(() => window.__agentSession.selectCells(0, 2, 0, 30));
+		await shoot("find-under-selection");
+		await page.evaluate(() => window.__agentSession.selectionClear());
+		await page.evaluate(() => window.__agentSession.findHide());
+		await shoot("find-closed");
+		return [["find-count", first, next]];
+	},
+	async marks(page, shoot) {
+		await shoot("marks-before");
+		await page.evaluate(() => window.__agentSession.setMarks([
+			{ pattern: "example", regex: false, colour: "color-mix(in srgb, var(--terminal-ansi-3) 40%, transparent)" },
+			{ pattern: "TEXT", regex: false, colour: "color-mix(in srgb, var(--terminal-ansi-1) 40%, transparent)" },
+			{ pattern: "\\d+", regex: true, colour: "color-mix(in srgb, var(--terminal-ansi-2) 40%, transparent)" },
+		]));
+		await shoot("marks-on");
+		await page.evaluate(() => window.__agentSession.findShow("example", 1));
+		await page.evaluate(() => window.__agentSession.selectCells(0, 2, 0, 30));
+		await shoot("marks-overlap");
+		await page.evaluate(() => window.__agentSession.selectionClear());
+		await page.evaluate(() => window.__agentSession.findHide());
+		await page.evaluate(() => window.__agentSession.setMarks([]));
+		await shoot("marks-after");
+		const painted = await page.evaluate(() => [...document.querySelectorAll("[data-terminal-row]")].filter((row) => row.style.backgroundImage !== "").length);
+		return [["marks-rows-painted-after", painted, null]];
+	},
 };
 
 const server = await createServer({ configFile, logLevel: "error" });
@@ -70,17 +111,31 @@ try {
 	await page.waitForFunction(() => window.__agentSessionReady === true, undefined, { timeout: 30000 });
 	await page.evaluate(() => window.__agentSession.feedAll());
 	await page.waitForTimeout(300);
-	const outDir = path.join(baselinesDir, `affordance-${action}`);
+	const outDir = outArg ? path.resolve(outArg) : path.join(baselinesDir, `affordance-${action}`);
 	await mkdir(outDir, { recursive: true });
+	const shots = new Map();
+	const differ = [];
 	const shoot = async (name) => {
-		await writeFile(path.join(outDir, `${name}.png`), await page.screenshot({ type: "png", animations: "disabled", caret: "hide" }));
-		process.stdout.write(`side-by-side act-probe/affordance-${action}/${name}.png (compare with act-probe/offset-0.png)\n`);
+		const shot = await page.screenshot({ type: "png", animations: "disabled", caret: "hide" });
+		shots.set(name, shot);
+		await writeFile(path.join(outDir, `${name}.png`), shot);
+		process.stdout.write(`side-by-side ${path.join(outDir, `${name}.png`)} (compare with act-probe/offset-0.png)\n`);
+		if (!compareDir) return;
+		const baseline = await readFile(path.join(compareDir, `${name}.png`));
+		const same = Buffer.compare(baseline, shot) === 0;
+		if (!same) differ.push(name);
+		process.stdout.write(`${same ? "SAME" : "DIFF"} ${name}\n`);
 	};
 	const run = actions[action];
 	if (!run) throw new Error(`unknown action ${action}`);
 	const report = await run(page, shoot);
+	if (shots.has("marks-before") && shots.has("marks-after")) {
+		report.push(["marks-after-equals-before", Buffer.compare(shots.get("marks-before"), shots.get("marks-after")) === 0, null]);
+	}
 	process.stdout.write(`${JSON.stringify({ action, report })}\n`);
 	await page.close();
+	if (differ.length > 0) throw new Error(`${differ.length} screenshot(s) differ from ${compareDir}: ${differ.join(", ")}`);
+	if (compareDir) process.stdout.write(`PASS ${action}: every screenshot matches ${compareDir}\n`);
 } finally {
 	await browser?.close();
 	await server.close();

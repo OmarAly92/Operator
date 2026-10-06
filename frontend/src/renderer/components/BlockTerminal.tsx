@@ -2,23 +2,35 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+	DEFAULT_QUICK_FIX_RULES,
 	TerminalSurface,
 	createTerminalCore,
 	initTerminalCoreFromUrl,
 	warpDarkTheme,
+	type CellSize,
 	type FontConfig,
 	type HostCapabilities,
+	type QuickFixRule,
 	type TerminalCore,
 	type TerminalStrings,
 	type TerminalTheme,
 } from "@operator/terminal-react";
 import { operatorBridge } from "../lib/bridge";
+import { commandHistory } from "../lib/command-history";
 import { rememberPaneGrid } from "../lib/pane-grid";
+import { BLOCK_NOTIFY_AFTER_MS } from "../lib/retained-terminal";
 import { terminalBackgroundColor, type TerminalBackground } from "../lib/terminal-background";
+import { terminalPredictiveEchoThresholdMs } from "../lib/terminal-predictive-echo";
+import { terminalMarkRules } from "../lib/terminal-marks";
 import { useUiStore } from "../stores/ui-store";
 import { previewBytes, terminalDebug } from "../lib/terminal-debug";
 import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy";
 import { fetchRedactionPatterns, redactionPatternsQueryKey } from "../lib/redaction-patterns";
+import { externalEditorLabel } from "../lib/open-files-in";
+import { usePasteConfirm } from "../hooks/usePasteConfirm";
+import type { TerminalAppearance } from "../lib/terminal-mux";
+import { terminalAppearance, type TerminalColors } from "../lib/terminal-appearance";
+import { createSettledReplayFilter, type SettledReplayFilter } from "../lib/settled-replay-filter";
 
 export type BlockTerminalClipboard = {
 	writeText: (text: string) => Promise<void>;
@@ -34,6 +46,8 @@ export type BlockTerminalTransport = {
 	write: (data: Uint8Array) => void;
 	onData: (listener: (bytes: Uint8Array) => void) => () => void;
 	resize?: (cols: number, rows: number) => void;
+	appearance?: (appearance: TerminalAppearance) => void;
+	requestOlder?: (before: number) => void;
 	dispose?: () => void;
 };
 
@@ -54,6 +68,8 @@ export type BlockTerminalProps = {
 	 */
 	refitToken?: number;
 	focusToken?: number;
+	visible?: boolean;
+	recordsSpawnGrid?: boolean;
 	/**
 	 * Fired once, on the frame that first carries the pane's replay -- and only
 	 * when there was a held replay to carry. It is a proof, not a timer: the
@@ -65,16 +81,14 @@ export type BlockTerminalProps = {
 	 */
 	onReplayPainted?: () => void;
 	onReplayReady?: () => void; // fired once, on the first change where replayReady() is true
+	onDraftChange?: (draft: string) => void;
 };
 
 const DEFAULT_COLUMNS = 120;
 const DEFAULT_LIMITS = { rows: 200_000, bytes: 128 * 1024 * 1024 } as const;
-// Kitty's `notify_on_cmd_finish unfocused 10.0`
-// (kitty/kitty/options/definition.py): a command only earns a notification once
-// it has run long enough that the user has plausibly looked away.
-const BLOCK_NOTIFY_AFTER_MS = 10_000;
 const SOURCE_ID_MARKER = new TextEncoder().encode("\x1b]7000;v=1;id=");
 const BEL = 0x07;
+const EMPTY_QUICK_FIX_RULES: readonly QuickFixRule[] = [];
 
 // The block terminal renders in Warp's own bundled dark theme, fixed, rather
 // than following the app skin (user decision 2026-09-02). DESIGN.md's carve-out
@@ -155,7 +169,14 @@ function reportTerminalActionFailure(work: Promise<unknown>): Promise<void> {
 	);
 }
 
-function feedToCore(core: TerminalCore, bytes: Uint8Array, historyIds: Set<string>): void {
+function feedToCore(
+	core: TerminalCore,
+	incoming: Uint8Array,
+	historyIds: Set<string>,
+	settledFilter: SettledReplayFilter,
+): void {
+	const bytes = historyIds.size > 0 ? settledFilter.push(incoming) : incoming;
+	if (bytes.length === 0) return;
 	const marks = scanSourceIdMarks(bytes);
 	const reconnectsHistoryBlock = marks.some((mark) => historyIds.has(mark.id));
 	core.enqueue(reconnectsHistoryBlock ? withoutRanges(bytes, marks) : bytes);
@@ -184,8 +205,11 @@ export function BlockTerminal({
 	workspacePath,
 	refitToken,
 	focusToken,
+	visible,
+	recordsSpawnGrid = true,
 	onReplayPainted,
 	onReplayReady,
+	onDraftChange,
 }: BlockTerminalProps) {
 	const { t } = useTranslation();
 	const coreRef = useRef<TerminalCore | null>(null);
@@ -193,8 +217,11 @@ export function BlockTerminal({
 	const [altScreenActive, setAltScreenActive] = useState(false);
 	const [coreError, setCoreError] = useState<Error | null>(null);
 	const historyIdsRef = useRef<Set<string>>(new Set());
+	const settledFilterRef = useRef<SettledReplayFilter>(createSettledReplayFilter());
 	const historyBlocksRef = useRef(historyBlocks);
 	historyBlocksRef.current = historyBlocks;
+	const recordsSpawnGridRef = useRef(recordsSpawnGrid);
+	recordsSpawnGridRef.current = recordsSpawnGrid;
 	// The WASM module loads asynchronously while the transport is already
 	// streaming. Bytes that arrive first are held here and replayed in order
 	// once the core exists, so early output is never dropped.
@@ -249,9 +276,21 @@ export function BlockTerminal({
 	const onSendRaw = useCallback((data: string) => {
 		transportRef.current.write(new TextEncoder().encode(data));
 	}, []);
-	const onGeometry = useCallback((columns: number, rows: number) => {
-		rememberPaneGrid(columns, rows);
+	const cellSizeRef = useRef<CellSize | null>(null);
+	const terminalColorsRef = useRef<TerminalColors | null>(null);
+	const publishAppearance = useCallback(() => {
+		const cell = cellSizeRef.current;
+		const colors = terminalColorsRef.current;
+		if (!cell || !colors) return;
+		transportRef.current.appearance?.(terminalAppearance(cell, colors, window.devicePixelRatio));
+	}, []);
+	const onGeometry = useCallback((columns: number, rows: number, cell?: CellSize) => {
+		if (recordsSpawnGridRef.current) rememberPaneGrid(columns, rows);
 		transportRef.current.resize?.(columns, rows);
+		if (cell) {
+			cellSizeRef.current = cell;
+			publishAppearance();
+		}
 		// TerminalSurface resizes the core immediately before reporting, so the
 		// core is correctly sized by the time this runs and the held bytes can be
 		// parsed against the grid they were written for.
@@ -263,10 +302,10 @@ export function BlockTerminal({
 		if (pending.length === 0) return;
 		terminalDebug("block-terminal", "grid sized", { columns, rows, buffered: pending.length });
 		for (const bytes of pending) {
-			feedToCore(core, bytes, historyIdsRef.current);
+			feedToCore(core, bytes, historyIdsRef.current, settledFilterRef.current);
 		}
 		reportReplayPainted();
-	}, [reportReplayPainted]);
+	}, [publishAppearance, reportReplayPainted]);
 
 	useEffect(() => {
 		if (!core) return;
@@ -327,7 +366,7 @@ export function BlockTerminal({
 					const pending = pendingBytesRef.current;
 					pendingBytesRef.current = [];
 					for (const bytes of pending) {
-						feedToCore(created, bytes, historyIdsRef.current);
+						feedToCore(created, bytes, historyIdsRef.current, settledFilterRef.current);
 					}
 					if (pending.length > 0) reportReplayPainted();
 				}
@@ -348,6 +387,7 @@ export function BlockTerminal({
 			replayPaintedReportedRef.current = false;
 			replayReadyFiredRef.current = false;
 			historyIdsRef.current = new Set();
+			settledFilterRef.current = createSettledReplayFilter();
 			setCore(null);
 		};
 	}, [sessionId]);
@@ -394,7 +434,7 @@ export function BlockTerminal({
 				});
 			}
 			if (coreRef.current && gridSizedRef.current) {
-				feedToCore(coreRef.current, bytes, historyIdsRef.current);
+				feedToCore(coreRef.current, bytes, historyIdsRef.current, settledFilterRef.current);
 			} else {
 				pendingBytesRef.current.push(bytes);
 			}
@@ -420,6 +460,11 @@ export function BlockTerminal({
 		document.documentElement.style.setProperty("--terminal-background", resolvedTheme.background);
 	}, [resolvedTheme.background]);
 
+	useEffect(() => {
+		terminalColorsRef.current = { foreground: resolvedTheme.foreground, background: resolvedTheme.background };
+		publishAppearance();
+	}, [publishAppearance, resolvedTheme.background, resolvedTheme.foreground]);
+
 	const redactSecrets = useUiStore((state) => state.terminalSecretRedaction);
 	const { data: patterns } = useQuery({
 		queryKey: redactionPatternsQueryKey,
@@ -429,6 +474,39 @@ export function BlockTerminal({
 	});
 	const secretPatterns = useMemo(() => (redactSecrets ? (patterns ?? []) : []), [redactSecrets, patterns]);
 
+	const openFilesIn = useUiStore((state) => state.openFilesIn);
+	const openFilesInRef = useRef(openFilesIn);
+	openFilesInRef.current = openFilesIn;
+	const [openPathNotice, setOpenPathNotice] = useState<string | null>(null);
+	const openPathNoticeTimerRef = useRef<number | undefined>(undefined);
+	useEffect(() => () => window.clearTimeout(openPathNoticeTimerRef.current), []);
+	const openFile = useCallback(
+		async (path: string, line?: number, column?: number) => {
+			const choice = openFilesInRef.current;
+			const editor = choice === "system" ? undefined : choice;
+			const outcome = await operatorBridge.app.openPath(path, line, column, editor);
+			if (!outcome.cliMissing || editor === undefined) return;
+			window.clearTimeout(openPathNoticeTimerRef.current);
+			setOpenPathNotice(
+				t("terminal.editorCliMissing", {
+					file: path.split("/").pop() ?? path,
+					editor: externalEditorLabel(editor),
+				}),
+			);
+			openPathNoticeTimerRef.current = window.setTimeout(() => setOpenPathNotice(null), 4000);
+		},
+		[t],
+	);
+
+	const terminalMarks = useUiStore((state) => state.terminalMarks);
+	const marks = useMemo(() => terminalMarkRules(terminalMarks), [terminalMarks]);
+	const predictiveEcho = useUiStore((state) => state.terminalPredictiveEcho);
+	const predictiveThresholdMs = predictiveEcho ? terminalPredictiveEchoThresholdMs : undefined;
+	const terminalQuickFixesEnabled = useUiStore((state) => state.terminalQuickFixesEnabled);
+	const [pasteFocusCount, setPasteFocusCount] = useState(0);
+	const restoreFocusAfterPaste = useCallback(() => setPasteFocusCount((count) => count + 1), []);
+	const surfaceFocusToken = pasteFocusCount === 0 ? focusToken : (focusToken ?? 0) + pasteFocusCount;
+	const { confirmPaste, dialog: pasteConfirmDialog } = usePasteConfirm(restoreFocusAfterPaste);
 	const host = useMemo<HostCapabilities>(
 		() => ({
 			writeClipboard: async (text: string) => {
@@ -446,14 +524,19 @@ export function BlockTerminal({
 				if (!isWebLink(url)) return;
 				await openLinkInSystemBrowser(url);
 			},
-			resolvePath: async (path: string, cwd: string) =>
-				operatorBridge.app.resolvePath(cwd || workspacePath || null, path),
-			openPath: async (path: string) => {
-				await operatorBridge.app.openPath(path);
+			resolveFirstPath: async (candidates, cwd) =>
+				operatorBridge.app.resolveFirstPath(cwd || workspacePath || null, candidates),
+			openPath: async (path: string, line?: number, column?: number) => {
+				await openFile(path, line, column);
 			},
 			secretPatterns,
+			...(predictiveThresholdMs === undefined ? {} : { predictiveEcho: { thresholdMs: predictiveThresholdMs } }),
+			confirmPaste,
+			...(transport.requestOlder
+				? { loadOlderOutput: (before: number) => transportRef.current.requestOlder?.(before) }
+				: {}),
 		}),
-		[clipboard, workspacePath, secretPatterns],
+		[clipboard, workspacePath, secretPatterns, predictiveThresholdMs, openFile, confirmPaste, transport.requestOlder],
 	);
 
 	const strings = useMemo<TerminalStrings>(
@@ -478,6 +561,7 @@ export function BlockTerminal({
 			}),
 			findLabel: t("blocks.findLabel", { defaultValue: "Find" }),
 			findMatchCount: t("blocks.findMatchCount", { defaultValue: "%1 of %2" }),
+			findRegexLabel: t("blocks.findRegexLabel", { defaultValue: "Use regular expression" }),
 			palettePlaceholder: t("blocks.palettePlaceholder", {
 				defaultValue: "Type a command",
 			}),
@@ -486,6 +570,9 @@ export function BlockTerminal({
 				defaultValue: "No matching commands",
 			}),
 			jumpToBottom: t("blocks.jumpToBottom", { defaultValue: "Jump to bottom" }),
+			loadOlderOutput: t("blocks.loadOlderOutput", { defaultValue: "Load older output" }),
+			quickFixLabel: t("blocks.quickFixLabel", { defaultValue: "Suggested fix" }),
+			quickFixUse: t("blocks.quickFixUse", { defaultValue: "Use" }),
 			shellBlocksUnavailable: t("blocks.shellBlocksUnavailable", {
 				defaultValue: "Shell blocks are unavailable in this terminal.",
 			}),
@@ -555,17 +642,24 @@ export function BlockTerminal({
 		onSendRaw,
 		onGeometry,
 		refitToken,
-		focusToken,
+		focusToken: surfaceFocusToken,
+		visible,
+		marks,
+		onDraftChange,
+		...(agentTui
+			? {}
+			: { commandHistory, quickFixRules: terminalQuickFixesEnabled ? DEFAULT_QUICK_FIX_RULES : EMPTY_QUICK_FIX_RULES }),
 		onHint: (hint) => {
 			// A hint's path is the text as it was printed, so it is relative as
 			// often as not; open_path only answers for an absolute file. Resolving
 			// first is what makes a hinted `src/a.ts:42` open at all.
 			if (hint.path !== undefined) {
 				const candidate = hint.path;
+				const line = hint.line;
 				void reportTerminalActionFailure(
 					(async () => {
 						const resolved = await operatorBridge.app.resolvePath(workspacePath ?? null, candidate);
-						if (resolved) await operatorBridge.app.openPath(resolved);
+						if (resolved) await openFile(resolved, line);
 					})(),
 				);
 				return;
@@ -577,6 +671,7 @@ export function BlockTerminal({
 			void reportTerminalActionFailure(host.writeClipboard(hint.text));
 		},
 		onBlockFinished: ({ id, exitCode, durationMs, visible }) => {
+			if (!agentTui) commandHistory.noteCommandFinished();
 			if (visible || durationMs === null || durationMs < BLOCK_NOTIFY_AFTER_MS) return;
 			void reportTerminalActionFailure(
 				operatorBridge.notifications.show({
@@ -598,6 +693,17 @@ export function BlockTerminal({
 			ref={rootRef}
 		>
 			<TerminalSurface {...surfaceProps} />
+			{pasteConfirmDialog}
+			{openPathNotice ? (
+				<div
+					className="pointer-events-none fixed bottom-4 right-4 z-overlay w-[min(24rem,calc(100%-2rem))] rounded-xl border border-(--color-border-settings-dialog) bg-settings-dialog px-4 py-3 shadow-[var(--shadow-settings-dialog)]"
+					role="status"
+					aria-live="polite"
+					aria-atomic="true"
+				>
+					<p className="text-sm font-medium text-settings-label">{openPathNotice}</p>
+				</div>
+			) : null}
 		</div>
 	);
 }

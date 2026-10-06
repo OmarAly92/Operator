@@ -620,6 +620,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/phone-alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Phone alert status and the last delivery */
+        get: operations["getPhoneAlerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/phone-alerts/subscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Return the ntfy topic for this pairing and mark it claimed */
+        post: operations["subscribePhoneAlerts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/phone-alerts/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send one test alert to the paired phone */
+        post: operations["testPhoneAlerts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -652,6 +703,23 @@ export interface paths {
         post?: never;
         /** Remove a project; stops sessions, cleans workspaces, unregisters */
         delete: operations["removeProject"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a single-repo project's local branches, newest commit first, with where each is checked out */
+        get: operations["listProjectBranches"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -931,40 +999,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/push/devices": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Register (upsert) a phone's Expo push token */
-        post: operations["registerPushDevice"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/push/devices/{token}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Unregister a phone's Expo push token */
-        delete: operations["unregisterPushDevice"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/redaction/patterns": {
         parameters: {
             query?: never;
@@ -1047,6 +1081,24 @@ export interface paths {
         /** Report an agent activity-state signal for a session */
         post: operations["setSessionActivity"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{sessionId}/agent-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Record what the agent reports about its own board card */
+        put: operations["setSessionAgentReport"];
+        post?: never;
+        /** Clear the agent's report about its own board card */
+        delete: operations["clearSessionAgentReport"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1397,6 +1449,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{sessionId}/restart-terminal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop a session's unresponsive terminal host and resume the agent in a fresh one */
+        post: operations["restartSessionTerminal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{sessionId}/restore": {
         parameters: {
             query?: never;
@@ -1652,6 +1721,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{sessionId}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a session's background tasks (shells, monitors, subagents), latest status per task */
+        get: operations["listSessionTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{sessionId}/tasks/{taskId}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop one running background task: a shell or monitor by signal (202), a subagent through the agent's own tasks panel (200 once confirmed) */
+        post: operations["stopSessionTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{sessionId}/workspace/events": {
         parameters: {
             query?: never;
@@ -1858,6 +1961,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/terminal-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read recent distinct shell commands from every terminal, oldest first, leaving out commands that look like they hold a secret */
+        get: operations["listTerminalHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/usage/quota": {
         parameters: {
             query?: never;
@@ -1981,6 +2101,13 @@ export interface components {
             /** Format: date-time */
             validatedAt?: string;
             warning?: string;
+        };
+        AgentReport: {
+            /** Format: date-time */
+            at: string;
+            reason: string;
+            /** @enum {string} */
+            state: "needs_you" | "ready_for_review";
         };
         AgentSwitch: {
             /** @enum {string} */
@@ -2189,9 +2316,14 @@ export interface components {
         };
         ControllersSessionView: {
             activity: components["schemas"]["DomainActivity"];
+            agentReport?: components["schemas"]["AgentReport"];
             autoInjectReview: boolean;
+            /** @enum {string} */
+            boardColumn: "working" | "needs_you" | "in_review" | "ready_to_merge" | "archive";
             branch?: string;
             brief?: string;
+            /** @description What a client can change on this session. Filled on the session list and get endpoints only. */
+            capabilities: components["schemas"]["SessionCapabilitiesView"];
             claudeAccountId: string;
             /** Format: date-time */
             createdAt: string;
@@ -2205,6 +2337,11 @@ export interface components {
             latestAssistantUpdate?: string;
             latestUserPrompt?: string;
             model?: string;
+            /**
+             * @description The mode the transcript last reported, or the launch mode before it reports. Omitted for a harness Operator cannot read the mode of, and when the transcript last reported a mode outside this list. Filled on the session list and get endpoints only.
+             * @enum {string}
+             */
+            permissionMode?: "default" | "accept-edits" | "plan" | "auto" | "bypass-permissions";
             /** Format: date-time */
             pinnedAt?: null | string;
             /** Format: int64 */
@@ -2220,6 +2357,7 @@ export interface components {
             scmStatus?: "pr_open" | "draft" | "ci_failed" | "review_pending" | "changes_requested" | "approved" | "mergeable" | "merged";
             /** @enum {string} */
             status: "working" | "pr_open" | "draft" | "ci_failed" | "review_pending" | "changes_requested" | "approved" | "mergeable" | "merged" | "needs_input" | "exited" | "idle" | "terminated" | "no_signal";
+            statusReason: string;
             terminalHandleId?: string;
             terminateOnPrMerge: boolean;
             ticket?: components["schemas"]["SessionTicketRef"];
@@ -2258,6 +2396,8 @@ export interface components {
             /** @enum {string} */
             agent?: "claude-code" | "codex" | "aider" | "opencode" | "grok" | "droid" | "amp" | "agy" | "crush" | "cursor" | "qwen" | "copilot" | "goose" | "auggie" | "continue" | "devin" | "cline" | "kimi" | "muse" | "kiro" | "kilocode" | "vibe" | "pi" | "kimchi" | "prime-agent" | "autohand" | "fake";
             attachments?: components["schemas"]["AttachmentInput"][];
+            /** @description Existing local branch the worker commits on. With a worktree it is checked out there; in place it must be the branch already checked out in the project folder. Omit for a new session branch. */
+            branch?: string;
             brief: string;
             /** @description Claude account for a claude-code worker. Omit for the default account. */
             claudeAccountId?: string;
@@ -2409,6 +2549,9 @@ export interface components {
         ListSessionPRsResponse: {
             prs: components["schemas"]["SessionPRSummary"][];
             sessionId: string;
+        };
+        ListSessionTasksResponse: {
+            tasks: components["schemas"]["SessionTaskView"][];
         };
         ListSessionsResponse: {
             sessions: components["schemas"]["ControllersSessionView"][];
@@ -2633,6 +2776,7 @@ export interface components {
             id: string;
             prUrl: string;
             projectId: string;
+            quiet: boolean;
             /** Format: date-time */
             resolvedAt?: null | string;
             sessionId: string;
@@ -2644,7 +2788,7 @@ export interface components {
             target: components["schemas"]["NotificationTarget"];
             title: string;
             /** @enum {string} */
-            type: "needs_input" | "ready_to_merge" | "pr_merged" | "pr_closed_unmerged";
+            type: "needs_input" | "ready_to_merge" | "pr_merged" | "pr_closed_unmerged" | "turn_finished" | "agent_exited";
         };
         NotificationTarget: {
             /** @enum {string} */
@@ -2671,6 +2815,23 @@ export interface components {
             status: "needs_review" | "running" | "up_to_date" | "changes_requested" | "ineligible";
             targetSha: string;
             title: string;
+        };
+        PhoneAlertDeliveryResponse: {
+            /** Format: date-time */
+            at: string;
+            error?: string;
+            ok: boolean;
+        };
+        PhoneAlertStatusResponse: {
+            /** @description A paired phone has fetched the current topic. */
+            claimed: boolean;
+            /** @description Connect Mobile is on and a topic exists. */
+            enabled: boolean;
+            lastDelivery?: components["schemas"]["PhoneAlertDeliveryResponse"];
+        };
+        PhoneAlertSubscribeResponse: {
+            server: string;
+            topic: string;
         };
         PlanTicketRequest: {
             claudeAccountId?: string;
@@ -2722,6 +2883,15 @@ export interface components {
             repo: string;
             workspaceRepos?: components["schemas"]["WorkspaceRepo"][];
         };
+        ProjectBranch: {
+            checkedOutAt?: string;
+            isMainCheckout: boolean;
+            name: string;
+        };
+        ProjectBranches: {
+            branches: components["schemas"]["ProjectBranch"][];
+            current: string;
+        };
         ProjectConfig: {
             agent?: string;
             agentConfig?: components["schemas"]["AgentConfig"];
@@ -2754,35 +2924,12 @@ export interface components {
             resolveError?: string;
             sessionPrefix: string;
         };
-        PushDeviceEnvelope: {
-            device: components["schemas"]["PushDeviceResponse"];
-        };
-        PushDeviceResponse: {
-            /** Format: date-time */
-            createdAt: string;
-            deviceName?: string;
-            /** Format: date-time */
-            lastSeenAt: string;
-            platform?: string;
-            token: string;
-        };
         RedactionPattern: {
             flags: string;
             source: string;
         };
         RedactionPatternsResponse: {
             patterns: components["schemas"]["RedactionPattern"][];
-        };
-        RegisterPushDeviceRequest: {
-            /** @description Human-friendly device label. */
-            deviceName?: string;
-            /**
-             * @description Device platform.
-             * @enum {string}
-             */
-            platform?: "ios" | "android";
-            /** @description Expo push token, e.g. ExponentPushToken[...]. */
-            token: string;
         };
         RemoveProjectResult: {
             projectId: string;
@@ -2799,9 +2946,28 @@ export interface components {
             ok: boolean;
             sessionId: string;
         };
+        ResolveCommentsRequest: {
+            /** @description Review comment or thread ids whose threads to resolve. Omit to resolve every unresolved thread. */
+            commentIds?: string[];
+            /** @description URL of the tracked pull request. */
+            prUrl: string;
+        };
         ResolveCommentsResponse: {
             ok: boolean;
             resolved: number;
+        };
+        RestartTerminalRequest: {
+            /** @description Columns of the terminal pane that shows the session, so the fresh pty is born at that width. Omit when unknown. */
+            cols?: number;
+            /** @description Rows of the terminal pane that shows the session; see cols. */
+            rows?: number;
+        };
+        RestartTerminalResponse: {
+            ok: boolean;
+            /** @enum {string} */
+            restartMode: "native" | "saved_prompt" | "fresh";
+            session: components["schemas"]["ControllersSessionView"];
+            sessionId: string;
         };
         RestoreReviewResponse: {
             reviewerHandleId: string;
@@ -2878,12 +3044,26 @@ export interface components {
             ok: boolean;
             sessionId: string;
         };
+        SessionCapabilitiesView: {
+            /** @description The session's permission mode can be changed through the permission-mode command. Filled on the session list and get endpoints only; false elsewhere. */
+            permissionMode: boolean;
+        };
         SessionCommandRequest: {
-            command: string;
+            /** @enum {string} */
+            command: "stop" | "compact" | "model" | "permission-mode";
+            /**
+             * @description Target mode for the permission-mode command.
+             * @enum {string}
+             */
+            mode?: "default" | "accept-edits" | "plan" | "auto" | "bypass-permissions";
             model?: string;
         };
         SessionCommandResponse: {
             models?: string[];
+            /** @description The mode the terminal confirmed, for the permission-mode command. */
+            permissionMode?: string;
+            /** @description The permission-mode command restarted the agent with --resume because a full Shift+Tab loop never showed the mode. */
+            restarted?: boolean;
             state: string;
         };
         SessionContextResponse: {
@@ -3006,6 +3186,26 @@ export interface components {
         SessionResponse: {
             session: components["schemas"]["ControllersSessionView"];
         };
+        SessionTaskView: {
+            agentId?: string;
+            canStop: boolean;
+            command?: string;
+            description?: string;
+            durationMs?: null | number;
+            endedAt?: string;
+            exitCode?: null | number;
+            /** @enum {string} */
+            kind: "shell" | "agent" | "monitor";
+            outputFile?: string;
+            startedAt?: string;
+            /** @enum {string} */
+            status: "running" | "completed" | "failed" | "killed" | "stopped";
+            summary?: string;
+            taskId: string;
+            toolUseId?: string;
+            /** Format: int64 */
+            updatedSeq: number;
+        };
         SessionTicketRef: {
             planFile?: string;
             /** @enum {string} */
@@ -3055,6 +3255,15 @@ export interface components {
             sessionId: string;
             state: string;
         };
+        SetAgentReportRequest: {
+            /** @description One line shown on the card and in the Needs you alert. Required for needs_you. */
+            reason?: string;
+            /**
+             * @description needs_you: the agent is waiting on the user. ready_for_review: the work is complete and there is no PR to review.
+             * @enum {string}
+             */
+            state: "needs_you" | "ready_for_review";
+        };
         SetProjectConfigInput: {
             config: components["schemas"]["ProjectConfig"];
         };
@@ -3099,7 +3308,7 @@ export interface components {
         };
         SetSessionReviewerRequest: {
             /** @enum {string} */
-            harness?: "claude-code" | "codex" | "copilot" | "cursor" | "kilocode" | "opencode" | "kiro" | "pi" | "qwen" | "agy" | "continue" | "goose" | "vibe" | "devin" | "droid" | "kimi" | "kimchi" | "muse" | "amp" | "aider" | "grok" | "crush" | "auggie" | "cline" | "autohand";
+            harness?: "claude-code" | "codex" | "copilot" | "kilocode" | "opencode" | "qwen" | "amp" | "auggie";
         };
         SettingsResponse: {
             keybindings: components["schemas"]["KeybindingOverrides"];
@@ -3140,6 +3349,11 @@ export interface components {
             /** @enum {string} */
             harness?: "claude-code" | "codex" | "aider" | "opencode" | "grok" | "droid" | "amp" | "agy" | "crush" | "cursor" | "qwen" | "copilot" | "goose" | "auggie" | "continue" | "devin" | "cline" | "kimi" | "muse" | "kiro" | "kilocode" | "vibe" | "pi" | "kimchi" | "prime-agent" | "autohand";
             issueId?: string;
+            /**
+             * @description Starting permission mode for the agent. Omit to use the project's configured mode.
+             * @enum {string}
+             */
+            permissionMode?: "default" | "accept-edits" | "plan" | "auto" | "bypass-permissions";
             projectId: string;
             prompt?: string;
             /** @description Rows of the terminal pane that will show the session; see cols. */
@@ -3162,6 +3376,10 @@ export interface components {
         StartPreviewServerRequest: {
             /** @description Named preview configuration. Optional when exactly one configuration exists. */
             configuration?: string;
+        };
+        StopSessionTaskResponse: {
+            confirmed: boolean;
+            task: components["schemas"]["SessionTaskView"];
         };
         SubmitAgentHandoffRequest: {
             /** @description Structured, source-agent-authored handoff enrichment. */
@@ -3229,6 +3447,14 @@ export interface components {
             truncatedBytes: number;
             truncatedLines: number;
         };
+        TerminalHistoryEntry: {
+            command: string;
+            /** Format: date-time */
+            finishedAt: string;
+        };
+        TerminalHistoryResponse: {
+            commands: components["schemas"]["TerminalHistoryEntry"][];
+        };
         TicketDefaults: {
             disableAutoReview?: boolean;
             implementer?: components["schemas"]["TicketRoleDefaults"];
@@ -3276,7 +3502,7 @@ export interface components {
         };
         TriggerReviewRequest: {
             /** @enum {string} */
-            harness?: "claude-code" | "codex" | "copilot" | "cursor" | "kilocode" | "opencode" | "kiro" | "pi" | "qwen" | "agy" | "continue" | "goose" | "vibe" | "devin" | "droid" | "kimi" | "kimchi" | "muse" | "amp" | "aider" | "grok" | "crush" | "auggie" | "cline" | "autohand";
+            harness?: "claude-code" | "codex" | "copilot" | "kilocode" | "opencode" | "qwen" | "amp" | "auggie";
         };
         TriggerReviewResponse: {
             /** @description True when a new review pass was started; false when an existing run for the same commit was reused. */
@@ -3288,10 +3514,6 @@ export interface components {
         UiSettings: {
             /** @enum {string} */
             locale: "en" | "zh-CN" | "ja" | "ko" | "es" | "fr" | "de" | "pt-BR";
-        };
-        UnregisterPushDeviceResponse: {
-            deleted: boolean;
-            token: string;
         };
         UpdateProjectSettingsInput: {
             config: components["schemas"]["ProjectConfig"];
@@ -5265,6 +5487,129 @@ export interface operations {
             };
         };
     };
+    getPhoneAlerts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneAlertStatusResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    subscribePhoneAlerts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneAlertSubscribeResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    testPhoneAlerts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneAlertDeliveryResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     listProjects: {
         parameters: {
             query?: never;
@@ -5459,6 +5804,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RemoveProjectResult"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listProjectBranches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectBranches"];
                 };
             };
             /** @description Bad Request */
@@ -6631,7 +7026,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveCommentsRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -6640,6 +7039,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResolveCommentsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
                 };
             };
             /** @description Not Found */
@@ -6653,98 +7061,6 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    registerPushDevice: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RegisterPushDeviceRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PushDeviceEnvelope"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    unregisterPushDevice: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Expo push token (URL-encoded) identifying the device. */
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UnregisterPushDeviceResponse"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7082,6 +7398,137 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    setSessionAgentReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetAgentReportRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    clearSessionAgentReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8621,6 +9068,78 @@ export interface operations {
             };
         };
     };
+    restartSessionTerminal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RestartTerminalRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestartTerminalResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     restoreSession: {
         parameters: {
             query?: never;
@@ -9462,6 +9981,144 @@ export interface operations {
             };
         };
     };
+    listSessionTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListSessionTasksResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    stopSessionTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+                /** @description Background task id (a shell or monitor task id, or a subagent's agentId). */
+                taskId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopSessionTaskResponse"];
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopSessionTaskResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     streamSessionWorkspaceChanges: {
         parameters: {
             query?: never;
@@ -10178,6 +10835,56 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listTerminalHistory: {
+        parameters: {
+            query?: {
+                /** @description Maximum distinct commands to return, oldest first. Defaults to 500. */
+                limit?: null | number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalHistoryResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

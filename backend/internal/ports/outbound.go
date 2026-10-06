@@ -130,6 +130,8 @@ type RuntimeConfig struct {
 	// full agent repaint before anything has been typed.
 	Cols int
 	Rows int
+
+	RestoreHistory bool
 }
 
 // RuntimeHandle identifies a live runtime instance. Its ID is opaque outside
@@ -190,6 +192,10 @@ type PaneCapturer interface {
 // call site, so a Stream without it simply has no flow control.
 type FlowControlled interface {
 	Ack(bytes uint64) error
+}
+
+type OlderOutputRequester interface {
+	RequestOlder(before uint64) error
 }
 
 // Attacher opens a fresh attach Stream for a session handle, sized rows x cols from
@@ -281,6 +287,21 @@ type WorkspaceCommit struct {
 // root-as-repo parent plus child repositories. It materialises the parent
 // worktree at the session root and each child repo at its registered relative
 // path inside that root.
+type BranchInfo struct {
+	Name           string
+	CheckedOutAt   string
+	IsMainCheckout bool
+}
+
+type BranchListing struct {
+	Current  string
+	Branches []BranchInfo
+}
+
+type BranchLister interface {
+	ListBranches(ctx context.Context, repoPath string) (BranchListing, error)
+}
+
 type WorkspaceProject interface {
 	CreateWorkspaceProject(ctx context.Context, cfg WorkspaceProjectConfig) (WorkspaceProjectInfo, error)
 	DestroyWorkspaceProject(ctx context.Context, info WorkspaceProjectInfo) error
@@ -295,7 +316,8 @@ var (
 	ErrWorkspaceBranchCheckedOutElsewhere = errors.New("workspace: branch is already checked out in another worktree")
 	// ErrWorkspaceBranchNotFetched reports the requested branch exists nowhere
 	// reachable (no local head, no remote-tracking branch, no tag).
-	ErrWorkspaceBranchNotFetched = errors.New("workspace: branch is not fetched")
+	ErrWorkspaceBranchNotFetched    = errors.New("workspace: branch is not fetched")
+	ErrWorkspaceBranchNotCheckedOut = errors.New("workspace: branch is not checked out in the project folder")
 	// ErrWorkspaceBranchInvalid reports the requested branch name is not a valid
 	// git ref (rejected by `git check-ref-format`).
 	ErrWorkspaceBranchInvalid = errors.New("workspace: invalid branch name")
@@ -340,6 +362,8 @@ var (
 	// every session on the board). Adapters wrap this sentinel via fmt.Errorf
 	// so callers can match it with errors.Is.
 	ErrRuntimeUnavailable = errors.New("runtime: infrastructure unavailable")
+
+	ErrRuntimeSessionExists = errors.New("runtime: session already has a live host")
 )
 
 // WorkspaceConfig is the spec for creating or restoring a session's workspace.

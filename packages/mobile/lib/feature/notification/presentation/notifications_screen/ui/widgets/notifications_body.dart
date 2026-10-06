@@ -77,8 +77,10 @@ class NotificationsBody extends StatelessWidget {
           );
         }
 
+        final insets = MediaQuery.paddingOf(context);
         return RefreshIndicator(
           onRefresh: cubit.refresh,
+          edgeOffset: insets.top,
           child: NotificationListener<ScrollEndNotification>(
             onNotification: (notification) {
               final metrics = notification.metrics;
@@ -86,7 +88,7 @@ class NotificationsBody extends StatelessWidget {
               return false;
             },
             child: ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: EdgeInsets.only(top: insets.top + 8, bottom: insets.bottom + 8),
               itemCount: cubit.items.length + (cubit.loadingMore ? 1 : 0),
               separatorBuilder: (_, _) => Container(
                 height: 1,

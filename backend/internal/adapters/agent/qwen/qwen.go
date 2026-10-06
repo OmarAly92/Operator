@@ -96,6 +96,9 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	cmd = []string{binary}
 	appendApprovalFlags(&cmd, cfg.Permissions)
 	appendModelFlag(&cmd, cfg.Config)
+	if err := appendMCPConfigFlag(&cmd, cfg.MCPServers); err != nil {
+		return nil, err
+	}
 
 	systemPrompt, err := launchSystemPromptText(cfg)
 	if err != nil {
@@ -148,6 +151,9 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 	cmd = append(cmd, binary)
 	appendApprovalFlags(&cmd, cfg.Permissions)
 	appendModelFlag(&cmd, cfg.Config)
+	if err := appendMCPConfigFlag(&cmd, cfg.MCPServers); err != nil {
+		return nil, false, err
+	}
 	systemPrompt, err := restoreSystemPromptText(cfg)
 	if err != nil {
 		return nil, false, err
@@ -162,6 +168,19 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 // Qwen Code's append-system-prompt flag accepts inline text only. The manager
 // normally supplies both inline text and an Operator-owned file; if only the file is
 // present, read it and pass the contents inline.
+// appendMCPConfigFlag registers the launch's MCP servers with --mcp-config
+// (inline {"mcpServers": {...}}), which Qwen merges over the user's settings
+// servers without the project-server approval gate. trust:true is Qwen's
+// "allow without confirmation" for that server's tools in a trusted folder.
+func appendMCPConfigFlag(cmd *[]string, servers []ports.MCPServerSpec) error {
+	raw, err := agentbase.MCPServersJSON(servers, agentbase.WithTrust)
+	if err != nil || raw == "" {
+		return err
+	}
+	*cmd = append(*cmd, "--mcp-config", raw)
+	return nil
+}
+
 func launchSystemPromptText(cfg ports.LaunchConfig) (string, error) {
 	return systemPromptTextFrom(cfg.SystemPrompt, cfg.SystemPromptFile)
 }
@@ -331,3 +350,9 @@ func safeQwenSessionKey(sessionID string) string {
 func qwenShellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
+
+var _ ports.MCPServerLoader = (*Plugin)(nil)
+
+// LoadsMCPServers reports that the launch registers LaunchConfig.MCPServers
+// with the CLI, so the session has the Operator MCP server.
+func (*Plugin) LoadsMCPServers() bool { return true }

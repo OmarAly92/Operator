@@ -1,4 +1,5 @@
-export { TerminalSurface, type TerminalSurfaceProps } from "./TerminalSurface.js";
+export { TerminalSurface, type CellSize, type TerminalSurfaceProps } from "./TerminalSurface.js";
+export { POINTER_SHAPE_PROPERTY } from "./use-program-messages.js";
 export { AltScreenSlot, type AltScreenSlotProps } from "./AltScreenSlot.js";
 export { createCompositionTarget, type CompositionTarget } from "@operator/terminal-core";
 export {
@@ -7,12 +8,21 @@ export {
 	type MouseReportInput,
 	type MouseReportKind,
 } from "./mouse-report.js";
-export { warpDarkTheme } from "@operator/terminal-renderer-dom";
-export { createTerminalCore, type TerminalCoreOptions } from "@operator/terminal-core";
+export { warpDarkTheme, type MarkRule } from "@operator/terminal-renderer-dom";
+export {
+	DEFAULT_QUICK_FIX_RULES,
+	type CommandHistoryEntry,
+	type CommandHistorySource,
+	type QuickFixRule,
+} from "@operator/terminal-editor";
+export { createTerminalCore, markRegexValid, type TerminalCoreOptions } from "@operator/terminal-core";
 export { initTerminalCoreFromUrl } from "@operator/terminal-core/browser";
 export type {
 	FontConfig,
 	HostCapabilities,
+	PasteUnsafeReason,
+	PathCandidate,
+	ResolvedPath,
 	TerminalCore,
 	TerminalStrings,
 	TerminalTheme,

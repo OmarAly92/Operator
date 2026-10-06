@@ -1,0 +1,53 @@
+{
+  "native": {
+    "stalls": [],
+    "events": [
+      {
+        "step": 1,
+        "first_frame": {
+          "block": {
+            "gap_ms": 44.99999999999815,
+            "progress": 0.028268762826992387
+          }
+        },
+        "t10_90_ms": 133.33333333333334
+      },
+      {
+        "step": 3,
+        "first_frame": {
+          "block": {
+            "gap_ms": 18.33300000000193,
+            "progress": 0.01208197575321139
+          }
+        },
+        "t10_90_ms": 291.66666666666663
+      }
+    ]
+  },
+  "flutter": {
+    "stalls": [],
+    "events": [
+      {
+        "step": 1,
+        "first_frame": {
+          "block": {
+            "gap_ms": 38.333000000001505,
+            "progress": 0.3823762056894059
+          }
+        },
+        "t10_90_ms": 83.33333333333333
+      },
+      {
+        "step": 3,
+        "first_frame": {
+          "block": {
+            "gap_ms": 16.66699999999821,
+            "progress": 0.02988808735884139
+          }
+        },
+        "t10_90_ms": 300.0
+      }
+    ]
+  }
+}
+/Users/omaraly/development/AI/Operator-2b1-proto/packages/mobile/build/glass_lab/cold/20261003-121941

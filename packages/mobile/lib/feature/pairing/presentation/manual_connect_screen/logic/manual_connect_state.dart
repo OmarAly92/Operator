@@ -25,7 +25,12 @@ final class ConnectLoadingState extends ManualConnectState {
 }
 
 final class ConnectSuccessState extends ManualConnectState {
-  const ConnectSuccessState();
+  const ConnectSuccessState(this.desktopName);
+
+  final String desktopName;
+
+  @override
+  List<Object?> get props => [desktopName];
 }
 
 final class ConnectFailureState extends ManualConnectState {

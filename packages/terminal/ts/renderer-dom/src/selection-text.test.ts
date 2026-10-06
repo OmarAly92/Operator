@@ -62,3 +62,49 @@ describe("selectedText over logical lines", () => {
 		expect(selectedText({ start: { blockId: "w", row: 0, cell: 0 }, end: { blockId: "w", row: 1, cell: ROW_END } }, trailing)).toBe("abc def");
 	});
 });
+
+const indented: TextRows = {
+	blockIds: ["i"],
+	firstRow: () => 0,
+	rowCount: () => 2,
+	rowText: (_id, row) => ["- aaaa bbbb ", "cc dd ee"][row] ?? "",
+	rowSpans: () => [],
+	rowWrapped: (_id, row) => row === 0,
+	rowIndent: (_id, row) => (row === 1 ? 2 : 0),
+};
+
+describe("selectedText over a hanging indent", () => {
+	it("copies the painted cells of an indented row, not cells shifted by the indent", () => {
+		expect(selectedText({ start: { blockId: "i", row: 1, cell: 5 }, end: { blockId: "i", row: 1, cell: 7 } }, indented)).toBe("dd");
+	});
+	it("copies nothing from a range that covers only the indent", () => {
+		expect(selectedText({ start: { blockId: "i", row: 1, cell: 0 }, end: { blockId: "i", row: 1, cell: 2 } }, indented)).toBe("");
+	});
+	it("joins an indented continuation to its line", () => {
+		expect(selectedText({ start: { blockId: "i", row: 0, cell: 2 }, end: { blockId: "i", row: 1, cell: ROW_END } }, indented)).toBe("aaaa bbbb cc dd ee");
+	});
+});
+
+describe("selectedText over a rectangle", () => {
+	const table: TextRows = {
+		blockIds: ["t", "u"],
+		firstRow: () => 0,
+		rowCount: (id) => (id === "t" ? 3 : 1),
+		rowText: (id, row) => (id === "t" ? ["ab漢字cd", "0123456789", ""] : ["UVWXYZ"])[row] ?? "",
+		rowSpans: (id, row) => (id === "t" && row === 0 ? [2, 5, 2, 5, 8, 2] : []),
+		rowWrapped: () => true,
+	};
+	it("copies one slice per row, one line per row, and never joins wrapped rows", () => {
+		expect(selectedText({ start: { blockId: "t", row: 1, cell: 3 }, end: { blockId: "t", row: 2, cell: 6 }, rectangle: true }, table)).toBe("345\n");
+	});
+	it("keeps a wide character that starts inside the box and drops one that starts before it", () => {
+		expect(selectedText({ start: { blockId: "t", row: 0, cell: 3 }, end: { blockId: "t", row: 1, cell: 6 }, rectangle: true }, table)).toBe("字\n345");
+		expect(selectedText({ start: { blockId: "t", row: 0, cell: 2 }, end: { blockId: "t", row: 0, cell: 5 }, rectangle: true }, table)).toBe("漢字");
+	});
+	it("runs across blocks", () => {
+		expect(selectedText({ start: { blockId: "t", row: 1, cell: 1 }, end: { blockId: "u", row: 0, cell: 3 }, rectangle: true }, table)).toBe("12\n\nVW");
+	});
+	it("cuts an indented row by the cells it paints", () => {
+		expect(selectedText({ start: { blockId: "i", row: 0, cell: 2 }, end: { blockId: "i", row: 1, cell: 7 }, rectangle: true }, indented)).toBe("aaaa\ncc dd");
+	});
+});

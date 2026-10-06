@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_harnesses.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 
@@ -16,7 +16,7 @@ SessionViewMode defaultViewMode(TerminalArgs args) {
 String sessionViewKey(TerminalArgs args) => args.shellOnly ? args.id : args.sessionId;
 
 SessionViewMode? persistedViewMode(String key) {
-  final saved = CacheHelper.get(CacheKeys.sessionView(key)) as String?;
+  final saved = AppPreferences.sessionView(key);
   for (final mode in SessionViewMode.values) {
     if (mode.name == saved) return mode;
   }
@@ -33,7 +33,7 @@ class SessionViewCubit extends Cubit<SessionViewState> {
   void toggle() {
     final next = mode == SessionViewMode.blocks ? SessionViewMode.raw : SessionViewMode.blocks;
     final key = persistKey;
-    if (key != null && key.isNotEmpty) CacheHelper.save(CacheKeys.sessionView(key), next.name);
+    if (key != null && key.isNotEmpty) AppPreferences.setSessionView(key, next.name);
     emit(SessionViewReadyState(next));
   }
 }

@@ -19,6 +19,9 @@ const (
 	agentOperationRestore  agentOperationKind = "restore"
 	agentOperationRetire   agentOperationKind = "retire"
 	agentOperationRelaunch agentOperationKind = "relaunch"
+
+	agentOperationRestartTerminal   agentOperationKind = "restart-terminal"
+	agentOperationPermissionRestart agentOperationKind = "permission-restart"
 )
 
 var errAgentOperationInProgress = errors.New("session: another exclusive operation is in progress")
@@ -32,6 +35,10 @@ var _ sessionguard.InputLease = (*Manager)(nil)
 func (m *Manager) AcquireSessionInput(id domain.SessionID) (release func(), ok bool) {
 	id = domain.SessionID(strings.TrimSpace(string(id)))
 	m.agentOpMu.Lock()
+	if m.paneDrives[id] != nil {
+		m.agentOpMu.Unlock()
+		return nil, false
+	}
 	if m.agentOperationActiveLocked(id) && !m.agentSwitchDecisionInputAllowedLocked(id) {
 		m.agentOpMu.Unlock()
 		return nil, false
@@ -76,6 +83,13 @@ func (m *Manager) SessionMutationInProgress(id domain.SessionID) bool {
 func (m *Manager) agentOperationActiveLocked(id domain.SessionID) bool {
 	_, ok := m.agentOperations[id]
 	return ok
+}
+
+func (m *Manager) permissionRestartActive(id domain.SessionID) bool {
+	id = domain.SessionID(strings.TrimSpace(string(id)))
+	m.agentOpMu.Lock()
+	defer m.agentOpMu.Unlock()
+	return m.agentOperations[id] == agentOperationPermissionRestart
 }
 
 func (m *Manager) agentSwitchDecisionInputAllowedLocked(id domain.SessionID) bool {
@@ -262,4 +276,87 @@ func (m *Manager) beginAgentResume(ctx context.Context, id domain.SessionID) err
 
 func (m *Manager) endAgentResume(id domain.SessionID) {
 	m.endAgentOperation(id, agentOperationResume)
+}
+
+func (m *Manager) paneDriveActive(id domain.SessionID) bool {
+	id = domain.SessionID(strings.TrimSpace(string(id)))
+	m.agentOpMu.Lock()
+	defer m.agentOpMu.Unlock()
+	return m.paneDrives[id] != nil
+}
+
+func (m *Manager) beginPaneDrive(ctx context.Context, id domain.SessionID) (func(), error) {
+	return m.acquirePaneDrive(ctx, id, true)
+}
+
+func (m *Manager) tryBeginPaneDrive(ctx context.Context, id domain.SessionID) (func(), error) {
+	return m.acquirePaneDrive(ctx, id, false)
+}
+
+func (m *Manager) acquirePaneDrive(ctx context.Context, id domain.SessionID, wait bool) (func(), error) {
+	id = domain.SessionID(strings.TrimSpace(string(id)))
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		m.agentOpMu.Lock()
+		if m.agentOperationActiveLocked(id) {
+			m.agentOpMu.Unlock()
+			return nil, errAgentOperationInProgress
+		}
+		if drive := m.paneDrives[id]; drive != nil {
+			m.agentOpMu.Unlock()
+			if !wait {
+				return nil, ErrSessionBusy
+			}
+			select {
+			case <-drive:
+				continue
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		if m.paneDrives == nil {
+			m.paneDrives = make(map[domain.SessionID]chan struct{})
+		}
+		drive := make(chan struct{})
+		m.paneDrives[id] = drive
+		drained := m.inputDrained[id]
+		m.agentOpMu.Unlock()
+
+		end := func() {
+			m.agentOpMu.Lock()
+			if m.paneDrives[id] == drive {
+				delete(m.paneDrives, id)
+			}
+			m.agentOpMu.Unlock()
+			close(drive)
+		}
+		if drained != nil {
+			select {
+			case <-drained:
+			case <-ctx.Done():
+				end()
+				return nil, ctx.Err()
+			}
+		}
+		m.agentOpMu.Lock()
+		if m.agentOperationActiveLocked(id) {
+			m.agentOpMu.Unlock()
+			end()
+			return nil, errAgentOperationInProgress
+		}
+		if m.inputLeases[id] == 0 {
+			m.inputDrained[id] = make(chan struct{})
+		}
+		m.inputLeases[id]++
+		m.agentOpMu.Unlock()
+		var once sync.Once
+		return func() {
+			once.Do(func() {
+				m.releaseSessionInput(id)
+				end()
+			})
+		}, nil
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -20,7 +21,9 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/lifecycle"
 	activityobserver "github.com/OmarAly92/operator/backend/internal/observe/activity"
+	"github.com/OmarAly92/operator/backend/internal/observe/blockretention"
 	"github.com/OmarAly92/operator/backend/internal/observe/reaper"
+	screenobserver "github.com/OmarAly92/operator/backend/internal/observe/screen"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	reviewcore "github.com/OmarAly92/operator/backend/internal/review"
 	claudeaccountssvc "github.com/OmarAly92/operator/backend/internal/service/claudeaccounts"
@@ -41,32 +44,45 @@ type lifecycleStack struct {
 	// LCM is the Lifecycle Manager (the canonical write path). It is exposed so
 	// startSession can share the same reducer the reaper drives, rather than
 	// standing up a second store+LCM pair that would diverge under writes.
-	LCM           *lifecycle.Manager
-	runtimeReaper *reaper.Reaper
-	reaperDone    <-chan struct{}
-	activityDone  <-chan struct{}
-	scmDone       <-chan struct{}
-	trackerDone   <-chan struct{}
+	LCM            *lifecycle.Manager
+	runtimeReaper  *reaper.Reaper
+	blockRetention *blockretention.Retention
+	reaperDone     <-chan struct{}
+	activityDone   <-chan struct{}
+	screenDone     <-chan struct{}
+	scmDone        <-chan struct{}
+	trackerDone    <-chan struct{}
+	retentionDone  <-chan struct{}
 }
 
 // startLifecycle constructs the Lifecycle Manager over the store and starts the
 // reaper. The goroutine stops when ctx is cancelled; Stop waits for it to drain.
 // The messenger is the per-daemon agent messenger the LCM uses to nudge agents
 // in response to SCM observations (CI failure, review feedback, merge conflict).
-func startLifecycle(ctx context.Context, store *sqlite.Store, runtime ports.Runtime, messenger ports.AgentMessenger, notifier notificationSink, telemetry ports.EventSink, agents ports.AgentResolver, logger *slog.Logger) *lifecycleStack {
+func startLifecycle(ctx context.Context, store *sqlite.Store, runtime ports.Runtime, messenger ports.AgentMessenger, notifier notificationSink, telemetry ports.EventSink, agents ports.AgentResolver, recency lifecycle.InputRecency, logger *slog.Logger) *lifecycleStack {
 	lcm := lifecycle.New(store, messenger,
 		lifecycle.WithNotificationSink(notifier),
 		lifecycle.WithTelemetry(telemetry),
 		lifecycle.WithActiveSteering(activeTurnSteering(agents)),
 	)
+	lcm.SetInputRecency(recency)
 	rp := reaper.New(lcm, store, runtime, reaper.Config{Logger: logger})
+	br := blockretention.New(store, blockretention.Config{Logger: logger})
 	activityPoller := activityobserver.New(store, lcm, runtime, agents, activityobserver.Config{Logger: logger})
-	return &lifecycleStack{
-		LCM:           lcm,
-		runtimeReaper: rp,
-		reaperDone:    rp.Start(ctx),
-		activityDone:  activityPoller.Start(ctx),
+	stack := &lifecycleStack{
+		LCM:            lcm,
+		runtimeReaper:  rp,
+		blockRetention: br,
+		reaperDone:     rp.Start(ctx),
+		activityDone:   activityPoller.Start(ctx),
+		retentionDone:  br.Start(ctx),
 	}
+	if programs, ok := runtime.(ports.TerminalProgramReader); ok {
+		observer := screenobserver.New(store, lcm, programs, agents, screenobserver.Config{Logger: logger})
+		lcm.SetQuestionWatcher(observer)
+		stack.screenDone = observer.Start(ctx)
+	}
+	return stack
 }
 
 // ReconcileRuntime runs the same conservative runtime/workload observation as
@@ -74,6 +90,11 @@ func startLifecycle(ctx context.Context, store *sqlite.Store, runtime ports.Runt
 // so exits missed while Operator was stopped are folded before the API starts serving.
 func (l *lifecycleStack) ReconcileRuntime(ctx context.Context) error {
 	return l.runtimeReaper.Tick(ctx)
+}
+
+func (l *lifecycleStack) ReconcileBlockRetention(ctx context.Context) error {
+	_, _, err := l.blockRetention.Tick(ctx)
+	return err
 }
 
 // activeTurnSteering resolves the per-harness active-turn steering capability
@@ -98,15 +119,22 @@ func activeTurnSteering(agents ports.AgentResolver) func(domain.AgentHarness) bo
 // Stop waits for the reaper goroutine to exit. The caller must cancel the ctx
 // passed to startLifecycle before calling Stop.
 func (l *lifecycleStack) Stop() {
+	l.LCM.Close()
 	<-l.reaperDone
 	if l.activityDone != nil {
 		<-l.activityDone
+	}
+	if l.screenDone != nil {
+		<-l.screenDone
 	}
 	if l.scmDone != nil {
 		<-l.scmDone
 	}
 	if l.trackerDone != nil {
 		<-l.trackerDone
+	}
+	if l.retentionDone != nil {
+		<-l.retentionDone
 	}
 }
 
@@ -136,6 +164,11 @@ type sessionLifecycle interface {
 	ClearInteractions(id domain.SessionID)
 	Interactions(ctx context.Context, id domain.SessionID) ([]domain.PendingInteraction, error)
 	DialogOnScreen(ctx context.Context, id domain.SessionID) (bool, error)
+	StopAgentTask(ctx context.Context, id domain.SessionID, label string) error
+	AgentTaskStopSupported(harness domain.AgentHarness, version string) bool
+	PermissionModeSupport(harness domain.AgentHarness, version string) bool
+	PermissionModeReadable(harness domain.AgentHarness) bool
+	SetPermissionModeObserver(observer sessionmanager.PermissionModeObserver)
 }
 
 // sessionLifecycleMessenger adapts sessionLifecycle to ports.AgentMessenger so
@@ -241,6 +274,7 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 		// no_signal only makes sense for harnesses whose adapters install
 		// activity hooks; the deriver registry is the source of truth for that.
 		SignalCapable: activitydispatch.SupportsHarness,
+		AgentReports:  lcm,
 	})
 	// Triggering a review spawns a reviewer over the worker's worktree, resolved
 	// from the reviewer registry (distinct from the worker agent set). The
@@ -255,7 +289,9 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 		Sessions: store,
 		PRs:      store,
 		Projects: store,
-		Launcher: reviewcore.NewLauncher(reviewers, runtime, cfg.DataDir, reviewcore.WithAgentAuth(reviewerAgentAuth{agents: agents})),
+		Launcher: reviewcore.NewLauncher(reviewers, runtime, cfg.DataDir,
+			reviewcore.WithAgentAuth(reviewerAgentAuth{agents: agents}),
+			reviewcore.WithOperatorMCP(os.Executable, cfg.RunFilePath)),
 	})
 	reviewSvc := reviewsvc.New(reviewEngine, store,
 		reviewsvc.WithLifecycleReducer(lcm),

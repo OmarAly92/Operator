@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -23,15 +24,21 @@ const mockState = vi.hoisted(() => {
 		altScreenSurfaceProvided: false,
 		altScreen: null as unknown,
 		core: undefined as MockCore | undefined,
-		emitGeometry: undefined as ((columns: number, rows: number) => void) | undefined,
+		emitGeometry: undefined as ((columns: number, rows: number, cell?: { width: number; height: number }) => void) | undefined,
 		coreOverrides: undefined as Partial<MockCore> | undefined,
 		host: undefined as
 			| {
 					writeClipboard: (text: string) => Promise<void>;
 					openLink: (url: string) => Promise<void>;
-					resolvePath?: (path: string, cwd: string) => Promise<string | null>;
-					openPath?: (path: string) => Promise<void>;
+					resolveFirstPath?: (
+						candidates: readonly { path: string; allowDirectory: boolean }[],
+						cwd: string,
+					) => Promise<{ index: number; path: string } | null>;
+					openPath?: (path: string, line?: number, column?: number) => Promise<void>;
 					secretPatterns?: readonly { source: string; flags?: string }[];
+					predictiveEcho?: Readonly<{ thresholdMs: number }>;
+					confirmPaste?: (preview: string, reason: "newline" | "control" | "paste-end") => Promise<boolean>;
+					loadOlderOutput?: (before: number) => void;
 				}
 			| undefined,
 		onHint: undefined as ((hint: { ruleId: string; text: string; path?: string; line?: number }) => void) | undefined,
@@ -45,6 +52,10 @@ const mockState = vi.hoisted(() => {
 		revision: 0,
 		wasmInits: 0,
 		focusToken: undefined as number | undefined,
+		visible: undefined as boolean | undefined,
+		marks: undefined as readonly { pattern: string; regex: boolean; colour: string }[] | undefined,
+		commandHistory: undefined as unknown,
+		quickFixRules: undefined as unknown,
 		// The real surface only reports geometry once its host has a non-zero
 		// client box. Off means "mounted but never laid out", which is what a
 		// pane behind another tab looks like.
@@ -147,14 +158,20 @@ vi.mock("@operator/terminal-react", () => {
 			host?: {
 				writeClipboard: (text: string) => Promise<void>;
 				openLink: (url: string) => Promise<void>;
-				resolvePath?: (path: string, cwd: string) => Promise<string | null>;
-				openPath?: (path: string) => Promise<void>;
+				resolveFirstPath?: (
+						candidates: readonly { path: string; allowDirectory: boolean }[],
+						cwd: string,
+					) => Promise<{ index: number; path: string } | null>;
+				openPath?: (path: string, line?: number, column?: number) => Promise<void>;
 				secretPatterns?: readonly { source: string; flags?: string }[];
+				predictiveEcho?: Readonly<{ thresholdMs: number }>;
+				confirmPaste?: (preview: string, reason: "newline" | "control" | "paste-end") => Promise<boolean>;
+				loadOlderOutput?: (before: number) => void;
 			};
 			strings?: Record<string, string>;
 			onSend?: (text: string) => void;
 			onSendRaw?: (data: string) => void;
-			onGeometry?: (columns: number, rows: number) => void;
+			onGeometry?: (columns: number, rows: number, cell?: { width: number; height: number }) => void;
 			onHint?: (hint: { ruleId: string; text: string; path?: string; line?: number }) => void;
 			onBlockFinished?: (event: {
 				id: string;
@@ -163,8 +180,16 @@ vi.mock("@operator/terminal-react", () => {
 				visible: boolean;
 			}) => void;
 			focusToken?: number;
+			visible?: boolean;
+			marks?: readonly { pattern: string; regex: boolean; colour: string }[];
+			commandHistory?: unknown;
+			quickFixRules?: unknown;
 		}) => {
+			mockState.commandHistory = props.commandHistory;
+			mockState.quickFixRules = props.quickFixRules;
 			mockState.focusToken = props.focusToken;
+			mockState.visible = props.visible;
+			mockState.marks = props.marks;
 			mockState.onHint = props.onHint;
 			mockState.onBlockFinished = props.onBlockFinished;
 			mockState.altScreenActive = props.altScreenActive;
@@ -193,6 +218,8 @@ vi.mock("@operator/terminal-react", () => {
 		initTerminalCoreFromUrl: async () => {
 			mockState.wasmInits += 1;
 		},
+		markRegexValid: (_pattern: string): boolean | null => null,
+		DEFAULT_QUICK_FIX_RULES: Object.freeze([{ id: "mock-quick-fix" }]),
 		createTerminalCore: () => {
 			let generation = 0;
 			const core: MockCore = {
@@ -239,6 +266,15 @@ vi.mock("@operator/terminal-react", () => {
 	};
 });
 
+const mockCommandHistory = vi.hoisted(() => ({
+	entries: () => [],
+	subscribe: () => () => undefined,
+	refresh: vi.fn(),
+	noteCommandFinished: vi.fn(),
+}));
+
+vi.mock("../lib/command-history", () => ({ commandHistory: mockCommandHistory }));
+
 vi.mock("../lib/external-link-policy", () => ({
 	isWebLink: (url: string) => url.startsWith("http://") || url.startsWith("https://"),
 	openLinkInSystemBrowser: vi.fn(),
@@ -252,7 +288,8 @@ vi.mock("../lib/bridge", () => ({
 		},
 		app: {
 			resolvePath: vi.fn().mockResolvedValue(null),
-			openPath: vi.fn().mockResolvedValue(undefined),
+			resolveFirstPath: vi.fn().mockResolvedValue(null),
+			openPath: vi.fn().mockResolvedValue({ cliMissing: false }),
 		},
 		notifications: {
 			show: vi.fn().mockResolvedValue(undefined),
@@ -269,12 +306,16 @@ vi.mock("../theme/skin-context", () => ({
 
 
 import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
+import { DEFAULT_QUICK_FIX_RULES } from "@operator/terminal-react";
+import { terminalPredictiveEchoThresholdMs } from "../lib/terminal-predictive-echo";
 import { useUiStore } from "../stores/ui-store";
+import { terminalBackgroundColor } from "../lib/terminal-background";
 import { operatorBridge } from "../lib/bridge";
 import { openLinkInSystemBrowser } from "../lib/external-link-policy";
 
 const openPathMock = vi.mocked(operatorBridge.app.openPath);
 const resolvePathMock = vi.mocked(operatorBridge.app.resolvePath);
+const resolveFirstPathMock = vi.mocked(operatorBridge.app.resolveFirstPath);
 const showNotificationMock = vi.mocked(operatorBridge.notifications.show);
 const openLinkMock = vi.mocked(openLinkInSystemBrowser);
 
@@ -324,7 +365,9 @@ function renderTerminal(
 		coreOverrides?: Partial<MockCore>;
 		onReplayPainted?: () => void;
 		focusToken?: number;
+		visible?: boolean;
 		workspacePath?: string;
+		requestOlder?: (before: number) => void;
 	} = {},
 ) {
 	const localListeners: Array<(bytes: Uint8Array) => void> = [];
@@ -337,7 +380,9 @@ function renderTerminal(
 			return () => {};
 		},
 		resize: vi.fn(),
+		appearance: vi.fn(),
 		dispose: vi.fn(),
+		...(options.requestOlder ? { requestOlder: options.requestOlder } : {}),
 	};
 	render(
 		<QueryClientProvider client={new QueryClient()}>
@@ -348,6 +393,7 @@ function renderTerminal(
 				agentTui={options.agentTui}
 				onReplayPainted={options.onReplayPainted}
 				focusToken={options.focusToken}
+				visible={options.visible}
 				workspacePath={options.workspacePath}
 			/>
 		</QueryClientProvider>,
@@ -362,7 +408,7 @@ function renderTerminal(
 			return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(c) : value;
 		},
 	});
-	return { core: proxy };
+	return { core: proxy, transport };
 }
 
 beforeEach(() => {
@@ -382,24 +428,44 @@ beforeEach(() => {
 	mockState.onBlockFinished = undefined;
 	openPathMock.mockClear();
 	resolvePathMock.mockReset().mockResolvedValue(null);
+	resolveFirstPathMock.mockReset().mockResolvedValue(null);
 	showNotificationMock.mockClear();
 	openLinkMock.mockClear();
 	mockState.revision = 0;
 	mockState.reportGeometry = true;
 	mockState.emitGeometry = undefined;
 	mockState.focusToken = undefined;
+	mockState.visible = undefined;
+	mockState.marks = undefined;
+	mockState.commandHistory = undefined;
+	mockState.quickFixRules = undefined;
+	mockCommandHistory.noteCommandFinished.mockClear();
 	subscribers.clear();
+	useUiStore.setState({ terminalQuickFixesEnabled: true });
 });
 
 describe("BlockTerminal", () => {
 	it("gives the surface the path resolver, the editor opener, the host's patterns and the two callbacks", async () => {
 		renderTerminal({ workspacePath: "/work" });
 		await waitFor(() => expect(mockState.host).toBeDefined());
-		expect(typeof mockState.host?.resolvePath).toBe("function");
+		expect(typeof mockState.host?.resolveFirstPath).toBe("function");
 		expect(typeof mockState.host?.openPath).toBe("function");
 		expect(mockState.host?.secretPatterns).toEqual([]);
 		expect(typeof mockState.onHint).toBe("function");
 		expect(typeof mockState.onBlockFinished).toBe("function");
+	});
+
+	it("resolves hovered path candidates against the block's cwd, falling back to the session's workspace", async () => {
+		resolveFirstPathMock.mockResolvedValue({ index: 0, path: "/block/a.md" });
+		renderTerminal({ workspacePath: "/work" });
+		await waitFor(() => expect(mockState.host?.resolveFirstPath).toBeTypeOf("function"));
+		const candidates = [{ path: "a.md", allowDirectory: false }];
+
+		await expect(mockState.host!.resolveFirstPath!(candidates, "/block")).resolves.toEqual({ index: 0, path: "/block/a.md" });
+		expect(resolveFirstPathMock).toHaveBeenLastCalledWith("/block", candidates);
+		await mockState.host!.resolveFirstPath!(candidates, "");
+		expect(resolveFirstPathMock).toHaveBeenLastCalledWith("/work", candidates);
+		expect(resolveFirstPathMock).toHaveBeenCalledTimes(2);
 	});
 
 	it("resolves a hinted path against the workspace before opening it, and only then", async () => {
@@ -416,13 +482,65 @@ describe("BlockTerminal", () => {
 
 		mockState.onHint!({ ruleId: "file-line", text: "src/a.ts:42", path: "src/a.ts", line: 42 });
 		await waitFor(() => expect(resolvePathMock).toHaveBeenCalledWith("/work", "src/a.ts"));
-		await waitFor(() => expect(openPathMock).toHaveBeenCalledWith("/work/src/a.ts"));
+		await waitFor(() => expect(openPathMock).toHaveBeenCalledWith("/work/src/a.ts", 42, undefined, undefined));
 
 		resolvePathMock.mockResolvedValue(null);
 		openPathMock.mockClear();
 		mockState.onHint!({ ruleId: "file-line", text: "gone.ts:1", path: "gone.ts", line: 1 });
 		await waitFor(() => expect(resolvePathMock).toHaveBeenCalledWith("/work", "gone.ts"));
 		expect(openPathMock).not.toHaveBeenCalled();
+	});
+
+	it("opens a clicked path at its line and column in the chosen editor", async () => {
+		useUiStore.setState({ openFilesIn: "vscode" });
+		renderTerminal({ workspacePath: "/work" });
+		await waitFor(() => expect(mockState.host?.openPath).toBeTypeOf("function"));
+
+		await mockState.host!.openPath!("/work/src/a.ts", 42, 7);
+		expect(openPathMock).toHaveBeenLastCalledWith("/work/src/a.ts", 42, 7, "vscode");
+
+		useUiStore.setState({ openFilesIn: "system" });
+		await waitFor(() => expect(mockState.host?.openPath).toBeTypeOf("function"));
+		await mockState.host!.openPath!("/work/src/b.ts");
+		expect(openPathMock).toHaveBeenLastCalledWith("/work/src/b.ts", undefined, undefined, undefined);
+	});
+
+	it("opens a hinted path at the hint's line in the chosen editor", async () => {
+		useUiStore.setState({ openFilesIn: "zed" });
+		resolvePathMock.mockResolvedValue("/work/src/a.ts");
+		renderTerminal({ workspacePath: "/work" });
+		await waitFor(() => expect(mockState.onHint).toBeTypeOf("function"));
+
+		mockState.onHint!({ ruleId: "file-line", text: "src/a.ts:42", path: "src/a.ts", line: 42 });
+		await waitFor(() => expect(openPathMock).toHaveBeenCalledWith("/work/src/a.ts", 42, undefined, "zed"));
+		useUiStore.setState({ openFilesIn: "system" });
+	});
+
+	it("tells the user when the editor CLI was missing and the line was not applied", async () => {
+		useUiStore.setState({ openFilesIn: "cursor" });
+		openPathMock.mockResolvedValueOnce({ cliMissing: true });
+		renderTerminal({ workspacePath: "/work" });
+		await waitFor(() => expect(mockState.host?.openPath).toBeTypeOf("function"));
+
+		await act(async () => {
+			await mockState.host!.openPath!("/work/src/a.ts", 42);
+		});
+		expect(await screen.findByRole("status")).toHaveTextContent(
+			"Opened a.ts — Cursor CLI not found, line not applied",
+		);
+		useUiStore.setState({ openFilesIn: "system" });
+	});
+
+	it("shows no notice when the editor opened the file", async () => {
+		useUiStore.setState({ openFilesIn: "cursor" });
+		renderTerminal({ workspacePath: "/work" });
+		await waitFor(() => expect(mockState.host?.openPath).toBeTypeOf("function"));
+
+		await act(async () => {
+			await mockState.host!.openPath!("/work/src/a.ts", 42);
+		});
+		expect(screen.queryByRole("status")).toBeNull();
+		useUiStore.setState({ openFilesIn: "system" });
 	});
 
 	it("opens a hinted URL in the browser and copies anything else", async () => {
@@ -458,10 +576,55 @@ describe("BlockTerminal", () => {
 		});
 	});
 
+	it("leaves predictive echo off while the setting is off", async () => {
+		useUiStore.setState({ terminalPredictiveEcho: false });
+		renderTerminal();
+		await waitFor(() => expect(mockState.host).toBeDefined());
+		expect(mockState.host?.predictiveEcho).toBeUndefined();
+	});
+
+	it("hands Operator's predictive-echo threshold to the surface's host when the setting is on", async () => {
+		useUiStore.setState({ terminalPredictiveEcho: true });
+		renderTerminal();
+		await waitFor(() => expect(mockState.host?.predictiveEcho).toEqual({ thresholdMs: terminalPredictiveEchoThresholdMs }));
+		useUiStore.setState({ terminalPredictiveEcho: false });
+	});
+
+	it("gives the surface no marks while Settings has none", async () => {
+		useUiStore.setState({ terminalMarks: [] });
+		renderTerminal();
+		await waitFor(() => expect(mockState.marks).toEqual([]));
+	});
+
+	it("hands Settings' highlights to the surface as renderer rules and follows edits", async () => {
+		useUiStore.setState({ terminalMarks: [{ id: "a", pattern: "error", regex: false, colour: "red" }] });
+		renderTerminal();
+		await waitFor(() =>
+			expect(mockState.marks).toEqual([{ pattern: "error", regex: false, colour: "color-mix(in srgb, var(--terminal-ansi-1) 40%, transparent)" }]),
+		);
+		act(() => {
+			useUiStore.setState({
+				terminalMarks: [
+					{ id: "a", pattern: "error", regex: false, colour: "red" },
+					{ id: "b", pattern: "(broken", regex: true, colour: "green" },
+					{ id: "c", pattern: "FAIL|panic", regex: true, colour: "yellow" },
+				],
+			});
+		});
+		await waitFor(() => expect(mockState.marks?.map((mark) => mark.pattern)).toEqual(["error", "FAIL|panic"]));
+		useUiStore.setState({ terminalMarks: [] });
+	});
+
 	it("hands the host's focus token to the surface", async () => {
 		renderTerminal({ focusToken: 3 });
 		await waitFor(() => expect(mockState.core).toBeDefined());
 		await waitFor(() => expect(mockState.focusToken).toBe(3));
+	});
+
+	it("hands the host's visibility to the surface", async () => {
+		renderTerminal({ visible: false });
+		await waitFor(() => expect(mockState.core).toBeDefined());
+		await waitFor(() => expect(mockState.visible).toBe(false));
 	});
 
 	// A core is born 120x24 and only takes the pane's real grid when the surface
@@ -635,6 +798,31 @@ describe("BlockTerminal", () => {
 		expect(Array.from(mockState.feeds[4])).toEqual([...laterLive]);
 	});
 
+	it("drops the replay's settled rows after durable history, even when the frame arrives split", async () => {
+		const history = historyBlock("h1", "cat", "one two");
+		renderTerminal({ historyBlocks: [history] });
+		await waitFor(() => expect(mockState.feeds.length).toBeGreaterThanOrEqual(1));
+
+		const replay =
+			"\x1b]7000;v=1;origin=0\x1b\\\x1b]7000;v=1;settled=begin\x1b\\\x1b[0mtmp % cat\x1b[0m\r\n\x1b[0mone two\x1b[0m\r\n" +
+			"\x1b]7000;v=1;settled=end\x1b\\\x1b[0mtmp %\x1b[0m\r\x1b[6C\x1b]7000;v=1;ready=1\x1b\\";
+		for (let at = 0; at < replay.length; at += 9) emit(encode(replay.slice(at, at + 9)));
+
+		const expected = "\x1b]7000;v=1;origin=0\x1b\\\x1b[0mtmp %\x1b[0m\r\x1b[6C\x1b]7000;v=1;ready=1\x1b\\";
+		await waitFor(() =>
+			expect(concatFeeds(mockState.feeds)).toEqual([...history.rawOutput, ...encode(expected)]),
+		);
+	});
+
+	it("keeps every replayed row when there was no durable history to cover them", async () => {
+		renderTerminal();
+		const replay =
+			"\x1b]7000;v=1;origin=0\x1b\\\x1b]7000;v=1;settled=begin\x1b\\\x1b[0mone two\x1b[0m\r\n" +
+			"\x1b]7000;v=1;settled=end\x1b\\\x1b[0mtmp %\x1b[0m\x1b]7000;v=1;ready=1\x1b\\";
+		emit(encode(replay));
+		await waitFor(() => expect(concatFeeds(mockState.feeds)).toEqual([...encode(replay)]));
+	});
+
 	it("upserts a live block whose id was already replayed from history, via the mock core's id-keyed seam", async () => {
 		const { transport, emit } = harness();
 		renderWithQuery(
@@ -777,5 +965,139 @@ describe("BlockTerminal replay paint", () => {
 		emit(encode("live output"));
 		await waitFor(() => expect(mockState.feeds.length).toBeGreaterThan(1));
 		expect(onReplayPainted).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("BlockTerminal paste confirm", () => {
+	it("asks before an unsafe paste and answers with the button pressed", async () => {
+		renderTerminal();
+		await waitFor(() => expect(mockState.host?.confirmPaste).toBeTypeOf("function"));
+		let answer: Promise<boolean> = Promise.resolve(false);
+		act(() => {
+			answer = mockState.host!.confirmPaste!("git pull\nnpm install", "newline");
+		});
+		const dialog = await screen.findByRole("dialog", { name: "Paste into the terminal?" });
+		expect(dialog).toHaveTextContent("git pull");
+		await userEvent.click(screen.getByRole("button", { name: "Paste" }));
+		await expect(answer).resolves.toBe(true);
+	});
+
+	it.each(["Paste", "Cancel"])("hands the surface a new focus token after %s so typing reaches the terminal", async (name) => {
+		renderTerminal({ focusToken: 3 });
+		await waitFor(() => expect(mockState.host?.confirmPaste).toBeTypeOf("function"));
+		await waitFor(() => expect(mockState.focusToken).toBe(3));
+		act(() => {
+			void mockState.host!.confirmPaste!("one\ntwo", "newline");
+		});
+		await screen.findByRole("dialog", { name: "Paste into the terminal?" });
+		await userEvent.click(screen.getByRole("button", { name }));
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		await waitFor(() => expect(mockState.focusToken).not.toBe(3));
+		expect(mockState.focusToken).toBeTypeOf("number");
+	});
+
+	it("answers no when the user cancels", async () => {
+		renderTerminal();
+		await waitFor(() => expect(mockState.host?.confirmPaste).toBeTypeOf("function"));
+		let answer: Promise<boolean> = Promise.resolve(true);
+		act(() => {
+			answer = mockState.host!.confirmPaste!("a\x1b", "control");
+		});
+		await screen.findByRole("dialog", { name: "Paste into the terminal?" });
+		await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+		await expect(answer).resolves.toBe(false);
+	});
+});
+
+describe("BlockTerminal appearance", () => {
+	it("sends nothing until the surface has measured a cell", async () => {
+		const { transport } = renderTerminal();
+		await waitFor(() => expect(mockState.emitGeometry).toBeDefined());
+		expect(transport.appearance).not.toHaveBeenCalled();
+	});
+
+	it("sends the cell size in device pixels and the terminal's colours once the surface measures", async () => {
+		const { transport } = renderTerminal();
+		await waitFor(() => expect(mockState.emitGeometry).toBeDefined());
+		act(() => mockState.emitGeometry?.(80, 24, { width: 8.4, height: 16.8 }));
+		expect(transport.appearance).toHaveBeenLastCalledWith({
+			cellWidth: 8,
+			cellHeight: 17,
+			foreground: "#ffffff",
+			background: terminalBackgroundColor(useUiStore.getState().terminalBackground),
+		});
+	});
+});
+
+describe("BlockTerminal load older output", () => {
+	it("hands the surface a loader that asks the transport for the rows above a stable row", async () => {
+		const requestOlder = vi.fn();
+		renderTerminal({ requestOlder });
+		await waitFor(() => expect(mockState.host?.loadOlderOutput).toBeTypeOf("function"));
+		mockState.host!.loadOlderOutput!(4096);
+		expect(requestOlder).toHaveBeenCalledWith(4096);
+		expect(mockState.strings?.loadOlderOutput).toBe("Load older output");
+	});
+
+	it("offers no loader when the transport cannot fetch older output", async () => {
+		renderTerminal();
+		await waitFor(() => expect(mockState.host?.confirmPaste).toBeTypeOf("function"));
+		expect(mockState.host?.loadOlderOutput).toBeUndefined();
+	});
+});
+
+describe("BlockTerminal shared history and quick fixes", () => {
+	it("gives a shell surface the shared command history, the default quick-fix rules and their strings", async () => {
+		renderTerminal();
+		await waitFor(() => expect(mockState.commandHistory).toBe(mockCommandHistory));
+		expect(mockState.quickFixRules).toEqual([{ id: "mock-quick-fix" }]);
+		expect(mockState.strings?.quickFixLabel).toBe("Suggested fix");
+		expect(mockState.strings?.quickFixUse).toBe("Use");
+	});
+
+	it("gives an agent surface neither", async () => {
+		renderTerminal({ agentTui: true });
+		await waitFor(() => expect(mockState.onBlockFinished).toBeTypeOf("function"));
+		expect(mockState.commandHistory).toBeUndefined();
+		expect(mockState.quickFixRules).toBeUndefined();
+	});
+
+	it("asks the shared history to refresh when a shell command finishes, visible or not", async () => {
+		renderTerminal();
+		await waitFor(() => expect(mockState.onBlockFinished).toBeTypeOf("function"));
+		mockState.onBlockFinished!({ id: "0:1", exitCode: 0, durationMs: 10, visible: true });
+		mockState.onBlockFinished!({ id: "0:2", exitCode: 1, durationMs: 20_000, visible: false });
+		expect(mockCommandHistory.noteCommandFinished).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not refresh it for an agent pane's blocks", async () => {
+		renderTerminal({ agentTui: true });
+		await waitFor(() => expect(mockState.onBlockFinished).toBeTypeOf("function"));
+		mockState.onBlockFinished!({ id: "0:1", exitCode: 0, durationMs: 10, visible: true });
+		expect(mockCommandHistory.noteCommandFinished).not.toHaveBeenCalled();
+	});
+
+	it("passes no quick-fix rules when the setting is off", async () => {
+		useUiStore.setState({ terminalQuickFixesEnabled: false });
+		renderTerminal();
+		await waitFor(() => expect(mockState.commandHistory).toBe(mockCommandHistory));
+		expect(mockState.quickFixRules).toEqual([]);
+		useUiStore.setState({ terminalQuickFixesEnabled: true });
+	});
+
+	it("passes the starter rules when the setting is on", async () => {
+		useUiStore.setState({ terminalQuickFixesEnabled: true });
+		renderTerminal();
+		await waitFor(() => expect(mockState.commandHistory).toBe(mockCommandHistory));
+		expect(mockState.quickFixRules).toBe(DEFAULT_QUICK_FIX_RULES);
+	});
+
+	it("shows fixes again immediately after the setting is switched back on, without a reload", async () => {
+		useUiStore.setState({ terminalQuickFixesEnabled: false });
+		renderTerminal();
+		await waitFor(() => expect(mockState.commandHistory).toBe(mockCommandHistory));
+		expect(mockState.quickFixRules).toEqual([]);
+		act(() => useUiStore.setState({ terminalQuickFixesEnabled: true }));
+		await waitFor(() => expect(mockState.quickFixRules).toBe(DEFAULT_QUICK_FIX_RULES));
 	});
 });

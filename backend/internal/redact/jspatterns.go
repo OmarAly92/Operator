@@ -32,7 +32,7 @@ var builtinJSPatterns = []jsPattern{
 func JSPatterns() []Pattern {
 	out := make([]Pattern, 0, len(builtinJSPatterns))
 	for _, pattern := range builtinJSPatterns {
-		out = append(out, Pattern{Source: pattern.Source, Flags: pattern.Flags})
+		out = append(out, Pattern(pattern))
 	}
 	return out
 }

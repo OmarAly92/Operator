@@ -14,6 +14,7 @@ class Snack {
     this.iconBackgroundColor,
     this.actionLabel,
     this.onAction,
+    this.bottomOffset = 0,
   });
 
   final GlobalKey<SnackViewState> key = GlobalKey();
@@ -26,4 +27,5 @@ class Snack {
   final Color? iconBackgroundColor;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final double bottomOffset;
 }

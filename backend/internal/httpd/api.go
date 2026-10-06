@@ -36,9 +36,12 @@ type APIDeps struct {
 	// BlockHistory serves the persisted block-event log. Nil answers 501 rather
 	// than an empty list, so a client can tell "no blocks yet" from "this daemon
 	// cannot serve them".
-	BlockHistory controllers.BlockEventHistory
+	BlockHistory    controllers.BlockEventHistory
+	BackgroundTasks controllers.BackgroundTaskService
 	// SessionModels names the model each session last ran on. Nil omits it.
-	SessionModels controllers.SessionModelReader
+	SessionModels          controllers.SessionModelReader
+	SessionPermissionModes controllers.SessionPermissionModeReader
+	PermissionModeGate     controllers.PermissionModeGate
 	// Interactions serves a session's currently pending dialogs, for reconnect
 	// reconciliation.
 	Interactions controllers.InteractionReader
@@ -51,7 +54,7 @@ type APIDeps struct {
 	Reviews             reviewsvc.Manager
 	Notifications       controllers.NotificationService
 	NotificationStream  controllers.NotificationStream
-	Push                controllers.PushRegistry
+	PhoneAlerts         controllers.PhoneAlertService
 	ShellTerminals      controllers.ShellTerminalService
 	ShellTerminalBlocks controllers.ShellTerminalBlockHistory
 	ClaudeAccounts      controllers.ClaudeAccountService
@@ -84,7 +87,7 @@ type API struct {
 	prs            *controllers.PRsController
 	reviews        *controllers.ReviewsController
 	notifications  *controllers.NotificationsController
-	push           *controllers.PushController
+	phoneAlerts    *controllers.PhoneAlertsController
 	shellTerms     *controllers.ShellTerminalsController
 	claudeAccounts *controllers.ClaudeAccountsController
 	settings       *controllers.SettingsController
@@ -109,22 +112,25 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 			Mgr: deps.Projects,
 		},
 		sessions: &controllers.SessionsController{
-			Svc:           deps.Sessions,
-			Activity:      deps.Activity,
-			BlockEvents:   deps.BlockEvents,
-			BlockHistory:  deps.BlockHistory,
-			Models:        deps.SessionModels,
-			Interactions:  deps.Interactions,
-			SlashCommands: deps.SlashCommands,
-			Usage:         deps.UsageHooks,
-			PreviewServer: deps.PreviewServer,
-			Capabilities:  deps.SessionCapabilities,
+			Svc:                deps.Sessions,
+			Activity:           deps.Activity,
+			BlockEvents:        deps.BlockEvents,
+			BlockHistory:       deps.BlockHistory,
+			Tasks:              deps.BackgroundTasks,
+			Models:             deps.SessionModels,
+			PermissionModes:    deps.SessionPermissionModes,
+			PermissionModeGate: deps.PermissionModeGate,
+			Interactions:       deps.Interactions,
+			SlashCommands:      deps.SlashCommands,
+			Usage:              deps.UsageHooks,
+			PreviewServer:      deps.PreviewServer,
+			Capabilities:       deps.SessionCapabilities,
 		},
 		usage:          &controllers.UsageController{Svc: deps.UsageSummary},
 		prs:            &controllers.PRsController{Svc: deps.PRs},
 		reviews:        &controllers.ReviewsController{Svc: deps.Reviews},
 		notifications:  &controllers.NotificationsController{Svc: deps.Notifications, Stream: deps.NotificationStream},
-		push:           &controllers.PushController{Registry: deps.Push},
+		phoneAlerts:    &controllers.PhoneAlertsController{Svc: deps.PhoneAlerts},
 		shellTerms:     &controllers.ShellTerminalsController{Svc: deps.ShellTerminals, Blocks: deps.ShellTerminalBlocks},
 		claudeAccounts: &controllers.ClaudeAccountsController{Svc: deps.ClaudeAccounts, Terminals: deps.ShellTerminals},
 		settings:       &controllers.SettingsController{Svc: deps.Settings},
@@ -162,7 +168,7 @@ func (a *API) Register(root chi.Router) {
 			a.prs.Register(r)
 			a.reviews.Register(r)
 			a.notifications.Register(r)
-			a.push.Register(r)
+			a.phoneAlerts.Register(r)
 			a.shellTerms.Register(r)
 			a.settings.Register(r)
 			a.claudeAccounts.Register(r)

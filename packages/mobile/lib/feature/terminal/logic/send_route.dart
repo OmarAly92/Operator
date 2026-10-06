@@ -5,14 +5,7 @@ import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 /// so that one code — and only that one — reroutes the send to the PTY.
 const String kAwaitingDecision = 'SESSION_AWAITING_DECISION';
 
-enum SendTarget { agent, terminal }
-
 bool shouldRetryOnTerminal(Failure? failure) => failure?.apiStatus == kAwaitingDecision;
-
-SendTarget routeForSend(SendTarget target, [Failure? failure]) {
-  if (target == SendTarget.terminal) return SendTarget.terminal;
-  return shouldRetryOnTerminal(failure) ? SendTarget.terminal : SendTarget.agent;
-}
 
 /// The trailing carriage return is the Enter the user would otherwise have to
 /// press. Interior newlines collapse to spaces first: a PTY reads every one of

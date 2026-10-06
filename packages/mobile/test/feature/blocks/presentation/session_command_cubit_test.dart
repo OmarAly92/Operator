@@ -159,6 +159,45 @@ void main() {
   );
 
   blocTest<SessionCommandCubit, SessionCommandState>(
+    'a stop refused with SESSION_BUSY reports the agent as busy',
+    build: () {
+      when(() => repo.sendCommand(any(), any())).thenAnswer(
+        (_) async => Result.failure(
+          ServerFailure<Map<String, dynamic>>(error: 'busy', message: 'busy', statusCode: 409, apiStatus: 'SESSION_BUSY'),
+        ),
+      );
+      return cubit..onActivity('active');
+    },
+    act: (c) => c.run('stop'),
+    verify: (c) {
+      expect(c.phases['stop'], CommandPhase.idle);
+      expect(c.lastRefusal, 'The agent is busy — try again in a moment');
+    },
+  );
+
+  blocTest<SessionCommandCubit, SessionCommandState>(
+    'a later success clears the refusal',
+    build: () {
+      var calls = 0;
+      when(() => repo.sendCommand(any(), any())).thenAnswer((_) async {
+        calls++;
+        if (calls == 1) {
+          return Result.failure(
+            ServerFailure<Map<String, dynamic>>(error: 'busy', message: 'busy', apiStatus: 'SESSION_BUSY'),
+          );
+        }
+        return Result.success(GlobalResponse(data: const SessionCommandResultModel()));
+      });
+      return cubit..onActivity('active');
+    },
+    act: (c) async {
+      await c.run('stop');
+      await c.run('stop');
+    },
+    verify: (c) => expect(c.lastRefusal, isNull),
+  );
+
+  blocTest<SessionCommandCubit, SessionCommandState>(
     'a model command stores the rows the picker offered',
     build: () {
       when(() => repo.sendCommand(any(), any())).thenAnswer(

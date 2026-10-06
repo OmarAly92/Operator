@@ -142,6 +142,8 @@ function applyCursor(into: HTMLElement, view: AltScreenView, metrics: CellMetric
 	const cursor = document.createElement("div");
 	cursor.dataset.terminalCursor = "";
 	cursor.classList.add(CLASS_CURSOR);
+	cursor.style.top = "0px";
+	cursor.style.left = "0px";
 	positionCursor(cursor, view, metrics);
 	into.append(cursor);
 }

@@ -52,6 +52,7 @@
 		"publisher": "Operator",
 		"macOS": {
 			"minimumSystemVersion": "10.15",
+			"signingIdentity": "-",
 			"dmg": {
 				"windowSize": { "width": 660, "height": 400 },
 				"appPosition": { "x": 180, "y": 170 },

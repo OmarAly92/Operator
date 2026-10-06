@@ -10,29 +10,12 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_text_field.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/settings_group.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
-import 'package:operator_mobile/core/widgets/pickers/agent_picker_sheet.dart';
-import 'package:operator_mobile/core/widgets/pickers/claude_account_picker_sheet.dart';
-import 'package:operator_mobile/core/widgets/pickers/project_picker_sheet.dart';
-import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
-import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/agent_logo.dart';
-import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
+import 'package:operator_mobile/feature/spawn/logic/branch_options.dart';
+import 'package:operator_mobile/feature/spawn/logic/spawn_option_values.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
-
-ProjectModel? _projectById(List<ProjectModel> projects, String? id) {
-  if (id == null) return null;
-  for (final project in projects) {
-    if (project.id == id) return project;
-  }
-  return null;
-}
-
-RankedAgent? _agentById(List<RankedAgent> agents, String id) {
-  for (final agent in agents) {
-    if (agent.id == id) return agent;
-  }
-  return null;
-}
+import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/ui/widgets/spawn_option_rows.dart';
+import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/ui/widgets/spawn_options_sheet.dart';
 
 class SpawnBody extends StatefulWidget {
   const SpawnBody({super.key});
@@ -59,7 +42,7 @@ class _SpawnBodyState extends State<SpawnBody> {
     if (activeProjectId != kAllProjects) {
       _cubit.setProject(
         activeProjectId,
-        kind: _projectById(_sessionsCubit.projects, activeProjectId)?.kind,
+        kind: SpawnOptionValues.projectById(_sessionsCubit.projects, activeProjectId)?.kind,
       );
     } else if (_sessionsCubit.projects.length == 1) {
       final only = _sessionsCubit.projects.first;
@@ -75,46 +58,13 @@ class _SpawnBodyState extends State<SpawnBody> {
     super.dispose();
   }
 
-  Future<void> _openProjectPicker(BuildContext context) async {
-    final chosen = await showProjectPickerSheet(
-      context,
-      projects: _sessionsCubit.projects,
-      selected: _cubit.projectId ?? '',
-      includeAll: false,
-      title: 'Project',
-      subtitle: 'Where this agent gets its workspace.',
-    );
-    if (chosen != null && context.mounted) {
-      _cubit.setProject(chosen, kind: _projectById(_sessionsCubit.projects, chosen)?.kind);
-    }
-  }
-
-  Future<void> _openAgentPicker(BuildContext context, SpawnState state) async {
-    final chosen = await showAgentPickerSheet(
-      context,
-      agents: _cubit.agents,
-      selected: _cubit.harness,
-      onRefresh: _refreshCatalog,
-      error: state is CatalogFailureState ? 'Could not reach your Operator server' : null,
-    );
-    if (chosen != null && context.mounted) _cubit.setHarness(chosen);
-  }
-
-  Future<void> _openClaudeAccountPicker(BuildContext context) async {
-    final chosen = await showClaudeAccountPickerSheet(
-      context,
-      accounts: _cubit.claudeAccounts,
-      selected: _cubit.claudeAccountId,
-    );
-    if (chosen != null && context.mounted) _cubit.setClaudeAccount(chosen);
-  }
-
-  String _claudeAccountValue() {
-    for (final account in _cubit.claudeAccounts) {
-      if (account.id == _cubit.claudeAccountId) return account.displayLabel;
-    }
-    return 'Default';
-  }
+  Future<void> _openOptions(BuildContext context, SpawnOption option) => showSpawnOptionsSheet(
+        context,
+        cubit: _cubit,
+        projects: _sessionsCubit.projects,
+        open: option,
+        onRefreshAgents: _refreshCatalog,
+      );
 
   Future<void> _refreshCatalog() async {
     final resolved = _cubit.stream.firstWhere((s) => s is CatalogReadyState || s is CatalogFailureState);
@@ -154,21 +104,10 @@ class _SpawnBodyState extends State<SpawnBody> {
         }
       },
       builder: (context, state) {
-        final project = _projectById(_sessionsCubit.projects, _cubit.projectId);
-        final selectedAgent = _agentById(_cubit.agents, _cubit.harness);
-
-        String agentValue;
-        if (selectedAgent != null) {
-          agentValue = selectedAgent.label;
-        } else if (state is CatalogLoadingState) {
-          agentValue = 'Loading…';
-        } else {
-          agentValue = 'Choose an agent';
-        }
-
+        final project = SpawnOptionValues.projectById(_sessionsCubit.projects, _cubit.projectId);
         String? errorText;
         if (state is SpawnValidationFailureState) errorText = state.message;
-        if (state is SpawnFailureState) errorText = state.failure.message;
+        if (state is SpawnFailureState) errorText = BranchOptions.spawnFailureMessage(state.failure);
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -188,25 +127,12 @@ class _SpawnBodyState extends State<SpawnBody> {
               SettingsGroup(
                 footer: 'Agent availability is cached.',
                 children: [
-                  SettingsRow(
-                    icon: Icons.folder_outlined,
-                    label: 'Project',
-                    value: project?.name ?? 'Choose a project',
-                    onTap: () => _openProjectPicker(context),
+                  ...spawnOptionRows(
+                    cubit: _cubit,
+                    state: state,
+                    projects: _sessionsCubit.projects,
+                    onOpen: (option) => _openOptions(context, option),
                   ),
-                  SettingsRow(
-                    label: 'Agent',
-                    value: agentValue,
-                    leading: AgentLogo(harness: _cubit.harness.isEmpty ? null : _cubit.harness, size: 20),
-                    onTap: () => _openAgentPicker(context, state),
-                  ),
-                  if (_cubit.harness == 'claude-code' && _cubit.claudeAccounts.isNotEmpty)
-                    SettingsRow(
-                      icon: Icons.person_outline,
-                      label: 'Account',
-                      value: _claudeAccountValue(),
-                      onTap: () => _openClaudeAccountPicker(context),
-                    ),
                   if (project?.kind == 'single_repo')
                     SettingsRow(
                       icon: Icons.call_split,
@@ -215,6 +141,22 @@ class _SpawnBodyState extends State<SpawnBody> {
                         value: _cubit.useWorktree,
                         onChanged: (value) => _cubit.setUseWorktree(value),
                       ),
+                    ),
+                  if (project?.kind == 'single_repo')
+                    SettingsRow(
+                      key: const ValueKey('spawn-branch-row'),
+                      icon: Icons.account_tree_outlined,
+                      label: 'Branch',
+                      subtitle: _cubit.branchesError != null ? kBranchesFailedText : null,
+                      subtitleColor: skin.red,
+                      value: BranchOptions.rowValue(
+                        useWorktree: _cubit.useWorktree,
+                        selected: _cubit.selectedBranch,
+                        current: _cubit.currentBranch,
+                        loading: _cubit.branchesLoading,
+                        failed: _cubit.branchesError != null,
+                      ),
+                      onTap: _cubit.useWorktree ? () => _openOptions(context, SpawnOption.branch) : null,
                     ),
                 ],
               ),

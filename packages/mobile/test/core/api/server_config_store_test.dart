@@ -24,7 +24,10 @@ void main() {
 
     await store.load();
 
-    expect(store.current, const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'pw'));
+    expect(
+      store.current,
+      const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'pw', desktopId: 'a'),
+    );
   });
 
   test('load leaves current null when nothing is active', () async {
@@ -74,5 +77,16 @@ void main() {
     store.clear();
     expect(store.current, isNull);
     verifyZeroInteractions(local);
+  });
+
+  test('activeDesktopName follows the active desktop row', () async {
+    when(() => local.watchAll()).thenAnswer(
+      (_) => Stream.value(const [
+        DesktopModel(id: 'b', name: 'iMac', isActive: false),
+        DesktopModel(id: 'a', name: 'Mac', isActive: true),
+      ]),
+    );
+
+    expect(await store.activeDesktopName.first, 'Mac');
   });
 }

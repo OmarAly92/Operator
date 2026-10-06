@@ -36,10 +36,14 @@ func New(deps Deps) (*Workspace, error) {
 }
 
 func (w *Workspace) Create(ctx context.Context, cfg ports.WorkspaceConfig) (ports.WorkspaceInfo, error) {
-	if strings.TrimSpace(cfg.Branch) != "" {
-		return ports.WorkspaceInfo{}, fmt.Errorf("inplace workspace: a branch cannot be requested: %q", cfg.Branch)
+	info, err := w.resolve(ctx, cfg)
+	if err != nil {
+		return ports.WorkspaceInfo{}, err
 	}
-	return w.resolve(ctx, cfg)
+	if requested := strings.TrimSpace(cfg.Branch); requested != "" && requested != info.Branch {
+		return ports.WorkspaceInfo{}, fmt.Errorf("%w: %s is not checked out in the project folder (it is on %s)", ports.ErrWorkspaceBranchNotCheckedOut, requested, info.Branch)
+	}
+	return info, nil
 }
 
 func (w *Workspace) Restore(ctx context.Context, cfg ports.WorkspaceConfig) (ports.WorkspaceInfo, error) {

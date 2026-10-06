@@ -132,6 +132,8 @@ abstract class AppSkin {
   /// label color of the primary "Launch session" button.
   Color get onAccent;
 
+  Color get onGlassProminent;
+
   /// The dimmed layer covering the screen behind dialogs and sheets.
   /// Example: the dark overlay behind an open session's terminal sheet.
   Color get scrim;
@@ -144,6 +146,12 @@ abstract class AppSkin {
   /// A soft, translucent fill of [accent]. Example: the highlighted
   /// background of the currently selected tab in the sidebar.
   Color get accentTint;
+
+  Color get accentText;
+
+  Color get attentionText;
+
+  Color get scrollEdgeTint;
 
   /// The color drawing the eye to something that needs attention, outside
   /// the per-session state hues. Example: the dot on the notifications

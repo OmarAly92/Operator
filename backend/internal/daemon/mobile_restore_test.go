@@ -172,6 +172,21 @@ func TestRestoreSurfacesButSurvivesATunnelStartFailure(t *testing.T) {
 	}
 }
 
+func TestRestoreKeepsTheClaimedTopic(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mobile", "config.json")
+	want := mobilebridge.State{Enabled: true, Password: "abcdefgh", LastPort: 0, AlertTopic: strings.Repeat("a", mobilebridge.AlertTopicLength), AlertTopicClaimed: true}
+	if err := mobilebridge.Save(path, want); err != nil {
+		t.Fatal(err)
+	}
+	if err := restoreMobileOnBoot(path, &fakeLAN{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := mobilebridge.Load(path)
+	if got.AlertTopic != want.AlertTopic || !got.AlertTopicClaimed {
+		t.Fatalf("restore changed the topic: %+v", got)
+	}
+}
+
 func TestRestoreArmsPasswordStrengthFromThePersistedPassword(t *testing.T) {
 	for name, tc := range map[string]struct {
 		password string

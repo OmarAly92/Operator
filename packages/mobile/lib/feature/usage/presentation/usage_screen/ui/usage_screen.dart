@@ -112,7 +112,7 @@ class _UsageBody extends StatelessWidget {
             child: AppText(
               state.error ?? 'Could not load token usage.',
               style: AppTextStyle.style12Regular.copyWith(
-                color: context.skin.attention,
+                color: context.skin.attentionText,
               ),
               maxLines: 3,
               textAlign: TextAlign.center,

@@ -14,11 +14,12 @@ import (
 )
 
 type fakePRService struct {
-	mergeResult   prsvc.MergeResult
-	mergeErr      error
-	mergeRequest  prsvc.MergeRequest
-	resolveResult prsvc.ResolveResult
-	resolveErr    error
+	mergeResult    prsvc.MergeResult
+	mergeErr       error
+	mergeRequest   prsvc.MergeRequest
+	resolveResult  prsvc.ResolveResult
+	resolveErr     error
+	resolveRequest prsvc.ResolveRequest
 }
 
 func (f *fakePRService) Merge(_ context.Context, request prsvc.MergeRequest) (prsvc.MergeResult, error) {
@@ -26,7 +27,8 @@ func (f *fakePRService) Merge(_ context.Context, request prsvc.MergeRequest) (pr
 	return f.mergeResult, f.mergeErr
 }
 
-func (f *fakePRService) ResolveComments(_ context.Context, _ string, _ []string) (prsvc.ResolveResult, error) {
+func (f *fakePRService) ResolveComments(_ context.Context, request prsvc.ResolveRequest) (prsvc.ResolveResult, error) {
+	f.resolveRequest = request
 	return f.resolveResult, f.resolveErr
 }
 
@@ -119,7 +121,7 @@ func TestPRsRoutes_ResolveComments_200(t *testing.T) {
 	svc := &fakePRService{resolveResult: prsvc.ResolveResult{Resolved: 3}}
 	srv := newPRTestServer(t, svc)
 
-	body, status, _ := doRequest(t, srv, "POST", "/api/v1/prs/42/resolve-comments", `{"commentIds":["T_1","T_2","T_3"]}`)
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/prs/42/resolve-comments", `{"prUrl":"https://github.com/acme/widgets/pull/42","commentIds":["T_1","T_2","T_3"]}`)
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", status, body)
 	}
@@ -131,16 +133,30 @@ func TestPRsRoutes_ResolveComments_200(t *testing.T) {
 	if !resp.OK || resp.Resolved != 3 {
 		t.Errorf("resp = %+v, want {ok:true resolved:3}", resp)
 	}
+	got := svc.resolveRequest
+	if got.PRID != "42" || got.PRURL != "https://github.com/acme/widgets/pull/42" || len(got.CommentIDs) != 3 || got.CommentIDs[0] != "T_1" {
+		t.Fatalf("resolve request = %#v", got)
+	}
 }
 
-func TestPRsRoutes_ResolveComments_200_NoBody(t *testing.T) {
+// A number alone is ambiguous across repositories, so the PR URL is required,
+// the same contract as merge.
+func TestPRsRoutes_ResolveComments_400_WithoutPRURL(t *testing.T) {
 	svc := &fakePRService{resolveResult: prsvc.ResolveResult{Resolved: 2}}
 	srv := newPRTestServer(t, svc)
 
-	body, status, _ := doRequest(t, srv, "POST", "/api/v1/prs/42/resolve-comments", "")
-	if status != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body=%s", status, body)
-	}
+	body, status, headers := doRequest(t, srv, "POST", "/api/v1/prs/42/resolve-comments", "")
+	assertJSON(t, headers)
+	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_PR")
+}
+
+func TestPRsRoutes_ResolveComments_404_UnknownComments(t *testing.T) {
+	svc := &fakePRService{resolveErr: prsvc.ErrCommentsNotFound}
+	srv := newPRTestServer(t, svc)
+
+	body, status, headers := doRequest(t, srv, "POST", "/api/v1/prs/42/resolve-comments", `{"prUrl":"https://github.com/acme/widgets/pull/42","commentIds":["C_9"]}`)
+	assertJSON(t, headers)
+	assertErrorCode(t, body, status, http.StatusNotFound, "COMMENTS_NOT_FOUND")
 }
 
 // ---- ResolveComments: 404 ----
@@ -149,7 +165,7 @@ func TestPRsRoutes_ResolveComments_404(t *testing.T) {
 	svc := &fakePRService{resolveErr: prsvc.ErrPRNotFound}
 	srv := newPRTestServer(t, svc)
 
-	body, status, headers := doRequest(t, srv, "POST", "/api/v1/prs/99/resolve-comments", "")
+	body, status, headers := doRequest(t, srv, "POST", "/api/v1/prs/99/resolve-comments", `{"prUrl":"https://github.com/acme/widgets/pull/99"}`)
 	assertJSON(t, headers)
 	assertErrorCode(t, body, status, http.StatusNotFound, "PR_NOT_FOUND")
 }
@@ -160,7 +176,7 @@ func TestPRsRoutes_ResolveComments_422(t *testing.T) {
 	svc := &fakePRService{resolveErr: prsvc.ErrNothingToResolve}
 	srv := newPRTestServer(t, svc)
 
-	body, status, headers := doRequest(t, srv, "POST", "/api/v1/prs/1/resolve-comments", "")
+	body, status, headers := doRequest(t, srv, "POST", "/api/v1/prs/1/resolve-comments", `{"prUrl":"https://github.com/acme/widgets/pull/1"}`)
 	assertJSON(t, headers)
 	assertErrorCode(t, body, status, http.StatusUnprocessableEntity, "NOTHING_TO_RESOLVE")
 }

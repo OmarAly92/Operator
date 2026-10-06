@@ -1,0 +1,541 @@
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+	createTerminalCore,
+	initTerminalCore,
+	type FontConfig,
+	type TerminalCore,
+} from "@operator/terminal-core";
+import { DomBlockRenderer, warpDarkTheme } from "./index";
+import type { BlockFinishedEvent } from "./block-finished";
+import { HIDDEN_DRAIN_MS } from "./dom-block-renderer";
+
+const wasmPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "core", "wasm", "vt_core_bg.wasm");
+const fixture = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "bench", "agent-session", "fixtures", "claude-spinner-10s", "recording");
+
+const font: FontConfig = { family: "ui-monospace, monospace", sizePx: 14, lineHeight: 1.2, weight: 400, letterSpacingPx: 0, ligatures: false };
+
+beforeAll(async () => {
+	const bytes = await readFile(wasmPath);
+	await initTerminalCore(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
+});
+
+afterEach(() => {
+	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
+	document.body.replaceChildren();
+});
+
+function text(value: string): Uint8Array {
+	return new TextEncoder().encode(value);
+}
+
+function flushRepaint(): Promise<void> {
+	return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+}
+
+function scrollable(): HTMLElement {
+	const container = document.createElement("div");
+	Object.defineProperty(container, "clientHeight", { value: 100, configurable: true });
+	Object.defineProperty(container, "scrollHeight", { value: 100_000, configurable: true });
+	Object.defineProperty(container, "scrollTop", { value: 0, configurable: true, writable: true });
+	return container;
+}
+
+function parkingLot(): HTMLElement {
+	const lot = document.createElement("div");
+	lot.setAttribute("aria-hidden", "true");
+	lot.style.visibility = "hidden";
+	document.body.append(lot);
+	return lot;
+}
+
+function park(container: HTMLElement, lot: HTMLElement): void {
+	container.setAttribute("inert", "");
+	container.setAttribute("aria-hidden", "true");
+	container.style.pointerEvents = "none";
+	container.style.visibility = "hidden";
+	lot.append(container);
+}
+
+function mounted(columns = 40): { core: TerminalCore; host: HTMLElement; renderer: DomBlockRenderer; events: BlockFinishedEvent[] } {
+	const core = createTerminalCore({ columns, scrollback: 1000, rows: 5 });
+	const host = scrollable();
+	document.body.append(host);
+	const renderer = new DomBlockRenderer();
+	renderer.mount(host, core);
+	renderer.setTheme(warpDarkTheme);
+	renderer.setFont(font);
+	const events: BlockFinishedEvent[] = [];
+	renderer.onBlockFinished((event) => events.push(event));
+	return { core, host, renderer, events };
+}
+
+const OPEN_BLOCK = "\x1b]133;A\x07\x1b]133;B\x07\x1b]133;C\x07out\r\n";
+const CLOSE_BLOCK = "\x1b]133;D;0\x07";
+
+describe("block-finished detection", () => {
+	it("reports a block that finishes in a parked container as not visible", async () => {
+		const { core, host, renderer, events } = mounted();
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		park(host, parkingLot());
+		core.enqueue(text(CLOSE_BLOCK));
+		await flushRepaint();
+		await flushRepaint();
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ exitCode: 0, visible: false });
+		renderer.dispose();
+	});
+
+	it("reports a block that finishes under the alternate screen once the primary screen returns, not before", async () => {
+		const { core, renderer, events } = mounted();
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		core.feed(text(`${CLOSE_BLOCK}\x1b[?1049h`));
+		await flushRepaint();
+		await flushRepaint();
+		expect(events).toHaveLength(0);
+		core.feed(text("\x1b[?1049l"));
+		await flushRepaint();
+		expect(events).toHaveLength(1);
+		renderer.dispose();
+	});
+
+	it("never reports a block whose close arrives inside the alternate screen", async () => {
+		const { core, renderer, events } = mounted();
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		core.feed(text(`\x1b[?1049h${CLOSE_BLOCK}`));
+		await flushRepaint();
+		await flushRepaint();
+		core.feed(text("\x1b[?1049l"));
+		await flushRepaint();
+		expect(events).toHaveLength(0);
+		renderer.dispose();
+	});
+
+	it("reports each finished block once", async () => {
+		const { core, renderer, events } = mounted();
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		core.feed(text(CLOSE_BLOCK));
+		await flushRepaint();
+		core.feed(text("more\r\n"));
+		await flushRepaint();
+		expect(events).toHaveLength(1);
+		renderer.dispose();
+	});
+});
+
+function setDocumentVisibility(state: DocumentVisibilityState): void {
+	Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state });
+	document.dispatchEvent(new Event("visibilitychange"));
+}
+
+describe("visibility seam", () => {
+	afterEach(() => setDocumentVisibility("visible"));
+
+	it("reports the host's fact instead of guessing from the DOM", async () => {
+		const { core, renderer, events } = mounted();
+		renderer.setVisible(true);
+		expect(renderer.visibility()).toBe(true);
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		core.feed(text(CLOSE_BLOCK));
+		await flushRepaint();
+		expect(events[0]).toMatchObject({ visible: true });
+		renderer.dispose();
+	});
+
+	it("reports not visible when the host says so even if the DOM looks visible", async () => {
+		const { core, host, renderer, events } = mounted();
+		host.getClientRects = () => [{}] as unknown as DOMRectList;
+		renderer.setVisible(false);
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		core.enqueue(text(CLOSE_BLOCK));
+		await flushRepaint();
+		await flushRepaint();
+		expect(events[0]).toMatchObject({ visible: false });
+		renderer.dispose();
+	});
+
+	it("falls back to the DOM when the host sets nothing", async () => {
+		const { core, host, renderer, events } = mounted();
+		host.getClientRects = () => [{}] as unknown as DOMRectList;
+		renderer.setVisible(true);
+		renderer.setVisible(null);
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		core.feed(text(CLOSE_BLOCK));
+		await flushRepaint();
+		expect(events[0]).toMatchObject({ visible: true });
+		renderer.dispose();
+	});
+
+	it("reports not visible while the document is hidden, whatever the host says", async () => {
+		const { core, renderer, events } = mounted();
+		renderer.setVisible(true);
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		vi.stubGlobal("requestAnimationFrame", () => 0);
+		setDocumentVisibility("hidden");
+		core.enqueue(text(CLOSE_BLOCK));
+		await sleep(400);
+		expect(events.at(-1)).toMatchObject({ visible: false });
+		renderer.dispose();
+	});
+});
+
+function observeMutations(root: HTMLElement): () => number {
+	let count = 0;
+	const observer = new MutationObserver((records) => {
+		count += records.length;
+	});
+	observer.observe(root, { childList: true, subtree: true, attributes: true, characterData: true });
+	return () => {
+		count += observer.takeRecords().length;
+		observer.disconnect();
+		return count;
+	};
+}
+
+async function spinnerChunks(): Promise<Uint8Array[]> {
+	const bytes = new Uint8Array(await readFile(fixture));
+	const chunks: Uint8Array[] = [];
+	for (let at = 0; at < bytes.length; at += 4096) chunks.push(bytes.subarray(at, Math.min(bytes.length, at + 4096)));
+	return chunks;
+}
+
+function rowTexts(host: HTMLElement): string[] {
+	return [...host.querySelectorAll<HTMLElement>("[data-terminal-row]")].map((row) => row.textContent ?? "");
+}
+
+describe("paint gate", () => {
+	it("keeps draining a hidden pane without touching its DOM", async () => {
+		const { core, host, renderer } = mounted(120);
+		core.feed(text("before\r\n"));
+		await flushRepaint();
+		renderer.setVisible(false);
+		const generation = core.snapshot().generation;
+		const stop = observeMutations(host);
+		for (let index = 0; index < 20; index += 1) {
+			core.enqueue(text(`line ${index}\r\n`));
+			await flushRepaint();
+		}
+		expect(stop()).toBe(0);
+		expect(core.hasBacklog()).toBe(false);
+		expect(core.snapshot().generation).toBeGreaterThan(generation);
+		renderer.dispose();
+	});
+
+	it("still reports a finished block from a hidden pane, as not visible", async () => {
+		const { core, renderer, events } = mounted();
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		renderer.setVisible(false);
+		core.enqueue(text(CLOSE_BLOCK));
+		await flushRepaint();
+		await flushRepaint();
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ exitCode: 0, visible: false });
+		renderer.dispose();
+	});
+
+	it("defers a block that finishes in a hidden pane under the alternate screen until the primary screen returns", async () => {
+		const { core, renderer, events } = mounted();
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		renderer.setVisible(false);
+		core.enqueue(text(`${CLOSE_BLOCK}\x1b[?1049h`));
+		await flushRepaint();
+		await flushRepaint();
+		expect(events).toHaveLength(0);
+		core.enqueue(text("\x1b[?1049l"));
+		await flushRepaint();
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ visible: false });
+		renderer.dispose();
+	});
+
+	it("paints the current tail on the call that reveals it, stuck to the bottom", async () => {
+		const { core, host, renderer } = mounted(120);
+		core.feed(text("first screen\r\n"));
+		await flushRepaint();
+		renderer.setVisible(false);
+		const hiddenRows = rowTexts(host);
+		for (const chunk of await spinnerChunks()) {
+			core.enqueue(chunk);
+			await flushRepaint();
+		}
+		core.enqueue(text("\r\ntail marker\r\n"));
+		await flushRepaint();
+		expect(rowTexts(host)).toEqual(hiddenRows);
+		renderer.setVisible(true);
+		const shown = rowTexts(host);
+		expect(shown.join("\n")).toContain("tail marker");
+		expect(renderer.scrollAnchor()).toBeNull();
+		renderer.dispose();
+	});
+
+	it("paints while the host says visible even when the container is hidden and inert", async () => {
+		const { core, host, renderer } = mounted();
+		host.setAttribute("inert", "");
+		host.style.visibility = "hidden";
+		renderer.setVisible(true);
+		core.enqueue(text("preparing paint\r\n"));
+		await flushRepaint();
+		expect(rowTexts(host).join("\n")).toContain("preparing paint");
+		renderer.dispose();
+	});
+
+	it("keeps the scroll anchor and the selection across park and reveal", async () => {
+		const core = createTerminalCore({ columns: 20, limits: { rows: 1000, bytes: 0xffff_ffff }, rows: 2 });
+		for (let i = 0; i < 100; i += 1) core.feed(text(`line ${i}\r\n`));
+		const host = scrollable();
+		document.body.append(host);
+		const renderer = new DomBlockRenderer();
+		renderer.mount(host, core);
+		renderer.setFont(font);
+		const rowHeight = renderer.measure().cellHeight;
+		host.scrollTop = Math.round(rowHeight * 60);
+		host.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+		const anchor = renderer.scrollAnchor()!;
+		const blockId = host.querySelector<HTMLElement>("[data-terminal-block-id]")!.dataset.terminalBlockId!;
+		renderer.selectionBegin({ blockId, row: anchor.stableRow, column: 0, side: "left" }, "simple");
+		renderer.selectionUpdate({ blockId, row: anchor.stableRow, column: 4, side: "right" });
+		const selected = renderer.selectedText();
+		renderer.setVisible(false);
+		for (let i = 100; i < 140; i += 1) {
+			core.enqueue(text(`line ${i}\r\n`));
+			await flushRepaint();
+		}
+		renderer.setVisible(true);
+		expect(renderer.scrollAnchor()).toEqual(anchor);
+		expect(host.querySelector(`[data-terminal-row="${anchor.stableRow}"]`)?.textContent).toBe(`line ${anchor.stableRow}`);
+		expect(renderer.selectedText()).toBe(selected);
+		renderer.dispose();
+	});
+
+	it("neither samples round trips nor paints predictions while hidden", async () => {
+		const { core, host, renderer } = mounted();
+		core.feed(text("$ "));
+		await flushRepaint();
+		renderer.setPredictiveEcho({ thresholdMs: 0 });
+		renderer.noteRoundTrip(0, 50);
+		expect(renderer.predictKey({ text: "a", ctrlKey: false, altKey: false, metaKey: false, isComposing: false }, performance.now())).toBe(true);
+		const rtt = (renderer as unknown as { rtt: { median(): number | null } }).rtt;
+		const medianBefore = rtt.median();
+		renderer.noteSend(performance.now());
+		renderer.setVisible(false);
+		core.enqueue(text(" "));
+		await flushRepaint();
+		expect(renderer.predictionCount()).toBe(0);
+		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(0);
+		core.enqueue(text("a"));
+		await flushRepaint();
+		expect(rtt.median()).toBe(medianBefore);
+		renderer.setVisible(true);
+		core.feed(text("b"));
+		expect(rtt.median()).toBe(medianBefore);
+		renderer.dispose();
+	});
+
+	it("paints once when hidden and shown again before any frame ran", async () => {
+		const { core, host, renderer } = mounted();
+		core.feed(text("steady\r\n"));
+		await flushRepaint();
+		const steadyRow = [...host.querySelectorAll<HTMLElement>("[data-terminal-row]")].find((row) => row.textContent === "steady");
+		expect(steadyRow).toBeDefined();
+		renderer.setVisible(false);
+		core.enqueue(text("late\r\n"));
+		let paints = 0;
+		const stop = renderer.onPaint(() => {
+			paints += 1;
+		});
+		renderer.setVisible(true);
+		stop();
+		expect(paints).toBe(1);
+		expect(rowTexts(host).join("\n")).toContain("late");
+		expect((renderer as unknown as { catchUp: boolean }).catchUp).toBe(false);
+		expect([...host.querySelectorAll<HTMLElement>("[data-terminal-row]")].find((row) => row.textContent === "steady")).toBe(steadyRow);
+		renderer.dispose();
+	});
+
+	it("reveals mid sync block with the last complete frame, not half of the next", async () => {
+		const { core, host, renderer } = mounted();
+		core.feed(text("frame one\r\n"));
+		await flushRepaint();
+		renderer.setVisible(false);
+		core.enqueue(text("\x1b[?2026hhalf of frame two"));
+		await flushRepaint();
+		renderer.setVisible(true);
+		const shown = rowTexts(host).join("\n");
+		expect(shown).toContain("frame one");
+		expect(shown).not.toContain("half of frame two");
+		renderer.dispose();
+	});
+});
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+describe("hidden document", () => {
+	afterEach(() => setDocumentVisibility("visible"));
+
+	it("drains and reports finished blocks on a timer while the document is hidden", async () => {
+		const { core, renderer, events } = mounted();
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		vi.stubGlobal("requestAnimationFrame", () => 0);
+		setDocumentVisibility("hidden");
+		core.enqueue(text(`done\r\n${CLOSE_BLOCK}`));
+		await sleep(400);
+		expect(core.hasBacklog()).toBe(false);
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ visible: false });
+		renderer.dispose();
+	});
+
+	it("paints the visible pane when the document is shown again, and not the parked one", async () => {
+		const shown = mounted();
+		const parked = mounted();
+		parked.renderer.setVisible(false);
+		shown.renderer.setVisible(true);
+		await flushRepaint();
+		const parkedRows = rowTexts(parked.host);
+		setDocumentVisibility("hidden");
+		shown.core.enqueue(text("while away\r\n"));
+		parked.core.enqueue(text("while away\r\n"));
+		await sleep(400);
+		setDocumentVisibility("visible");
+		await flushRepaint();
+		expect(rowTexts(shown.host).join("\n")).toContain("while away");
+		expect(rowTexts(parked.host)).toEqual(parkedRows);
+		shown.renderer.dispose();
+		parked.renderer.dispose();
+	});
+
+	it("drains ~2 MiB enqueued while hidden within a few ticks and reports the block closing at its end as not visible", async () => {
+		const { core, renderer, events } = mounted(80);
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		vi.stubGlobal("requestAnimationFrame", () => 0);
+		setDocumentVisibility("hidden");
+		const drain = vi.spyOn(core, "drain");
+		const line = text(`${"x".repeat(78)}\r\n`);
+		const burst = new Uint8Array(line.length * 26_000);
+		for (let at = 0; at < burst.length; at += line.length) burst.set(line, at);
+		for (let at = 0; at < burst.length; at += 64 * 1024) core.enqueue(burst.subarray(at, Math.min(burst.length, at + 64 * 1024)));
+		core.enqueue(text(CLOSE_BLOCK));
+		for (let waited = 0; events.length === 0 && waited < 5000; waited += 50) await sleep(50);
+		expect(core.hasBacklog()).toBe(false);
+		expect(drain).toHaveBeenCalledWith(HIDDEN_DRAIN_MS);
+		expect(drain.mock.calls.length).toBeLessThanOrEqual(3);
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ visible: false });
+		renderer.dispose();
+	});
+
+	it("stops its timer when disposed while hidden", async () => {
+		const { core, renderer } = mounted();
+		vi.stubGlobal("requestAnimationFrame", () => 0);
+		setDocumentVisibility("hidden");
+		core.enqueue(text("x\r\n"));
+		const internals = renderer as unknown as { hiddenTimer: ReturnType<typeof setTimeout> | null; onVisibilityChange: () => void };
+		const armed = internals.hiddenTimer;
+		expect(armed).not.toBeNull();
+		const clear = vi.spyOn(globalThis, "clearTimeout");
+		const remove = vi.spyOn(document, "removeEventListener");
+		renderer.dispose();
+		expect(clear).toHaveBeenCalledWith(armed);
+		expect(remove).toHaveBeenCalledWith("visibilitychange", internals.onVisibilityChange);
+		const schedule = vi.spyOn(globalThis, "setTimeout");
+		const frame = vi.fn(() => 0);
+		vi.stubGlobal("requestAnimationFrame", frame);
+		setDocumentVisibility("visible");
+		setDocumentVisibility("hidden");
+		expect(frame).not.toHaveBeenCalled();
+		expect(schedule).not.toHaveBeenCalled();
+	});
+});
+
+describe("echo and edges across a park", () => {
+	const typed = { text: "a", ctrlKey: false, altKey: false, metaKey: false, isComposing: false };
+
+	it("keeps pending predictions across a park and show within one frame", async () => {
+		const { core, renderer } = mounted();
+		core.feed(text("$ "));
+		await flushRepaint();
+		renderer.setPredictiveEcho({ thresholdMs: 0 });
+		renderer.noteRoundTrip(0, 50);
+		expect(renderer.predictKey(typed, performance.now())).toBe(true);
+		renderer.setVisible(false);
+		renderer.setVisible(true);
+		expect(renderer.predictionCount()).toBe(1);
+		renderer.dispose();
+	});
+
+	it("keeps the in-flight round trip across a park and show within one frame", async () => {
+		const { core, renderer } = mounted();
+		core.feed(text("$ "));
+		await flushRepaint();
+		const rtt = (renderer as unknown as { rtt: { median(): number | null } }).rtt;
+		renderer.noteSend(performance.now());
+		renderer.setVisible(false);
+		renderer.setVisible(true);
+		core.feed(text("a"));
+		expect(rtt.median()).not.toBeNull();
+		renderer.dispose();
+	});
+
+	it("does not time a send made while hidden", async () => {
+		const { core, renderer } = mounted();
+		core.feed(text("$ "));
+		await flushRepaint();
+		const rtt = (renderer as unknown as { rtt: { median(): number | null } }).rtt;
+		renderer.setVisible(false);
+		renderer.noteSend(performance.now());
+		core.enqueue(text("a"));
+		await flushRepaint();
+		renderer.setVisible(true);
+		core.feed(text("b"));
+		expect(rtt.median()).toBeNull();
+		renderer.dispose();
+	});
+
+	it("holds the paint gate when there is no requestAnimationFrame", async () => {
+		const { core, host, renderer, events } = mounted();
+		core.feed(text(`before\r\n${OPEN_BLOCK}`));
+		await flushRepaint();
+		const before = rowTexts(host);
+		const eventsBefore = events.length;
+		renderer.setVisible(false);
+		vi.stubGlobal("requestAnimationFrame", undefined);
+		core.feed(text(`while parked\r\n${CLOSE_BLOCK}`));
+		expect(rowTexts(host)).toEqual(before);
+		expect(events.slice(eventsBefore)).toHaveLength(1);
+		expect(events.at(-1)).toMatchObject({ visible: false });
+		renderer.dispose();
+	});
+
+	it("does not paint when mounted already hidden, and paints on show", () => {
+		const core = createTerminalCore({ columns: 40, scrollback: 1000, rows: 5 });
+		core.feed(text("already here\r\n"));
+		const host = scrollable();
+		document.body.append(host);
+		const renderer = new DomBlockRenderer();
+		renderer.setVisible(false);
+		renderer.mount(host, core);
+		expect(rowTexts(host)).toEqual([]);
+		expect(renderer.visibility()).toBe(false);
+		renderer.setVisible(true);
+		expect(rowTexts(host).join("\n")).toContain("already here");
+		renderer.dispose();
+	});
+});

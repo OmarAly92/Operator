@@ -36,6 +36,7 @@ var (
 	ErrAgentExited        = errors.New("session: agent exited")
 	ErrAgentNotExited     = errors.New("session: agent has not exited")
 	ErrIncompleteHandle   = errors.New("session: incomplete teardown handle")
+	ErrTerminalResponding = errors.New("session: terminal is responding")
 	ErrWrongActivityState = errors.New("session: command not available in this activity state")
 	ErrDialogAbsent       = errors.New("session: dialog is no longer on screen")
 	ErrDialogKindMismatch = errors.New("session: the pending dialog is not of that kind")
@@ -111,6 +112,8 @@ var (
 	// would answer it on the user's behalf. The API maps it to a 409; the
 	// caller retries once the user has answered in the terminal.
 	ErrAwaitingDecision = errors.New("session: awaiting a user decision")
+
+	ErrSessionBusy = errors.New("session: another operation is driving the terminal")
 	// ErrAgentNotResponding means the paste was written to the pane but the
 	// session never went active across the whole confirmation budget, despite
 	// every Enter the loop is allowed to send. A successful write is not
@@ -211,6 +214,7 @@ type Store interface {
 	// SetSessionClaudeAccount is the only way to move a session's Claude account:
 	// UpdateSession does not write that column.
 	SetSessionClaudeAccount(ctx context.Context, id domain.SessionID, account domain.ClaudeAccountID, updatedAt time.Time) (bool, error)
+	SetSessionLaunchPermissionMode(ctx context.Context, id domain.SessionID, mode domain.PermissionMode, updatedAt time.Time) (bool, error)
 	GetSession(ctx context.Context, id domain.SessionID) (domain.SessionRecord, bool, error)
 	ListSessions(ctx context.Context, project domain.ProjectID) ([]domain.SessionRecord, error)
 	ListAllSessions(ctx context.Context) ([]domain.SessionRecord, error)
@@ -259,7 +263,13 @@ type Manager struct {
 	// emptyComposerDetector overrides emptyComposerDetectorFor's resolution
 	// against m.agents. It is nil in production; tests set it directly since
 	// their fakeAgents do not implement ports.EmptyComposerDetector.
-	emptyComposerDetector ports.EmptyComposerDetector
+	emptyComposerDetector   ports.EmptyComposerDetector
+	tasksPanelReader        ports.TerminalTasksPanelReader
+	permissionModeReader    ports.TerminalPermissionModeReader
+	permissionModesMu       sync.Mutex
+	permissionModes         PermissionModeObserver
+	permissionModeTiming    permissionModeTiming
+	permissionRestartSettle func(context.Context) error
 	// messenger is a sessionguard.Guard wrapping the raw messenger, so every
 	// pane write is guarded (re-read state, refuse a blocked session) without
 	// each call site re-deriving the check. Send/confirmActive use Deliver for
@@ -298,6 +308,7 @@ type Manager struct {
 	retainedSwitches map[domain.SessionID]struct{}
 	inputLeases      map[domain.SessionID]int
 	inputDrained     map[domain.SessionID]chan struct{}
+	paneDrives       map[domain.SessionID]chan struct{}
 	// handoffWait bounds optional source-agent enrichment. Deterministic Operator
 	// context is sufficient, so expiry never prevents the actual switch.
 	handoffWait time.Duration
@@ -477,6 +488,8 @@ func New(d Deps) *Manager {
 		handoffWait:                  60 * time.Second,
 		switchPermissionDecisionWait: 2 * time.Minute,
 		switchTargetStartWait:        3 * time.Second,
+		permissionModeTiming:         livePermissionModeTiming,
+		permissionRestartSettle:      func(ctx context.Context) error { return sleepContext(ctx, permissionRestartSettleDelay) },
 		// Provider startup, including slow MCP initialization, can delay the
 		// prompt-submit hook even though the continuation is correctly buffered.
 		// Keep the acknowledgement wait below the CLI's seven-minute switch timeout
@@ -538,9 +551,6 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		if projectKind != domain.ProjectKindSingleRepo {
 			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", ErrInPlaceUnsupported)
 		}
-		if strings.TrimSpace(cfg.Branch) != "" {
-			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: an in-place session cannot take a branch", ErrInPlaceUnsupported)
-		}
 	}
 	// A per-project role override picks the harness when the spawn names none.
 	cfg.Harness = effectiveHarness(cfg.Harness, project.Config)
@@ -572,11 +582,15 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	promptBytes := len(prompt)
 	systemPromptBytes := len(systemPrompt)
 
-	rec, err := m.store.CreateSession(ctx, seedRecord(cfg, m.clock()))
+	agentConfig := applySpawnAgentConfig(effectiveAgentConfig(project.Config), cfg.AgentConfig)
+	seed := seedRecord(cfg, m.clock())
+	seed.LaunchPermissionMode = ports.NormalizePermissionMode(agentConfig.Permissions)
+	rec, err := m.store.CreateSession(ctx, seed)
 	if err != nil {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: create: %w", err)
 	}
 	id := rec.ID
+	systemPrompt = m.withMCPBoardInstructions(cfg.Harness, systemPrompt)
 	systemPromptFile, err := m.prepareSystemPromptFile(id, cfg.Harness, systemPrompt)
 	if err != nil {
 		m.rollbackSpawnSeedRow(ctx, id)
@@ -627,7 +641,6 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: no agent adapter for harness %q", id, cfg.Harness)
 	}
-	agentConfig := applySpawnAgentConfig(effectiveAgentConfig(project.Config), cfg.AgentConfig)
 	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env)
 	if err != nil {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, true)
@@ -653,6 +666,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		IssueID:          string(cfg.IssueID),
 		Config:           agentConfig,
 		Permissions:      agentConfig.Permissions,
+		MCPServers:       m.operatorMCPServers(id, cfg.ProjectID),
 	}
 	delivery, err := agent.GetPromptDeliveryStrategy(ctx, launchCfg)
 	if err != nil {
@@ -794,8 +808,12 @@ func (m *Manager) createSessionWorkspace(ctx context.Context, project domain.Pro
 		SessionPrefix: sessionPrefix(project),
 		Branch:        branch,
 		RootRepoPath:  project.Path,
-		BaseBranch:    project.Config.WithDefaults().DefaultBranch,
-		Repos:         childRepos,
+		// The configured value, not WithDefaults: an unset root branch is inferred
+		// from the root repo (origin/HEAD, then its current branch). Workspace
+		// projects registered before the root branch was recorded otherwise base
+		// the root on a `main` that a `master` repo does not have.
+		BaseBranch: project.Config.DefaultBranch,
+		Repos:      childRepos,
 	})
 	if err != nil {
 		return ports.WorkspaceInfo{}, nil, err
@@ -935,6 +953,14 @@ func effectiveAgentConfig(cfg domain.ProjectConfig) ports.AgentConfig {
 	return cfg.AgentConfig
 }
 
+func sessionAgentConfig(rec domain.SessionRecord, cfg domain.ProjectConfig) ports.AgentConfig {
+	agentConfig := effectiveAgentConfig(cfg)
+	if rec.LaunchPermissionMode != "" {
+		agentConfig.Permissions = rec.LaunchPermissionMode
+	}
+	return agentConfig
+}
+
 func applySpawnAgentConfig(base, override ports.AgentConfig) ports.AgentConfig {
 	if override.Model != "" {
 		base.Model = override.Model
@@ -1064,7 +1090,7 @@ func (m *Manager) Kill(ctx context.Context, id domain.SessionID) (bool, error) {
 
 	var workspaceProjectRows []ports.WorkspaceRepoInfo
 	workspaceProject := false
-	if rows, ok, rowErr := m.workspaceProjectRows(ctx, rec); rowErr != nil {
+	if rows, ok, rowErr := m.workspaceProjectTeardownRows(ctx, rec); rowErr != nil {
 		return false, fmt.Errorf("kill %s: workspace rows: %w", id, rowErr)
 	} else if ok {
 		workspaceProjectRows = rows
@@ -1313,6 +1339,52 @@ func (m *Manager) RelaunchAgentFresh(ctx context.Context, id domain.SessionID, c
 		relaunchPolicy{forceFresh: true, keepPrompt: cfg.KeepPrompt})
 }
 
+func (m *Manager) RestartTerminal(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (RestoreResult, error) {
+	if err := m.beginAgentOperation(ctx, id, agentOperationRestartTerminal); err != nil {
+		if errors.Is(err, errAgentOperationInProgress) {
+			err = ErrSwitchInProgress
+		}
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, err)
+	}
+	defer m.endAgentOperation(id, agentOperationRestartTerminal)
+
+	rec, ok, err := m.store.GetSession(ctx, id)
+	if err != nil {
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, err)
+	}
+	if !ok {
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, ErrNotFound)
+	}
+	if rec.IsTerminated {
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, ErrTerminated)
+	}
+	project, err := m.loadProject(ctx, rec.ProjectID)
+	if err != nil {
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, err)
+	}
+	meta := rec.Metadata
+	if meta.WorkspacePath == "" ||
+		(meta.Branch == "" && project.Kind.WithDefault() != domain.ProjectKindScratch) ||
+		meta.RuntimeHandleID == "" {
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, ErrIncompleteHandle)
+	}
+	handle := ports.RuntimeHandle{ID: meta.RuntimeHandleID}
+	if reader, ok := m.runtime.(ports.TerminalHealthReader); ok && reader.TerminalHealth(handle) == ports.TerminalHealthy {
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, ErrTerminalResponding)
+	}
+	if err := m.runtime.Destroy(ctx, handle); err != nil {
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: stop the unresponsive terminal: %w", id, err)
+	}
+	ws := ports.WorkspaceInfo{
+		Path:      meta.WorkspacePath,
+		Branch:    meta.Branch,
+		SessionID: rec.ID,
+		ProjectID: rec.ProjectID,
+		Mode:      meta.WorkspaceMode,
+	}
+	return m.relaunchSession(ctx, "restart terminal", rec, project, ws, &handle, grid)
+}
+
 // relaunchPolicy selects how a relaunch rebuilds the agent's conversation.
 // The zero value is the historical behavior: prefer the harness's native
 // resume, fall back to replaying the saved prompt.
@@ -1323,7 +1395,8 @@ type relaunchPolicy struct {
 	forceFresh bool
 	// keepPrompt re-delivers the session's saved task prompt into the new
 	// conversation. Ignored unless forceFresh is set.
-	keepPrompt bool
+	keepPrompt  bool
+	permissions domain.PermissionMode
 }
 
 func (m *Manager) relaunchSession(ctx context.Context, operation string, rec domain.SessionRecord, project domain.ProjectRecord, ws ports.WorkspaceInfo, restartHandle *ports.RuntimeHandle, grid ports.PaneGrid) (RestoreResult, error) {
@@ -1355,6 +1428,7 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: switched continuation: %w", operation, rec.ID, err)
 	}
+	systemPrompt = m.withMCPBoardInstructions(rec.Harness, systemPrompt)
 	systemPromptFile, err := m.prepareSystemPromptFile(rec.ID, rec.Harness, systemPrompt)
 	if err != nil {
 		m.cleanupSystemPromptDir(rec.ID)
@@ -1362,8 +1436,13 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	}
 
 	// Restore re-applies the project's resolved agent config so a configured
-	// model/permissions carry across a restore, matching fresh spawn.
-	agentConfig := effectiveAgentConfig(project.Config)
+	// model carries across a restore, matching fresh spawn; permissions come
+	// from the relaunch policy's requested mode when set, else the session's
+	// recorded launch mode, else the project's.
+	agentConfig := sessionAgentConfig(rec, project.Config)
+	if policy.permissions != "" {
+		agentConfig.Permissions = policy.permissions
+	}
 	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env)
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: launch env: %w", operation, rec.ID, err)
@@ -1381,6 +1460,7 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 		delivery ports.PromptDeliveryStrategy
 		mode     RestoreMode
 	)
+	mcpServers := m.operatorMCPServers(rec.ID, rec.ProjectID)
 	if policy.forceFresh {
 		var nativeSessionID string
 		nativeSessionID, err = freshNativeSessionID(agent)
@@ -1389,10 +1469,10 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 			return RestoreResult{}, fmt.Errorf("%s %s: fresh native session id: %w", operation, rec.ID, err)
 		}
 		argv, delivery, mode, err = freshLaunchArgv(ctx, agent, rec.ID, ws.Path, launchMeta,
-			systemPrompt, systemPromptFile, agentConfig, m.dataDir, true, nativeSessionID)
+			systemPrompt, systemPromptFile, agentConfig, m.dataDir, true, nativeSessionID, mcpServers)
 	} else {
 		argv, delivery, mode, err = restoreArgv(ctx, agent, rec.ID, ws.Path, launchMeta,
-			systemPrompt, systemPromptFile, agentConfig, rec.Harness, m.dataDir)
+			systemPrompt, systemPromptFile, agentConfig, rec.Harness, m.dataDir, mcpServers)
 	}
 	if err != nil {
 		m.cleanupSystemPromptDir(rec.ID)
@@ -1414,12 +1494,13 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	}
 	defer m.lcm.CancelLaunch(rec.ID, launchID)
 	runtimeCfg := ports.RuntimeConfig{
-		SessionID:     rec.ID,
-		WorkspacePath: ws.Path,
-		Argv:          argv,
-		Env:           env,
-		Cols:          grid.Cols,
-		Rows:          grid.Rows,
+		SessionID:      rec.ID,
+		WorkspacePath:  ws.Path,
+		Argv:           argv,
+		Env:            env,
+		Cols:           grid.Cols,
+		Rows:           grid.Rows,
+		RestoreHistory: true,
 	}
 	var handle ports.RuntimeHandle
 	if restartHandle == nil {
@@ -1445,6 +1526,11 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 		_ = m.runtime.Destroy(ctx, handle)
 		m.cleanupSystemPromptDir(rec.ID)
 		return RestoreResult{}, fmt.Errorf("%s %s: completed: %w", operation, rec.ID, err)
+	}
+	if policy.permissions != "" {
+		if _, err := m.store.SetSessionLaunchPermissionMode(ctx, rec.ID, policy.permissions, m.clock()); err != nil {
+			m.logger.Warn("relaunch: record launch permission mode", "sessionID", rec.ID, "error", err)
+		}
 	}
 	if delivery == ports.PromptDeliveryAfterStart && launchMeta.Prompt != "" {
 		launchCfg := ports.LaunchConfig{
@@ -1742,7 +1828,7 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 // For each saved session:
 //  1. Ensure the worktree exists via workspace.Restore.
 //  2. If a preserve ref is recorded, replay it via ApplyPreserved; on conflict
-//     log and continue (still relaunch the agent, never delete the ref).
+//     log and continue (still relaunch the agent, and keep the ref on the row).
 //  3. Relaunch via the existing Restore method.
 //
 // Failures on individual sessions are logged and do not abort the loop.
@@ -1817,24 +1903,7 @@ func (m *Manager) RestoreAll(ctx context.Context) error {
 		if restoredWorkspaceProject {
 			m.applyWorkspaceProjectPreserved(ctx, projectRows)
 		} else {
-			var preserveRef string
-			for _, r := range rows {
-				if r.PreservedRef != "" {
-					preserveRef = r.PreservedRef
-					break
-				}
-			}
-			if preserveRef != "" {
-				if applyErr := m.workspace.ApplyPreserved(ctx, ws, preserveRef); applyErr != nil {
-					if errors.Is(applyErr, ports.ErrPreservedConflict) {
-						m.logger.Warn("restore-all: apply preserved produced conflicts; agent relaunched with conflict markers in place",
-							"sessionID", rec.ID, "ref", preserveRef, "error", applyErr)
-					} else {
-						m.logger.Error("restore-all: apply preserved failed", "sessionID", rec.ID, "error", applyErr)
-					}
-					// Continue: always relaunch even on conflict (never delete the ref here).
-				}
-			}
+			rows = m.replaySingleRepoMarker(ctx, rec.ID, ws, rows)
 		}
 
 		// Step 3: relaunch the agent in the restored workspace.
@@ -1863,12 +1932,7 @@ func (m *Manager) RestoreAll(ctx context.Context) error {
 				}
 			}
 		} else {
-			if err := m.markSessionWorktreesActive(ctx, rows); err != nil {
-				m.logger.Warn("restore-all: marking worktrees active failed", "sessionID", rec.ID, "error", err)
-			}
-			if err := m.store.DeleteSessionWorktrees(ctx, rec.ID); err != nil {
-				m.logger.Warn("restore-all: delete restore marker failed", "sessionID", rec.ID, "error", err)
-			}
+			m.consumeSingleRepoMarker(ctx, rec.ID, rows)
 		}
 	}
 	return nil
@@ -1901,7 +1965,7 @@ func (m *Manager) markSessionWorktreesActive(ctx context.Context, rows []domain.
 
 func (m *Manager) restoreSessionWorkspace(ctx context.Context, project domain.ProjectRecord, rec domain.SessionRecord) (ports.WorkspaceInfo, error) {
 	if project.Kind.WithDefault() != domain.ProjectKindWorkspace {
-		return m.workspace.Restore(ctx, ports.WorkspaceConfig{
+		ws, err := m.workspace.Restore(ctx, ports.WorkspaceConfig{
 			ProjectID:     rec.ProjectID,
 			SessionID:     rec.ID,
 			SessionPrefix: sessionPrefix(project),
@@ -1909,6 +1973,11 @@ func (m *Manager) restoreSessionWorkspace(ctx context.Context, project domain.Pr
 			Path:          rec.Metadata.WorkspacePath,
 			Mode:          rec.Metadata.WorkspaceMode,
 		})
+		if err != nil {
+			return ports.WorkspaceInfo{}, err
+		}
+		m.consumeSingleRepoRestoreMarker(ctx, rec.ID, ws)
+		return ws, nil
 	}
 	rows, err := m.workspaceProjectRestoreRows(ctx, project, rec)
 	if err != nil {
@@ -1918,12 +1987,115 @@ func (m *Manager) restoreSessionWorkspace(ctx context.Context, project domain.Pr
 	if err != nil {
 		return ports.WorkspaceInfo{}, err
 	}
+	// Same replay as RestoreAll: a boot-time relaunch that failed leaves the
+	// saved work only in the preserve refs, and a manual restore is how the user
+	// gets it back.
+	m.applyWorkspaceProjectPreserved(ctx, rows)
 	for _, row := range rows {
 		if err := m.upsertWorkspaceProjectRowState(ctx, row, "active"); err != nil {
 			return ports.WorkspaceInfo{}, fmt.Errorf("mark repo %s active: %w", row.RepoName, err)
 		}
 	}
 	return workspaceInfoFromRepoInfo(root), nil
+}
+
+// consumeSingleRepoRestoreMarker is a manual restore's version of RestoreAll's
+// replay-and-consume for a single-repo session. A boot-time relaunch that failed
+// leaves the saved work only in the marker's preserve ref, and a manual restore
+// is how the user gets it back. Failures are logged: the worktree is back, and
+// the relaunch goes ahead.
+func (m *Manager) consumeSingleRepoRestoreMarker(ctx context.Context, id domain.SessionID, ws ports.WorkspaceInfo) {
+	rows, err := m.store.ListSessionWorktrees(ctx, id)
+	if err != nil {
+		m.logger.Error("restore: list worktrees failed; saved work not replayed", "sessionID", id, "error", err)
+		return
+	}
+	rows = restorableWorktreeRows(rows)
+	if len(rows) == 0 {
+		return
+	}
+	m.consumeSingleRepoMarker(ctx, id, m.replaySingleRepoMarker(ctx, id, ws, rows))
+}
+
+// replaySingleRepoMarker replays a single-repo marker's preserve ref onto the
+// restored worktree and returns the rows as they now stand. A clean replay
+// clears the rows' PreservedRef at once: the adapter has deleted the git ref,
+// and a relaunch that fails after this must not leave a pointer to it. A
+// conflicted, failed or skipped replay keeps the ref, the only pointer to the
+// saved work.
+func (m *Manager) replaySingleRepoMarker(ctx context.Context, id domain.SessionID, ws ports.WorkspaceInfo, rows []domain.SessionWorktreeRecord) []domain.SessionWorktreeRecord {
+	var preserveRef string
+	for _, row := range rows {
+		if row.PreservedRef != "" {
+			preserveRef = row.PreservedRef
+			break
+		}
+	}
+	if preserveRef == "" || !m.replayPreserved(ctx, ws, preserveRef, "") {
+		return rows
+	}
+	out := make([]domain.SessionWorktreeRecord, 0, len(rows))
+	for _, row := range rows {
+		row.PreservedRef = ""
+		if err := m.store.UpsertSessionWorktree(ctx, row); err != nil {
+			m.logger.Warn("restore: clearing applied preserve ref failed", "sessionID", id, "error", err)
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+// consumeSingleRepoMarker retires a single-repo shutdown marker once its session
+// is restored, so it never outlives one restart (#2319). With no saved work left
+// the rows are marked active and deleted. A row still holding a PreservedRef
+// (its replay did not apply cleanly) is marked active and kept: the next boot
+// neither relaunches the session nor replays the ref, but the pointer to the
+// saved work survives.
+func (m *Manager) consumeSingleRepoMarker(ctx context.Context, id domain.SessionID, rows []domain.SessionWorktreeRecord) {
+	keepRef := false
+	for _, row := range rows {
+		keepRef = keepRef || row.PreservedRef != ""
+	}
+	if keepRef {
+		for _, row := range rows {
+			row.State = "active"
+			if err := m.store.UpsertSessionWorktree(ctx, row); err != nil {
+				m.logger.Warn("restore: marking worktree active failed", "sessionID", id, "error", err)
+			}
+		}
+		return
+	}
+	if err := m.markSessionWorktreesActive(ctx, rows); err != nil {
+		m.logger.Warn("restore: marking worktrees active failed", "sessionID", id, "error", err)
+	}
+	if err := m.store.DeleteSessionWorktrees(ctx, id); err != nil {
+		m.logger.Warn("restore: delete restore marker failed", "sessionID", id, "error", err)
+	}
+}
+
+// replayPreserved applies a preserve ref to a restored worktree and reports
+// whether it applied cleanly. A worktree that is already dirty was never torn
+// down, so it still holds that work: replaying the capture onto it would only
+// conflict, and it is skipped. repo is only for the log ("" for a single-repo
+// session).
+func (m *Manager) replayPreserved(ctx context.Context, info ports.WorkspaceInfo, preserveRef, repo string) bool {
+	if observer, ok := m.workspace.(ports.WorkspaceObserver); ok {
+		if observation, observeErr := observer.ObserveWorkspace(ctx, info); observeErr == nil && observation.Dirty {
+			m.logger.Warn("restore: worktree already holds uncommitted work; saved work kept, not replayed",
+				"sessionID", info.SessionID, "repo", repo, "ref", preserveRef)
+			return false
+		}
+	}
+	if applyErr := m.workspace.ApplyPreserved(ctx, info, preserveRef); applyErr != nil {
+		if errors.Is(applyErr, ports.ErrPreservedConflict) {
+			m.logger.Warn("restore: apply preserved produced conflicts; agent relaunched with conflict markers in place",
+				"sessionID", info.SessionID, "repo", repo, "ref", preserveRef, "error", applyErr)
+		} else {
+			m.logger.Error("restore: apply preserved failed", "sessionID", info.SessionID, "repo", repo, "error", applyErr)
+		}
+		return false
+	}
+	return true
 }
 
 func (m *Manager) workspaceProjectRestoreRows(ctx context.Context, project domain.ProjectRecord, rec domain.SessionRecord) ([]ports.WorkspaceRepoInfo, error) {
@@ -1971,6 +2143,37 @@ func (m *Manager) workspaceProjectRestoreRowsFromMarkers(ctx context.Context, pr
 		})
 	}
 	return out, nil
+}
+
+// workspaceProjectTeardownRows is workspaceProjectRows for paths that remove
+// worktrees. A workspace session with at most one worktree row (legacy data, or
+// rows lost) still has its children nested inside the root worktree, and the
+// single-repo teardown would delete them with the root. Such sessions get their
+// rows rebuilt from the registry so children are handled before the root.
+func (m *Manager) workspaceProjectTeardownRows(ctx context.Context, rec domain.SessionRecord) ([]ports.WorkspaceRepoInfo, bool, error) {
+	rows, ok, err := m.workspaceProjectRows(ctx, rec)
+	if err != nil || ok {
+		return rows, ok, err
+	}
+	project, err := m.loadProject(ctx, rec.ProjectID)
+	if err != nil {
+		return nil, false, err
+	}
+	if project.Kind.WithDefault() != domain.ProjectKindWorkspace || strings.TrimSpace(rec.Metadata.WorkspacePath) == "" {
+		return nil, false, nil
+	}
+	markers, err := m.store.ListSessionWorktrees(ctx, rec.ID)
+	if err != nil {
+		return nil, false, err
+	}
+	rebuilt, err := m.workspaceProjectRestoreRowsFromMarkers(ctx, project, rec, markers)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(rebuilt) <= 1 {
+		return nil, false, nil
+	}
+	return rebuilt, true, nil
 }
 
 func (m *Manager) workspaceProjectRows(ctx context.Context, rec domain.SessionRecord) ([]ports.WorkspaceRepoInfo, bool, error) {
@@ -2026,21 +2229,27 @@ func (m *Manager) sessionWorktreeRowsToRepoInfos(ctx context.Context, project do
 	return out, nil
 }
 
+// saveAndTeardownWorkspaceProject saves every repo before it marks any of them
+// removed. Marking repos one by one left a partial set of "removed" rows when a
+// later stash failed; the next boot then restored those repos onto worktrees
+// that were never torn down and relaunched a half-saved session. Now either
+// every repo is captured and marked, or no row changes and nothing is removed.
 func (m *Manager) saveAndTeardownWorkspaceProject(ctx context.Context, rec domain.SessionRecord, rows []ports.WorkspaceRepoInfo, destroyRuntime bool) error {
-	for _, row := range rows {
+	refs := make([]string, len(rows))
+	for i, row := range rows {
 		ref, err := m.workspace.StashUncommitted(ctx, workspaceInfoFromRepoInfo(row))
 		if err != nil {
 			return fmt.Errorf("save %s repo %s: stash: %w", rec.ID, row.RepoName, err)
 		}
-		if err := m.store.UpsertSessionWorktree(ctx, domain.SessionWorktreeRecord{
-			SessionID:    rec.ID,
-			RepoName:     row.RepoName,
-			Branch:       row.Branch,
-			BaseSHA:      row.BaseSHA,
-			WorktreePath: row.Path,
-			PreservedRef: ref,
-			State:        "removed",
-		}); err != nil {
+		refs[i] = ref
+	}
+	before, err := m.store.ListSessionWorktrees(ctx, rec.ID)
+	if err != nil {
+		return fmt.Errorf("save %s: list worktree rows: %w", rec.ID, err)
+	}
+	for i, row := range rows {
+		if err := m.upsertWorkspaceProjectRow(ctx, row, "removed", refs[i]); err != nil {
+			m.rollbackWorkspaceProjectRows(ctx, rec.ID, rows[:i], before)
 			return fmt.Errorf("save %s repo %s: upsert worktree row: %w", rec.ID, row.RepoName, err)
 		}
 	}
@@ -2071,43 +2280,150 @@ func (m *Manager) saveAndTeardownWorkspaceProject(ctx context.Context, rec domai
 	return nil
 }
 
+// rollbackWorkspaceProjectRows puts rows written during a failed save back to
+// the state and PreservedRef they had before it; a row that did not exist is
+// marked active, which RestoreAll never picks up.
+func (m *Manager) rollbackWorkspaceProjectRows(ctx context.Context, id domain.SessionID, written []ports.WorkspaceRepoInfo, before []domain.SessionWorktreeRecord) {
+	for _, row := range written {
+		state, ref := "active", ""
+		for _, prior := range before {
+			if prior.RepoName == row.RepoName {
+				state, ref = prior.State, prior.PreservedRef
+			}
+		}
+		if err := m.upsertWorkspaceProjectRow(ctx, row, state, ref); err != nil {
+			m.logger.Error("save: rolling back removed marker failed", "sessionID", id, "repo", row.RepoName, "error", err)
+		}
+	}
+}
+
+// destroyWorkspaceProjectRows removes a workspace session's worktrees, children
+// first and the root last. Child worktrees live inside the root worktree and the
+// root ignores them, so `git worktree remove` on the root deletes any child
+// directory still there, uncommitted work included. Teardown is therefore
+// all-or-nothing on dirtiness (every repo is checked before anything is
+// removed) and the root is only removed once every child is gone.
 func (m *Manager) destroyWorkspaceProjectRows(ctx context.Context, rows []ports.WorkspaceRepoInfo) (bool, error) {
-	cleaned := false
-	var firstErr error
-	for i := len(rows) - 1; i >= 0; i-- {
-		if rows[i].Path == "" {
+	if err := m.refuseDirtyWorkspaceProjectRows(ctx, rows); err != nil {
+		return false, err
+	}
+	var root *ports.WorkspaceRepoInfo
+	children := make([]ports.WorkspaceRepoInfo, 0, len(rows))
+	for i := range rows {
+		if rows[i].RepoName == domain.RootWorkspaceRepoName {
+			root = &rows[i]
 			continue
 		}
-		info := workspaceInfoFromRepoInfo(rows[i])
-		if err := m.workspace.Destroy(ctx, info); err != nil {
+		children = append(children, rows[i])
+	}
+	cleaned := false
+	var firstErr error
+	destroy := func(row ports.WorkspaceRepoInfo) (removed bool, dirty error) {
+		if err := m.workspace.Destroy(ctx, workspaceInfoFromRepoInfo(row)); err != nil {
 			if errors.Is(err, ports.ErrWorkspaceDirty) {
-				return cleaned, err
+				return false, err
 			}
-			if stateErr := m.upsertWorkspaceProjectRowState(ctx, rows[i], "retry_remove"); stateErr != nil && firstErr == nil {
+			if stateErr := m.upsertWorkspaceProjectRowState(ctx, row, "retry_remove"); stateErr != nil && firstErr == nil {
 				firstErr = stateErr
 			}
 			if firstErr == nil {
 				firstErr = err
 			}
-			continue
+			return false, nil
 		}
-		if err := m.upsertWorkspaceProjectRowState(ctx, rows[i], "unavailable"); err != nil && firstErr == nil {
+		if err := m.upsertWorkspaceProjectRowState(ctx, row, "unavailable"); err != nil && firstErr == nil {
 			firstErr = err
 		}
 		cleaned = true
+		return true, nil
+	}
+	childrenRemoved := true
+	for i := len(children) - 1; i >= 0; i-- {
+		if children[i].Path == "" {
+			continue
+		}
+		removed, dirty := destroy(children[i])
+		if dirty != nil {
+			return cleaned, dirty
+		}
+		if !removed {
+			childrenRemoved = false
+		}
+	}
+	if root == nil || root.Path == "" {
+		return cleaned, firstErr
+	}
+	if !childrenRemoved {
+		if stateErr := m.upsertWorkspaceProjectRowState(ctx, *root, "retry_remove"); stateErr != nil && firstErr == nil {
+			firstErr = stateErr
+		}
+		return cleaned, firstErr
+	}
+	if _, dirty := destroy(*root); dirty != nil {
+		return cleaned, dirty
 	}
 	return cleaned, firstErr
 }
 
+// refuseDirtyWorkspaceProjectRows returns ErrWorkspaceDirty when any repo in the
+// session holds uncommitted work, so a kill never removes some repos and then
+// stops at a dirty one. A repo that cannot be observed (already removed, say) is
+// left to Destroy's own dirty refusal.
+func (m *Manager) refuseDirtyWorkspaceProjectRows(ctx context.Context, rows []ports.WorkspaceRepoInfo) error {
+	observer, ok := m.workspace.(ports.WorkspaceObserver)
+	if !ok {
+		return nil
+	}
+	for _, row := range rows {
+		if row.Path == "" {
+			continue
+		}
+		observation, err := observer.ObserveWorkspace(ctx, workspaceInfoFromRepoInfo(row))
+		if err != nil {
+			m.logger.Debug("workspace dirty pre-check skipped a repo", "sessionID", row.SessionID, "repo", row.RepoName, "err", err)
+			continue
+		}
+		if observation.Dirty {
+			return fmt.Errorf("workspace repo %q has uncommitted work: %w", row.RepoName, ports.ErrWorkspaceDirty)
+		}
+	}
+	return nil
+}
+
+// upsertWorkspaceProjectRowState changes a repo row's state and keeps its
+// PreservedRef. The upsert writes every column, so dropping the ref here would
+// lose the only pointer to saved work that has not been applied yet.
 func (m *Manager) upsertWorkspaceProjectRowState(ctx context.Context, row ports.WorkspaceRepoInfo, state string) error {
+	ref, err := m.workspaceProjectPreservedRef(ctx, row)
+	if err != nil {
+		return err
+	}
+	return m.upsertWorkspaceProjectRow(ctx, row, state, ref)
+}
+
+func (m *Manager) upsertWorkspaceProjectRow(ctx context.Context, row ports.WorkspaceRepoInfo, state, preservedRef string) error {
 	return m.store.UpsertSessionWorktree(ctx, domain.SessionWorktreeRecord{
 		SessionID:    row.SessionID,
 		RepoName:     row.RepoName,
 		Branch:       row.Branch,
 		BaseSHA:      row.BaseSHA,
 		WorktreePath: row.Path,
+		PreservedRef: preservedRef,
 		State:        state,
 	})
+}
+
+func (m *Manager) workspaceProjectPreservedRef(ctx context.Context, row ports.WorkspaceRepoInfo) (string, error) {
+	rows, err := m.store.ListSessionWorktrees(ctx, row.SessionID)
+	if err != nil {
+		return "", err
+	}
+	for _, existing := range rows {
+		if existing.RepoName == row.RepoName {
+			return existing.PreservedRef, nil
+		}
+	}
+	return "", nil
 }
 
 func (m *Manager) restoreWorkspaceProjectRows(ctx context.Context, rows []ports.WorkspaceRepoInfo) (ports.WorkspaceRepoInfo, error) {
@@ -2135,30 +2451,34 @@ func (m *Manager) restoreWorkspaceProjectRows(ctx context.Context, rows []ports.
 	return root, nil
 }
 
+// applyWorkspaceProjectPreserved replays each repo's saved work and clears the
+// row's PreservedRef only when the replay was clean. A conflicted or failed
+// replay keeps the ref (and the adapter keeps the git ref). A worktree that is
+// already dirty was never torn down, so it still holds that work: replaying the
+// capture onto it would only conflict, and it is skipped with the ref kept.
 func (m *Manager) applyWorkspaceProjectPreserved(ctx context.Context, rows []ports.WorkspaceRepoInfo) {
 	for _, row := range rows {
-		var preserveRef string
-		sessionRows, err := m.store.ListSessionWorktrees(ctx, row.SessionID)
+		preserveRef, err := m.workspaceProjectPreservedRef(ctx, row)
 		if err != nil {
-			m.logger.Error("restore-all: list worktrees failed", "sessionID", row.SessionID, "error", err)
+			m.logger.Error("restore: list worktrees failed", "sessionID", row.SessionID, "error", err)
 			continue
-		}
-		for _, sessionRow := range sessionRows {
-			if sessionRow.RepoName == row.RepoName {
-				preserveRef = sessionRow.PreservedRef
-				break
-			}
 		}
 		if preserveRef == "" {
 			continue
 		}
-		if applyErr := m.workspace.ApplyPreserved(ctx, workspaceInfoFromRepoInfo(row), preserveRef); applyErr != nil {
-			if errors.Is(applyErr, ports.ErrPreservedConflict) {
-				m.logger.Warn("restore-all: apply preserved produced conflicts; agent relaunched with conflict markers in place",
-					"sessionID", row.SessionID, "repo", row.RepoName, "ref", preserveRef, "error", applyErr)
-			} else {
-				m.logger.Error("restore-all: apply preserved failed", "sessionID", row.SessionID, "repo", row.RepoName, "error", applyErr)
+		if !m.replayPreserved(ctx, workspaceInfoFromRepoInfo(row), preserveRef, row.RepoName) {
+			continue
+		}
+		state := "removed"
+		if sessionRows, listErr := m.store.ListSessionWorktrees(ctx, row.SessionID); listErr == nil {
+			for _, existing := range sessionRows {
+				if existing.RepoName == row.RepoName && existing.State != "" {
+					state = existing.State
+				}
 			}
+		}
+		if err := m.upsertWorkspaceProjectRow(ctx, row, state, ""); err != nil {
+			m.logger.Warn("restore: clearing applied preserve ref failed", "sessionID", row.SessionID, "repo", row.RepoName, "error", err)
 		}
 	}
 }
@@ -2221,7 +2541,7 @@ func (m *Manager) send(ctx context.Context, id domain.SessionID, message string)
 	case sessionguard.SuppressedAwaitingUser:
 		return fmt.Errorf("send %s: %w", id, ErrAwaitingDecision)
 	case sessionguard.SuppressedInputGated:
-		return fmt.Errorf("send %s: %w", id, ErrSwitchInProgress)
+		return fmt.Errorf("send %s: %w", id, m.inputGatedError(id))
 	}
 	if isBuiltin {
 		return nil
@@ -2482,7 +2802,7 @@ func (m *Manager) Cleanup(ctx context.Context, project domain.ProjectID) (Cleanu
 // it was left alone this run (Cleanup records it in Skipped and can retry on
 // a later call).
 func (m *Manager) cleanupOne(ctx context.Context, rec domain.SessionRecord, ws ports.WorkspaceInfo) (skipReason string) {
-	if rows, ok, rowErr := m.workspaceProjectRows(ctx, rec); rowErr != nil {
+	if rows, ok, rowErr := m.workspaceProjectTeardownRows(ctx, rec); rowErr != nil {
 		m.logger.Warn("cleanup: workspace rows failed", "sessionID", rec.ID, "error", rowErr)
 		return "workspace teardown failed"
 	} else if ok {
@@ -2559,11 +2879,10 @@ func DefaultSpawnBranch(id domain.SessionID, projectKind domain.ProjectKind, dat
 	if projectKind == domain.ProjectKindScratch {
 		return ""
 	}
-	branchNamespace := generatedBranchNamespace(dataDir)
-	if projectKind == domain.ProjectKindWorkspace {
-		return operatorBranch(branchNamespace, string(id))
-	}
-	return defaultSessionBranch(id, branchNamespace)
+	// Workspace projects use the same /root shape as single-repo projects: a bare
+	// opr/<session> branch would leave no Git-valid name for a second PR, since
+	// opr/<session>/<topic> cannot exist beside it.
+	return defaultSessionBranch(id, generatedBranchNamespace(dataDir))
 }
 
 func operatorBranch(namespace string, parts ...string) string {
@@ -2871,12 +3190,8 @@ func HookPATH(executable func() (string, error), getenv func(string) string, pro
 	if err != nil {
 		return "", fmt.Errorf("resolve daemon executable: %w", err)
 	}
-	name := filepath.Base(exe)
-	if runtime.GOOS == "windows" {
-		name = strings.TrimSuffix(strings.ToLower(name), ".exe")
-	}
-	if name != hookBinaryName {
-		return "", fmt.Errorf("daemon executable %s is not named %q", exe, hookBinaryName)
+	if err := requireOprExecutable(exe); err != nil {
+		return "", err
 	}
 	base := projectEnv["PATH"]
 	if base == "" {
@@ -2887,6 +3202,19 @@ func HookPATH(executable func() (string, error), getenv func(string) string, pro
 		return dir, nil
 	}
 	return dir + string(os.PathListSeparator) + base, nil
+}
+
+// requireOprExecutable reports whether exe is an `opr` binary, the only kind the
+// hook PATH pin and the Operator MCP server registration may point agents at.
+func requireOprExecutable(exe string) error {
+	name := filepath.Base(exe)
+	if runtime.GOOS == "windows" {
+		name = strings.TrimSuffix(strings.ToLower(name), ".exe")
+	}
+	if name != hookBinaryName {
+		return fmt.Errorf("daemon executable %s is not named %q", exe, hookBinaryName)
+	}
+	return nil
 }
 
 // provisionWorkspace applies the project's per-workspace setup after the
@@ -3012,6 +3340,7 @@ func (m *Manager) prepareWorkspace(ctx context.Context, agent ports.Agent, id do
 		SystemPrompt:     systemPrompt,
 		SystemPromptFile: systemPromptFile,
 		Config:           agentConfig,
+		MCPServers:       m.operatorMCPServers(id, domain.ProjectID(env[EnvProjectID])),
 	}); err != nil {
 		m.cleanupPreparedAgentWorkspace(ctx, agent, id, workspacePath, env)
 		return fmt.Errorf("install hooks: %w", err)
@@ -3109,7 +3438,7 @@ func (m *Manager) deliverAfterStartPrompt(ctx context.Context, agent ports.Agent
 	case sessionguard.SuppressedAwaitingUser:
 		return fmt.Errorf("send %s: %w", id, ErrAwaitingDecision)
 	case sessionguard.SuppressedInputGated:
-		return fmt.Errorf("send %s: %w", id, ErrSwitchInProgress)
+		return fmt.Errorf("send %s: %w", id, m.inputGatedError(id))
 	case sessionguard.SuppressedUnknown:
 		return fmt.Errorf("send %s: pre-write session read failed", id)
 	default:
@@ -3181,6 +3510,13 @@ func promptOutputContains(output string, patterns []string) bool {
 	return false
 }
 
+func (m *Manager) inputGatedError(id domain.SessionID) error {
+	if m.paneDriveActive(id) || m.permissionRestartActive(id) {
+		return ErrSessionBusy
+	}
+	return ErrSwitchInProgress
+}
+
 func sleepContext(ctx context.Context, d time.Duration) error {
 	timer := time.NewTimer(d)
 	defer timer.Stop()
@@ -3238,13 +3574,13 @@ func freshNativeSessionID(agent ports.Agent) (string, error) {
 // signals via ok=false (e.g. no native session id captured yet). Returns
 // ErrNotResumable when transcript-preserving restore is required but unavailable,
 // or when a promptless, unresumable worker has nothing to restore from.
-func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, _ domain.AgentHarness, dataDir string) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
+func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, _ domain.AgentHarness, dataDir string, mcpServers []ports.MCPServerSpec) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
 	ref := ports.SessionRef{
 		ID:            string(id),
 		WorkspacePath: workspacePath,
 		Metadata:      map[string]string{ports.MetadataKeyAgentSessionID: meta.AgentSessionID},
 	}
-	cmd, ok, err := agent.GetRestoreCommand(ctx, ports.RestoreConfig{Session: ref, DataDir: dataDir, SystemPrompt: systemPrompt, SystemPromptFile: systemPromptFile, Config: agentConfig, Permissions: agentConfig.Permissions})
+	cmd, ok, err := agent.GetRestoreCommand(ctx, ports.RestoreConfig{Session: ref, DataDir: dataDir, SystemPrompt: systemPrompt, SystemPromptFile: systemPromptFile, Config: agentConfig, Permissions: agentConfig.Permissions, MCPServers: mcpServers})
 	if err != nil {
 		return nil, "", "", fmt.Errorf("restore command: %w", err)
 	}
@@ -3252,13 +3588,13 @@ func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, wo
 		return cmd, ports.PromptDeliveryInCommand, RestoreModeNative, nil
 	}
 	return freshLaunchArgv(ctx, agent, id, workspacePath, meta, systemPrompt,
-		systemPromptFile, agentConfig, dataDir, false, "")
+		systemPromptFile, agentConfig, dataDir, false, "", mcpServers)
 }
 
 // freshLaunchArgv builds the non-resume half of restoreArgv. Interface
 // transitions also use it when an adapter proves its reserved id has no
 // persisted history, both for preflight and for the actual target launch.
-func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, dataDir string, allowPromptless bool, nativeSessionID string) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
+func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, dataDir string, allowPromptless bool, nativeSessionID string, mcpServers []ports.MCPServerSpec) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
 	// A saved prompt is replayed fresh. A promptless worker has no task and no
 	// session id to restore from: do not blank-relaunch it.
 	if meta.Prompt == "" && !allowPromptless {
@@ -3277,6 +3613,7 @@ func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID
 		Config:           agentConfig,
 		Permissions:      agentConfig.Permissions,
 		NativeSessionID:  nativeSessionID,
+		MCPServers:       mcpServers,
 	}
 	delivery, err := agent.GetPromptDeliveryStrategy(ctx, launchCfg)
 	if err != nil {

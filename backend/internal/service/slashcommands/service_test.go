@@ -3,6 +3,7 @@ package slashcommands_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -245,7 +246,7 @@ func TestListFrontMatterWithoutDescriptionIsEmpty(t *testing.T) {
 
 func TestListUnknownSession(t *testing.T) {
 	s := svc.New(fakeSessions{recs: map[domain.SessionID]domain.SessionRecord{}}, fakeAgents{}, fakeAccounts{})
-	if _, err := s.List(context.Background(), "ghost"); err != svc.ErrSessionNotFound {
+	if _, err := s.List(context.Background(), "ghost"); !errors.Is(err, svc.ErrSessionNotFound) {
 		t.Fatalf("err = %v, want ErrSessionNotFound", err)
 	}
 }

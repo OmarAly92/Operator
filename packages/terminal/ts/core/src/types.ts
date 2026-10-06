@@ -27,8 +27,15 @@ export type RowRange = Readonly<{ start: number; end: number }>;
 export type FindMatch = Readonly<{
 	blockId: BlockId;
 	row: number;
-	byteRangeStart: number;
-	byteRangeEnd: number;
+	endRow: number;
+	startByte: number;
+	endByte: number;
+}>;
+
+export type FindUpdate = Readonly<{
+	added: number;
+	removed: number;
+	complete: boolean;
 }>;
 
 export type FontConfig = Readonly<{
@@ -70,7 +77,7 @@ export type TerminalTheme = Readonly<{
 
 export type DirtyRows = Readonly<{ full: boolean; rows: ReadonlySet<number> }>;
 
-export type RowEvent = Readonly<{ trimmed: number; remap: ReadonlyArray<readonly [number, number]> | null }>;
+export type RowEvent = Readonly<{ trimmed: number; remap: ReadonlyArray<readonly [number, number]> | null; remapEnd: readonly [number, number] | null }>;
 
 export type RowEventListener = (event: RowEvent) => void;
 
@@ -118,6 +125,8 @@ export type AltScreenView = Readonly<{
 }>;
 
 export type TerminalLimits = Readonly<{ rows: number; bytes: number }>;
+
+export type OlderOutput = Readonly<{ floor: number | null; marks: number }>;
 
 export type MemoryStats = Readonly<{
 	contentBytes: number;
@@ -197,10 +206,14 @@ export type TerminalStrings = Readonly<{
 	findPlaceholder: string;
 	findLabel: string;
 	findMatchCount: string;
+	findRegexLabel: string;
 	palettePlaceholder: string;
 	paletteLabel: string;
 	paletteNoMatches: string;
 	jumpToBottom: string;
+	loadOlderOutput: string;
+	quickFixLabel: string;
+	quickFixUse: string;
 }>;
 
 export const defaultStrings: TerminalStrings = Object.freeze({
@@ -221,10 +234,14 @@ export const defaultStrings: TerminalStrings = Object.freeze({
 	findPlaceholder: "Find in terminal",
 	findLabel: "Find",
 	findMatchCount: "%1 of %2",
+	findRegexLabel: "Use regular expression",
 	palettePlaceholder: "Type a command",
 	paletteLabel: "Command palette",
 	paletteNoMatches: "No matching commands",
 	jumpToBottom: "Jump to bottom",
+	loadOlderOutput: "Load older output",
+	quickFixLabel: "Suggested fix",
+	quickFixUse: "Use",
 });
 
 export type PaletteCommand = Readonly<{
@@ -241,18 +258,22 @@ export type DirEntry = Readonly<{
 
 export type SecretPattern = Readonly<{ source: string; flags?: string }>;
 
+export type PathCandidate = Readonly<{ path: string; allowDirectory: boolean }>;
+
+export type ResolvedPath = Readonly<{ index: number; path: string }>;
+
+export type PasteUnsafeReason = "newline" | "control" | "paste-end";
+
 export type HostCapabilities = Readonly<{
 	writeClipboard(text: string): Promise<void>;
 	readClipboard(): Promise<string>;
 	openLink(url: string): Promise<void>;
 	notify?(title: string, body: string): void;
 	listDirectory?(path: string): Promise<readonly DirEntry[]>;
-	resolvePath?(path: string, cwd: string): Promise<string | null>;
+	resolveFirstPath?(candidates: readonly PathCandidate[], cwd: string): Promise<ResolvedPath | null>;
 	openPath?(path: string, line?: number, column?: number): Promise<void>;
 	secretPatterns?: readonly SecretPattern[];
+	predictiveEcho?: Readonly<{ thresholdMs: number }>;
+	confirmPaste?(preview: string, reason: PasteUnsafeReason): Promise<boolean>;
+	loadOlderOutput?(beforeStableRow: number): void;
 }>;
-
-export type HistoryStore = {
-	load(): Promise<readonly string[]>;
-	save(entries: readonly string[]): Promise<void>;
-};

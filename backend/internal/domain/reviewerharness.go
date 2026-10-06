@@ -37,19 +37,33 @@ const (
 	ReviewerAutohand   ReviewerHarness = "autohand"
 )
 
-// AllReviewerHarnesses is the canonical set used to validate a configured
-// reviewer harness.
+// AllReviewerHarnesses is the canonical set of reviewers Operator offers, used to
+// validate a configured reviewer harness. A reviewer records its result only
+// through the Operator MCP server's review_submit tool, so this is exactly the
+// set whose adapter registers that server for the reviewer CLI. The other
+// constants above name reviewers whose CLI cannot load it yet (no MCP client,
+// or MCP config only in a file inside the worker's checkout); their adapters
+// stay in adapters/reviewer, unregistered, until they are wired.
 var AllReviewerHarnesses = []ReviewerHarness{
 	ReviewerClaudeCode,
 	ReviewerCodex,
 	ReviewerCopilot,
-	ReviewerCursor,
 	ReviewerKiloCode,
-	ReviewerKimchi,
 	ReviewerOpenCode,
+	ReviewerQwen,
+	ReviewerAmp,
+	ReviewerAuggie,
+}
+
+// RetiredReviewerHarnesses were offered before reviewers recorded results
+// through the Operator MCP server. A project config or session may still name
+// one: it stays valid to store, so an unrelated config edit does not fail, and
+// is skipped when choosing the reviewer.
+var RetiredReviewerHarnesses = []ReviewerHarness{
+	ReviewerCursor,
+	ReviewerKimchi,
 	ReviewerKiro,
 	ReviewerPi,
-	ReviewerQwen,
 	ReviewerAgy,
 	ReviewerContinue,
 	ReviewerGoose,
@@ -58,13 +72,21 @@ var AllReviewerHarnesses = []ReviewerHarness{
 	ReviewerDroid,
 	ReviewerKimi,
 	ReviewerMuse,
-	ReviewerAmp,
 	ReviewerAider,
 	ReviewerGrok,
 	ReviewerCrush,
-	ReviewerAuggie,
 	ReviewerCline,
 	ReviewerAutohand,
+}
+
+// IsRetired reports whether h names a reviewer Operator no longer offers.
+func (h ReviewerHarness) IsRetired() bool {
+	for _, k := range RetiredReviewerHarnesses {
+		if h == k {
+			return true
+		}
+	}
+	return false
 }
 
 // IsKnown reports whether h is one of the supported reviewer harnesses.

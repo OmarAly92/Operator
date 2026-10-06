@@ -93,9 +93,14 @@ type shellBlocksHarness struct {
 
 func newShellBlocksHarness(t *testing.T, appRunID string) *shellBlocksHarness {
 	t.Helper()
-	zsh, err := exec.LookPath("zsh")
+	return newShellBlocksHarnessIn(t, appRunID, "zsh")
+}
+
+func newShellBlocksHarnessIn(t *testing.T, appRunID, shell string) *shellBlocksHarness {
+	t.Helper()
+	shellPath, err := exec.LookPath(shell)
 	if err != nil {
-		t.Skip("zsh unavailable")
+		t.Skip(shell + " unavailable")
 	}
 	realpty.IsolateRegistry(t)
 
@@ -105,11 +110,14 @@ func newShellBlocksHarness(t *testing.T, appRunID string) *shellBlocksHarness {
 	if err := os.MkdirAll(homeDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(homeDir, ".zshrc"), nil, 0o600); err != nil {
-		t.Fatal(err)
+	for _, rc := range []string{".zshrc", ".bashrc", ".bash_profile"} {
+		if err := os.WriteFile(filepath.Join(homeDir, rc), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	t.Setenv("ZDOTDIR", homeDir)
-	t.Setenv("SHELL", zsh)
+	t.Setenv("HOME", homeDir)
+	t.Setenv("SHELL", shellPath)
 	t.Setenv("TERM", "xterm-256color")
 	t.Setenv("OPERATOR_DATA_DIR", dataDir)
 	t.Setenv("OPERATOR_APP_RUN_ID", appRunID)
@@ -316,6 +324,33 @@ func TestShellBlocksZeroClientHistoryUsesBootstrapRecipe(t *testing.T) {
 	}
 }
 
+func TestShellBlocksFirstBlockCarriesTheFirstPrompt(t *testing.T) {
+	for _, shell := range []string{"bash", "zsh", "fish"} {
+		t.Run(shell, func(t *testing.T) {
+			h := newShellBlocksHarnessIn(t, "shell-blocks-first-prompt-"+shell, shell)
+			commands := []string{"printf 'first-one\\n'", "printf 'first-two\\n'"}
+			for index, command := range commands {
+				h.send(t, command)
+				h.waitHistory(t, index+1)
+			}
+			history := h.history(t)
+			assertShellBlockCommands(t, history, commands)
+			wantCwd, err := filepath.EvalSymlinks(h.terminal.WorkingDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for index, block := range history {
+				if block.Cwd != wantCwd {
+					t.Fatalf("block %d cwd = %q, want %q", index, block.Cwd, wantCwd)
+				}
+				if !bytes.Contains(block.RawOutput, []byte("\x1b]133;A")) {
+					t.Fatalf("block %d has no prompt mark: %q", index, block.RawOutput)
+				}
+			}
+		})
+	}
+}
+
 func TestShellBlocksTwoClientsProduceOneRowAndEvent(t *testing.T) {
 	h := newShellBlocksHarness(t, "shell-blocks-two-clients")
 	attachCtx, cancel := context.WithCancel(context.Background())
@@ -350,8 +385,8 @@ func TestShellBlocksRestartAdoptsLiveHelperAndJournal(t *testing.T) {
 	h := newShellBlocksHarness(t, "shell-blocks-reader-restart")
 	commands := []string{
 		"printf 'before-reader-stop\\n'",
-		"printf 'while-reader-gone-one\\n'",
-		"printf 'while-reader-gone-two\\n'",
+		"printf 'while-reader-gone-%s\\n' one",
+		"printf 'while-reader-gone-%s\\n' two",
 	}
 	h.send(t, commands[0])
 	h.waitHistory(t, 1)
@@ -364,6 +399,7 @@ func TestShellBlocksRestartAdoptsLiveHelperAndJournal(t *testing.T) {
 	}
 
 	h.send(t, commands[1])
+	h.waitPaneOutput(t, "while-reader-gone-one", 10*time.Second)
 	h.send(t, commands[2])
 	h.waitPaneOutput(t, "while-reader-gone-two", 10*time.Second)
 	h.replaceSupervisor(t, true)

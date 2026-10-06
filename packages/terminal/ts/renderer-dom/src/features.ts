@@ -8,11 +8,11 @@ export type RendererFeatures = Readonly<{
 }>;
 
 export const DEFAULT_FEATURES: RendererFeatures = {
-	attributes: "plain",
-	graphemes: false,
+	attributes: "warp",
+	graphemes: true,
 	cursorContrast: false,
 	cursorHollowUnfocused: false,
-	widthCache: false,
+	widthCache: true,
 	boxDrawing: false,
 };
 

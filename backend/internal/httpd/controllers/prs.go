@@ -61,14 +61,23 @@ func (c *PRsController) resolveComments(w http.ResponseWriter, r *http.Request) 
 	}
 	prID := chi.URLParam(r, "id")
 
-	// Body is optional: omitting it resolves all unresolved threads.
+	// An empty body decodes to no prUrl and is refused below as INVALID_PR, the
+	// clearer error; omitting commentIds resolves every unresolved thread.
 	var in ResolveCommentsRequest
 	if err := decodeJSON(r, &in); err != nil && !isEmptyBody(err) {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
 		return
 	}
 
-	res, err := c.Svc.ResolveComments(r.Context(), prID, in.CommentIDs)
+	if !prIDPattern.MatchString(prID) {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_PR", "Invalid PR number", nil)
+		return
+	}
+	if strings.TrimSpace(in.PRURL) == "" {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_PR", "PR URL is required", nil)
+		return
+	}
+	res, err := c.Svc.ResolveComments(r.Context(), prsvc.ResolveRequest{PRID: prID, PRURL: in.PRURL, CommentIDs: in.CommentIDs})
 	if err != nil {
 		writePRError(w, r, err)
 		return
@@ -90,6 +99,8 @@ func writePRError(w http.ResponseWriter, r *http.Request, err error) {
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "PR_HEAD_CHANGED", "PR head changed; refresh before merging", nil)
 	case errors.Is(err, prsvc.ErrPRPreconditions):
 		envelope.WriteAPIError(w, r, http.StatusUnprocessableEntity, "unprocessable", "PR_PRECONDITIONS_UNMET", "PR merge preconditions are not met", nil)
+	case errors.Is(err, prsvc.ErrCommentsNotFound):
+		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "COMMENTS_NOT_FOUND", "No unresolved review thread matches the requested comments", nil)
 	case errors.Is(err, prsvc.ErrNothingToResolve):
 		envelope.WriteAPIError(w, r, http.StatusUnprocessableEntity, "unprocessable", "NOTHING_TO_RESOLVE", "No unresolved review threads to resolve", nil)
 	default:

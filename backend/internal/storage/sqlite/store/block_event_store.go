@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -66,6 +68,29 @@ func (s *Store) SelectLatestTurnModels(ctx context.Context) (map[string]string, 
 		}
 	}
 	return out, nil
+}
+
+func (s *Store) SelectLatestPermissionModes(ctx context.Context) (map[string]string, error) {
+	rows, err := s.qr.SelectLatestPermissionModes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("select latest permission modes: %w", err)
+	}
+	out := make(map[string]string, len(rows))
+	for _, row := range rows {
+		out[row.SessionID] = row.Detail
+	}
+	return out, nil
+}
+
+func (s *Store) SelectLatestPermissionMode(ctx context.Context, sessionID string) (string, bool, error) {
+	detail, err := s.qr.SelectLatestPermissionMode(ctx, sessionID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("select latest permission mode for %s: %w", sessionID, err)
+	}
+	return detail, true, nil
 }
 
 // SelectBlockEventsBySession returns events after afterSeq in ascending order.
@@ -217,5 +242,56 @@ func (s *Store) TrimBlockEvents(ctx context.Context, sessionID, agentID string, 
 	if err != nil {
 		return 0, fmt.Errorf("trim block events for %s/%s: %w", sessionID, agentID, err)
 	}
-	return n, nil
+	tasks, err := s.qw.TrimTaskUpdatesForSession(ctx, gen.TrimTaskUpdatesForSessionParams{
+		SessionID:   sessionID,
+		AgentID:     agentID,
+		SessionID_2: sessionID,
+		AgentID_2:   agentID,
+		Offset:      int64(keep - 1),
+	})
+	if err != nil {
+		return n, fmt.Errorf("trim task updates for %s/%s: %w", sessionID, agentID, err)
+	}
+	modes, err := s.qw.TrimPermissionModesForSession(ctx, gen.TrimPermissionModesForSessionParams{
+		SessionID:   sessionID,
+		AgentID:     agentID,
+		SessionID_2: sessionID,
+		AgentID_2:   agentID,
+	})
+	if err != nil {
+		return n + tasks, fmt.Errorf("trim permission modes for %s/%s: %w", sessionID, agentID, err)
+	}
+	return n + tasks + modes, nil
+}
+
+func (s *Store) SelectTaskUpdates(ctx context.Context, sessionID string) ([]blockeventsvc.Record, error) {
+	rows, err := s.qr.SelectTaskUpdatesBySession(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("select task updates for %s: %w", sessionID, err)
+	}
+	out := make([]blockeventsvc.Record, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, blockEventRecordFromRow(blockEventRowFields{
+			Seq:            row.Seq,
+			SessionID:      row.SessionID,
+			SourceID:       row.SourceID,
+			Kind:           row.Kind,
+			RawEvent:       row.RawEvent,
+			Harness:        row.Harness,
+			ToolName:       row.ToolName,
+			ToolUseID:      row.ToolUseID,
+			ToolInput:      row.ToolInput,
+			Text:           row.Text,
+			RedactedSpans:  row.RedactedSpans,
+			ErrorType:      row.ErrorType,
+			HookVersion:    row.HookVersion,
+			TruncatedLines: row.TruncatedLines,
+			Source:         row.Source,
+			InteractionID:  row.InteractionID,
+			AgentID:        row.AgentID,
+			Detail:         row.Detail,
+			CreatedAt:      row.CreatedAt,
+		}))
+	}
+	return out, nil
 }

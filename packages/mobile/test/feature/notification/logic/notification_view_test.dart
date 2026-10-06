@@ -26,11 +26,24 @@ void main() {
       expect(notificationVisual(skin, '').label, 'Notification');
       expect(notificationVisual(skin, '').color, skin.textTertiary);
     });
+
+    test('labels the agent alert types', () {
+      expect(notificationVisual(skin, 'turn_finished').label, 'Finished');
+      expect(notificationVisual(skin, 'turn_finished').color, skin.green);
+      expect(notificationVisual(skin, 'agent_exited').label, 'Exited');
+      expect(notificationVisual(skin, 'agent_exited').color, skin.red);
+    });
   });
 
   group('notificationTarget', () {
     test('opens the session for a needs_input notification', () {
       expect(notificationTarget(type: 'needs_input', sessionId: 'abc'), '/session/abc');
+    });
+
+    test('opens the session for turn_finished and agent_exited notifications', () {
+      expect(notificationTarget(type: 'turn_finished', sessionId: 's1'), '/session/s1');
+      expect(notificationTarget(type: 'agent_exited', sessionId: 's1'), '/session/s1');
+      expect(notificationTarget(type: 'ready_to_merge', sessionId: 's1'), '/prs');
     });
 
     test('falls back to the PRs tab when there is no session to open', () {
@@ -78,6 +91,53 @@ void main() {
 
     test('returns nothing for an unparseable timestamp', () {
       expect(relativeTime('not-a-date', now), isEmpty);
+    });
+  });
+
+  group('plainPreview', () {
+    test('strips bold, code and headings to plain text', () {
+      expect(plainPreview('## Done\nWrote **`spec.md`** and ran `flutter test`.'), 'Done Wrote spec.md and ran flutter test.');
+    });
+
+    test('keeps link and image text and drops the target', () {
+      expect(plainPreview('See [the PR](https://x.test/1) ![shot](a.png)'), 'See the PR shot');
+    });
+
+    test('drops quote, list and fence markers and folds lines', () {
+      expect(plainPreview('> quoted\n- one\n2. two\n```dart\ncode\n```'), 'quoted one two code');
+    });
+
+    test('unwraps emphasis and strikethrough without eating snake_case or lone stars', () {
+      expect(plainPreview('*really* ~~old~~ keep_this_name and 2 * 3'), 'really old keep_this_name and 2 * 3');
+    });
+
+    test('keeps underscores inside words', () {
+      expect(plainPreview('Edited __init__.py and snake__case'), 'Edited __init__.py and snake__case');
+    });
+
+    test('still unwraps __bold__ that stands on its own', () {
+      expect(plainPreview('This is __done__ now'), 'This is done now');
+    });
+
+    test('drops an unmatched leading **', () {
+      expect(plainPreview('**Committed as 5b907f4. The ticket is complete'), 'Committed as 5b907f4. The ticket is complete');
+    });
+
+    test('drops an unmatched trailing ** left by truncation', () {
+      expect(plainPreview('Wrote the spec to **spec'), 'Wrote the spec to spec');
+    });
+
+    test('a heading needs a space after the hashes', () {
+      expect(plainPreview('#123 was fixed'), '#123 was fixed');
+      expect(plainPreview('# Summary'), 'Summary');
+    });
+
+    test('a link target may contain parentheses', () {
+      expect(plainPreview('See [the docs](https://x.test/a_(b)) now'), 'See the docs now');
+    });
+
+    test('leaves plain text alone', () {
+      expect(plainPreview('Improve code finished its turn.'), 'Improve code finished its turn.');
     });
   });
 }

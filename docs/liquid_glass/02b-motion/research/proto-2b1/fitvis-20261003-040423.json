@@ -1,0 +1,281 @@
+{
+  "flutter_progress": {
+    "dark-photo": {
+      "0.0": 0.0,
+      "0.1": 0.1138,
+      "0.2": 0.2443,
+      "0.3": 0.3618,
+      "0.4": 0.4812,
+      "0.5": 0.5931,
+      "0.6": 0.6775,
+      "0.7": 0.7689,
+      "0.8": 0.8542,
+      "0.9": 0.9301,
+      "1.0": 1.0
+    },
+    "dark-stripes": {
+      "0.0": 0.0,
+      "0.1": 0.1116,
+      "0.2": 0.2256,
+      "0.3": 0.3305,
+      "0.4": 0.4337,
+      "0.5": 0.5364,
+      "0.6": 0.6312,
+      "0.7": 0.7256,
+      "0.8": 0.8198,
+      "0.9": 0.9109,
+      "1.0": 1.0
+    },
+    "light-photo": {
+      "0.0": 0.0,
+      "0.1": 0.1,
+      "0.2": 0.206,
+      "0.3": 0.3086,
+      "0.4": 0.4105,
+      "0.5": 0.5115,
+      "0.6": 0.6116,
+      "0.7": 0.7104,
+      "0.8": 0.8078,
+      "0.9": 0.9043,
+      "1.0": 1.0
+    },
+    "light-stripes": {
+      "0.0": 0.0,
+      "0.1": 0.1081,
+      "0.2": 0.2169,
+      "0.3": 0.3239,
+      "0.4": 0.4284,
+      "0.5": 0.5272,
+      "0.6": 0.6239,
+      "0.7": 0.72,
+      "0.8": 0.8128,
+      "0.9": 0.9065,
+      "1.0": 1.0
+    }
+  },
+  "flutter_progress_mean": [
+    0.0,
+    0.1084,
+    0.2232,
+    0.3312,
+    0.4384,
+    0.542,
+    0.6361,
+    0.7312,
+    0.8237,
+    0.9129,
+    1.0
+  ],
+  "visibility_for_progress": [
+    0.0,
+    0.0461,
+    0.0923,
+    0.1362,
+    0.1798,
+    0.2248,
+    0.2711,
+    0.3175,
+    0.3641,
+    0.4112,
+    0.4594,
+    0.5085,
+    0.5616,
+    0.6146,
+    0.6672,
+    0.7203,
+    0.7744,
+    0.8295,
+    0.8855,
+    0.9426,
+    1.0
+  ],
+  "disappear_exponent": 3.2,
+  "exponent_fit_rms": 0.01420873500127114,
+  "exponent_at_grid_edge": false,
+  "springs": {
+    "material.materialize": {
+      "response": 0.56,
+      "damping": 1.0,
+      "rms": 0.01248897679758684,
+      "at_grid_edge": false
+    },
+    "material.materialize.snappy": {
+      "response": 0.57,
+      "damping": 0.74,
+      "rms": 0.012867601040911584,
+      "at_grid_edge": false
+    },
+    "material.materialize.bouncy": {
+      "response": 0.55,
+      "damping": 0.5,
+      "rms": 0.015609362736709688,
+      "at_grid_edge": false
+    }
+  },
+  "motor": {
+    "material.materialize": [
+      0.55,
+      1.0
+    ],
+    "material.materialize.snappy": [
+      0.5,
+      0.85
+    ],
+    "material.materialize.bouncy": [
+      0.5,
+      0.7
+    ]
+  },
+  "checks": {
+    "material.materialize": [
+      {
+        "case": "dark-photo",
+        "appearing": false,
+        "lag_s": -0.011999999999999955,
+        "rms": 0.008023592185190689
+      },
+      {
+        "case": "dark-photo",
+        "appearing": true,
+        "lag_s": -0.009999999999999953,
+        "rms": 0.009012371173230019
+      },
+      {
+        "case": "dark-stripes",
+        "appearing": false,
+        "lag_s": -0.009999999999999953,
+        "rms": 0.04984628469277598
+      },
+      {
+        "case": "dark-stripes",
+        "appearing": true,
+        "lag_s": -0.03799999999999998,
+        "rms": 0.040696304422533
+      },
+      {
+        "case": "light-photo",
+        "appearing": false,
+        "lag_s": -0.021999999999999964,
+        "rms": 0.018422764969418734
+      },
+      {
+        "case": "light-photo",
+        "appearing": true,
+        "lag_s": 0.030000000000000082,
+        "rms": 0.011785543303806026
+      },
+      {
+        "case": "light-stripes",
+        "appearing": false,
+        "lag_s": -0.023999999999999966,
+        "rms": 0.027607869514923118
+      },
+      {
+        "case": "light-stripes",
+        "appearing": true,
+        "lag_s": 0.004000000000000059,
+        "rms": 0.022553493831174932
+      }
+    ],
+    "material.materialize.snappy": [
+      {
+        "case": "dark-photo",
+        "appearing": false,
+        "lag_s": -0.013999999999999957,
+        "rms": 0.01128068970681676
+      },
+      {
+        "case": "dark-photo",
+        "appearing": true,
+        "lag_s": -0.01799999999999996,
+        "rms": 0.00925072703125175
+      },
+      {
+        "case": "dark-stripes",
+        "appearing": false,
+        "lag_s": -0.007999999999999952,
+        "rms": 0.04975084606743254
+      },
+      {
+        "case": "dark-stripes",
+        "appearing": true,
+        "lag_s": -0.033999999999999975,
+        "rms": 0.036863413375237665
+      },
+      {
+        "case": "light-photo",
+        "appearing": false,
+        "lag_s": -0.021999999999999964,
+        "rms": 0.015596796174315416
+      },
+      {
+        "case": "light-photo",
+        "appearing": true,
+        "lag_s": 5.551115123125783e-17,
+        "rms": 0.014360037061962028
+      },
+      {
+        "case": "light-stripes",
+        "appearing": false,
+        "lag_s": -0.023999999999999966,
+        "rms": 0.02568615103325846
+      },
+      {
+        "case": "light-stripes",
+        "appearing": true,
+        "lag_s": 0.006000000000000061,
+        "rms": 0.025499986807583055
+      }
+    ],
+    "material.materialize.bouncy": [
+      {
+        "case": "dark-photo",
+        "appearing": false,
+        "lag_s": -0.009999999999999953,
+        "rms": 0.015536851355806664
+      },
+      {
+        "case": "dark-photo",
+        "appearing": true,
+        "lag_s": -0.019999999999999962,
+        "rms": 0.010414271214634452
+      },
+      {
+        "case": "dark-stripes",
+        "appearing": false,
+        "lag_s": -0.003999999999999948,
+        "rms": 0.053442781979612226
+      },
+      {
+        "case": "dark-stripes",
+        "appearing": true,
+        "lag_s": -0.03999999999999998,
+        "rms": 0.05335208485932946
+      },
+      {
+        "case": "light-photo",
+        "appearing": false,
+        "lag_s": -0.01599999999999996,
+        "rms": 0.02072766605212761
+      },
+      {
+        "case": "light-photo",
+        "appearing": true,
+        "lag_s": -0.007999999999999952,
+        "rms": 0.013968603553390921
+      },
+      {
+        "case": "light-stripes",
+        "appearing": false,
+        "lag_s": -0.019999999999999962,
+        "rms": 0.026292489044547646
+      },
+      {
+        "case": "light-stripes",
+        "appearing": true,
+        "lag_s": -0.0019999999999999463,
+        "rms": 0.018568080652551264
+      }
+    ]
+  }
+}

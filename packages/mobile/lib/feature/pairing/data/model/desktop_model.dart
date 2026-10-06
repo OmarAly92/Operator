@@ -23,8 +23,13 @@ class DesktopModel extends Equatable {
     lastConnectedAt: entity.lastConnectedAt,
   );
 
-  ServerConfig toServerConfig(String password) =>
-      ServerConfig(host: host ?? '', httpPort: port ?? '', secure: secure ?? false, password: password);
+  ServerConfig toServerConfig(String password) => ServerConfig(
+    host: host ?? '',
+    httpPort: port ?? '',
+    secure: secure ?? false,
+    password: password,
+    desktopId: id,
+  );
 
   String get address => '$host:$port';
 

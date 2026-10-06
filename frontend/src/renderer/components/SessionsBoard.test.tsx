@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { rememberPaneGrid, resetPaneGridForTests } from "../lib/pane-grid";
+import { clearTerminalTitles, setTerminalTitle } from "../lib/terminal-titles";
 
 const {
 	navigateMock,
@@ -38,7 +39,7 @@ const { ticketDragMock, dropTargetMock } = vi.hoisted(() => ({
 	dropTargetMock: vi.fn((id: string) => ({ setNodeRef: () => undefined, isOver: false, accepts: false, dragging: false, id })),
 }));
 
-vi.mock("./tickets/TicketDndProvider", () => ({
+vi.mock("./dnd/AppDndProvider", () => ({
 	useTicketDrag: () => ticketDragMock(),
 	useTicketDropTarget: (id: string) => dropTargetMock(id),
 	usePlanDraggable: () => ({
@@ -456,6 +457,70 @@ describe("SessionsBoard", () => {
 		const card = screen.getByText("active-card-task").closest('[data-testid="board-session-card"]') as HTMLElement;
 		const working = within(card).getByText("Working").closest("span") as HTMLElement;
 		expect(working.querySelector("span")).toHaveClass("bg-status-working", "animate-status-pulse");
+	});
+
+	it("shows the terminal's live title under the session name and nothing when it has none", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [
+				workspaceWithSessions([
+					boardSession({ id: "s-titled", title: "titled-card-task", status: "working", terminalHandleId: "h-titled" }),
+					boardSession({ id: "s-untitled", title: "untitled-card-task", status: "idle", terminalHandleId: "h-untitled" }),
+				]),
+			],
+			isError: false,
+			isSuccess: true,
+		});
+		act(() => setTerminalTitle("h-titled", "Number list 1 to 3000"));
+		renderBoard("p1");
+		const titled = screen.getByText("titled-card-task").closest('[data-testid="board-session-card"]') as HTMLElement;
+		const line = within(titled).getByTestId("board-terminal-title");
+		expect(line).toHaveTextContent("Number list 1 to 3000");
+		expect(line).toHaveAttribute("title", "Number list 1 to 3000");
+		expect(line).toHaveAccessibleName("Terminal title: Number list 1 to 3000");
+		act(() => setTerminalTitle("h-titled", "Refactor the parser"));
+		expect(within(titled).getByTestId("board-terminal-title")).toHaveTextContent("Refactor the parser");
+		const untitled = screen.getByText("untitled-card-task").closest('[data-testid="board-session-card"]') as HTMLElement;
+		expect(within(untitled).queryByTestId("board-terminal-title")).toBeNull();
+		act(() => setTerminalTitle("h-titled", ""));
+		expect(within(titled).queryByTestId("board-terminal-title")).toBeNull();
+		act(() => clearTerminalTitles());
+	});
+
+	// The agent's own report (Operator MCP session_report) explains the card:
+	// the question it is waiting on shows under the status, and the daemon's
+	// status reason is the status label's tooltip.
+	it("shows the agent's reported reason and the status reason on the card", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [
+				workspaceWithSessions([
+					boardSession({
+						id: "s-report",
+						title: "report-card-task",
+						status: "needs_input",
+						statusReason: "Agent needs you: Postgres or SQLite?",
+						agentReport: { state: "needs_you", reason: "Postgres or SQLite?" },
+					}),
+					boardSession({
+						id: "s-ready",
+						title: "ready-card-task",
+						status: "review_pending",
+						agentReport: { state: "ready_for_review", reason: "" },
+					}),
+					boardSession({ id: "s-plain", title: "plain-card-task", status: "idle" }),
+				]),
+			],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+		const card = screen.getByText("report-card-task").closest('[data-testid="board-session-card"]') as HTMLElement;
+		expect(within(card).getByTestId("board-agent-report")).toHaveTextContent("Postgres or SQLite?");
+		expect(within(card).getByTitle("Agent needs you: Postgres or SQLite?")).toBeInTheDocument();
+		const ready = screen.getByText("ready-card-task").closest('[data-testid="board-session-card"]') as HTMLElement;
+		expect(within(ready).getByTestId("board-agent-report")).toHaveTextContent("The agent reports this is ready for review");
+		const plain = screen.getByText("plain-card-task").closest('[data-testid="board-session-card"]') as HTMLElement;
+		expect(within(plain).queryByTestId("board-agent-report")).toBeNull();
 	});
 
 	// Same contract as the sidebar row's terminal action: an id goes to the

@@ -59,9 +59,11 @@ type commander interface {
 	RestoreWithMode(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionmanager.RestoreResult, error)
 	ResumeAgentWithMode(ctx context.Context, id domain.SessionID) (sessionmanager.RestoreResult, error)
 	RelaunchAgentFresh(ctx context.Context, id domain.SessionID, cfg sessionmanager.RelaunchAgentConfig) (sessionmanager.RestoreResult, error)
+	RestartTerminal(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionmanager.RestoreResult, error)
 	Kill(ctx context.Context, id domain.SessionID) (bool, error)
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
+	SetPermissionMode(ctx context.Context, id domain.SessionID, mode domain.PermissionMode) (sessionmanager.PermissionModeResult, error)
 	Models(ctx context.Context, id domain.SessionID) ([]sessionmanager.ModelOption, error)
 	Draft(ctx context.Context, id domain.SessionID) (string, error)
 	Suggestion(ctx context.Context, id domain.SessionID) (string, error)
@@ -149,6 +151,7 @@ type Service struct {
 	// the no_signal downgrade: a hook-less harness staying silent forever is
 	// normal, not a broken pipeline. nil means "unknown": never downgrade.
 	signalCapable func(domain.AgentHarness) bool
+	agentReports  agentReporter
 }
 
 // New wires a controller-facing session service over an internal session Manager.
@@ -177,11 +180,20 @@ type Deps struct {
 	// wiring passes activitydispatch.SupportsHarness. Left nil, no session is
 	// ever downgraded to no_signal.
 	SignalCapable func(domain.AgentHarness) bool
+	// AgentReports records agent-reported card state; daemon wiring passes the
+	// lifecycle manager, which owns the alert that goes with a report.
+	AgentReports agentReporter
+}
+
+// agentReporter persists an agent report (nil clears it) together with its
+// notification side effects.
+type agentReporter interface {
+	SetAgentReport(ctx context.Context, id domain.SessionID, report *domain.AgentReport) error
 }
 
 // NewWithDeps wires a session service with optional PR-claim dependencies.
 func NewWithDeps(d Deps) *Service {
-	s := &Service{manager: d.Manager, store: d.Store, prClaimer: d.PRClaimer, scm: d.SCM, tracker: d.Tracker, clock: d.Clock, dataDir: d.DataDir, signalCapable: d.SignalCapable, telemetry: d.Telemetry, logger: d.Logger}
+	s := &Service{manager: d.Manager, store: d.Store, prClaimer: d.PRClaimer, scm: d.SCM, tracker: d.Tracker, clock: d.Clock, dataDir: d.DataDir, signalCapable: d.SignalCapable, telemetry: d.Telemetry, logger: d.Logger, agentReports: d.AgentReports}
 	if s.prClaimer == nil {
 		if w, ok := d.Store.(ports.PRClaimer); ok {
 			s.prClaimer = w
@@ -371,6 +383,18 @@ func (s *Service) RelaunchAgent(ctx context.Context, id domain.SessionID, cfg se
 	return ResumeAgentOutcome{Session: session, Mode: restoreModeView(res.Mode)}, nil
 }
 
+func (s *Service) RestartTerminal(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (ResumeAgentOutcome, error) {
+	res, err := s.manager.RestartTerminal(ctx, id, grid)
+	if err != nil {
+		return ResumeAgentOutcome{}, toAPIError(err)
+	}
+	session, err := s.toSession(ctx, res.Session)
+	if err != nil {
+		return ResumeAgentOutcome{}, err
+	}
+	return ResumeAgentOutcome{Session: session, Mode: restoreModeView(res.Mode)}, nil
+}
+
 func restoreModeView(mode sessionmanager.RestoreMode) RestoreModeView {
 	switch mode {
 	case sessionmanager.RestoreModeNative:
@@ -411,6 +435,10 @@ func (s *Service) Send(ctx context.Context, id domain.SessionID, message string,
 
 func (s *Service) Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error) {
 	return s.manager.Command(ctx, id, command, model)
+}
+
+func (s *Service) SetPermissionMode(ctx context.Context, id domain.SessionID, mode domain.PermissionMode) (sessionmanager.PermissionModeResult, error) {
+	return s.manager.SetPermissionMode(ctx, id, mode)
 }
 
 // Draft reads the session's unsent composer draft, or "" when there is none.
@@ -702,6 +730,8 @@ func toAPIError(err error) error {
 	case errors.Is(err, sessionmanager.ErrAwaitingDecision):
 		return apierr.Conflict("SESSION_AWAITING_DECISION",
 			"Session is paused on a permission decision; answer it in the session terminal first", nil)
+	case errors.Is(err, sessionmanager.ErrTerminalResponding):
+		return apierr.Conflict("TERMINAL_RESPONDING", "The terminal is responding; only a terminal that stopped responding can be restarted", nil)
 	case errors.Is(err, sessionmanager.ErrIncompleteHandle):
 		return apierr.Conflict("SESSION_INCOMPLETE_HANDLE", "Session is missing runtime or workspace handles", nil)
 	case errors.Is(err, sessionmanager.ErrNotResumable):
@@ -737,6 +767,8 @@ func toAPIError(err error) error {
 	case errors.Is(err, sessionmanager.ErrSwitchDeliveryUnconfirmed):
 		return apierr.Conflict("AGENT_SWITCH_DELIVERY_UNCONFIRMED",
 			"The target agent started, but Operator could not confirm that it accepted the continuation", nil)
+	case errors.Is(err, sessionmanager.ErrSessionBusy):
+		return apierr.Conflict("SESSION_BUSY", "Another operation is driving the session's terminal; try again in a moment", nil)
 	case errors.Is(err, sessionmanager.ErrSwitchInProgress):
 		return apierr.Conflict("AGENT_SWITCH_IN_PROGRESS",
 			"This session already has an agent switch in progress", nil)
@@ -752,6 +784,8 @@ func toAPIError(err error) error {
 		return apierr.Conflict("WORKSPACE_NOT_EMPTY", err.Error(), nil)
 	case errors.Is(err, ports.ErrWorkspaceBranchCheckedOutElsewhere):
 		return apierr.Conflict("BRANCH_CHECKED_OUT_ELSEWHERE", err.Error(), nil)
+	case errors.Is(err, ports.ErrWorkspaceBranchNotCheckedOut):
+		return apierr.Conflict("BRANCH_NOT_CHECKED_OUT", err.Error(), nil)
 	case errors.Is(err, ports.ErrWorkspaceBranchNotFetched):
 		return apierr.Invalid("BRANCH_NOT_FETCHED", err.Error(), nil)
 	case errors.Is(err, ports.ErrWorkspaceBranchInvalid):
@@ -764,6 +798,9 @@ func toAPIError(err error) error {
 		return apierr.Conflict("WORKSPACE_CWD_MISMATCH", err.Error(), nil)
 	case errors.Is(err, ports.ErrWorkspaceLocked):
 		return apierr.Conflict("WORKSPACE_LOCKED", err.Error(), nil)
+	case errors.Is(err, ports.ErrRuntimeSessionExists):
+		return apierr.Conflict("TERMINAL_HOST_RUNNING",
+			"The session's terminal host is still running; restart the terminal or kill the session first", nil)
 	default:
 		return err
 	}
@@ -775,10 +812,13 @@ func (s *Service) toSession(ctx context.Context, rec domain.SessionRecord) (doma
 		return domain.Session{}, fmt.Errorf("pr facts %s: %w", rec.ID, err)
 	}
 	prs = deduplicatePRFacts(prs)
+	status := deriveStatus(rec, prs, s.now(), s.harnessSignals(rec.Harness))
 	sess := domain.Session{
 		SessionRecord:    rec,
-		Status:           deriveStatus(rec, prs, s.now(), s.harnessSignals(rec.Harness)),
+		Status:           status,
 		SCMStatus:        deriveSCMStatus(prs),
+		BoardColumn:      domain.BoardColumnFor(status, rec.IsTerminated),
+		StatusReason:     deriveStatusReason(status, rec, prs),
 		TerminalHandleID: rec.Metadata.RuntimeHandleID,
 		PRs:              prs,
 	}

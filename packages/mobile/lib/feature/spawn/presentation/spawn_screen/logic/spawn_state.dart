@@ -25,12 +25,13 @@ final class CatalogReadyState extends SpawnState {
 }
 
 final class CatalogFailureState extends SpawnState {
-  const CatalogFailureState(this.failure);
+  const CatalogFailureState(this.failure, [this.revision = 0]);
 
   final Failure failure;
+  final int revision;
 
   @override
-  List<Object?> get props => [failure];
+  List<Object?> get props => [failure, revision];
 }
 
 final class SpawnLoadingState extends SpawnState {

@@ -159,6 +159,35 @@ describe("LineEditor ownership", () => {
 		expect(openWith("README.md")).toEqual([]);
 	});
 
+	it("walks the completion list on Ctrl-N and Ctrl-P instead of recalling history under it", () => {
+		const { editor, core, host } = mount();
+		core.feed(
+			encode(
+				"\x1b]133;A\x07\x1b]7000;v=1;cmd=git%20log\x07\x1b]133;C\x07ok\n\x1b]133;D;0\x07\x1b]7000;v=1;input-ready=1\x07",
+			),
+		);
+		const internal = editor as unknown as {
+			dropdown: { isOpen(): boolean; setResult(result: unknown): void };
+			dropdownOpen: boolean;
+		};
+		editor.setText("git ");
+		internal.dropdown.setResult({
+			items: [
+				{ value: "status", displayValue: "status", description: null, kind: "subcommand", matchedIndices: [] },
+				{ value: "stash", displayValue: "stash", description: null, kind: "subcommand", matchedIndices: [] },
+			],
+			span: { start: 4, end: 4 },
+			query: "",
+		});
+		internal.dropdownOpen = internal.dropdown.isOpen();
+		editor.handleKey(key({ key: "n", ctrlKey: true }));
+		editor.handleKey(key({ key: "n", ctrlKey: true }));
+		editor.handleKey(key({ key: "p", ctrlKey: true }));
+		editor.handleKey(key({ key: "Enter" }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["git stash"]);
+	});
+
 	it("accepts a Ctrl-R match without submitting it", () => {
 		const { editor, container, core, host } = mount();
 		core.feed(
@@ -223,11 +252,86 @@ describe("LineEditor ownership", () => {
 		expect(host.sent).toEqual(["a", "b"]);
 	});
 
+	it("reports each change of the unsent draft to the host", () => {
+		const drafts: string[] = [];
+		const { editor, core } = mount({ onDraftChange: (draft) => drafts.push(draft) });
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		editor.handleKey(key({ key: "l" }));
+		editor.handleKey(key({ key: "s" }));
+		editor.handleKey(key({ key: "ArrowLeft" }));
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		editor.handleKey(key({ key: "Enter" }));
+		editor.setText("pwd");
+		expect(drafts).toEqual(["l", "ls", "", "pwd"]);
+	});
+
 	it("keeps Ctrl-C a passthrough even while Owned", () => {
 		const { editor, host, core } = mount();
 		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
 		editor.handleKey(key({ key: "c", ctrlKey: true }));
 		expect(host.raw.join("")).toBe("\x03");
+	});
+
+	it("discards the typed line on Ctrl-C while Owned, so the next command starts empty", () => {
+		const drafts: string[] = [];
+		const { editor, host, core, container } = mount({ onDraftChange: (draft) => drafts.push(draft) });
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		for (const character of "partial") editor.handleKey(key({ key: character }));
+		editor.handleKey(key({ key: "c", ctrlKey: true }));
+		expect(host.raw.join("")).toBe("\x03");
+		expect(container.querySelector(".terminal-editor-line")?.textContent?.trim()).toBe("");
+		expect(drafts.at(-1)).toBe("");
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		for (const character of "echo b") editor.handleKey(key({ key: character }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["echo b"]);
+	});
+
+	it("leaves Ctrl-C a plain passthrough while a program owns the line", () => {
+		const { editor, host, core } = mount();
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		for (const character of "draft") editor.handleKey(key({ key: character }));
+		core.feed(encode("\x1b]7000;v=1;input-released=1\x07"));
+		editor.handleKey(key({ key: "c", ctrlKey: true }));
+		expect(host.raw.join("")).toBe("\x03");
+	});
+
+	it("moves to the end of the line on Ctrl-E, not one character", () => {
+		const { editor, host, core } = mount();
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		for (const character of "echo hello world") editor.handleKey(key({ key: character }));
+		editor.handleKey(key({ key: "a", ctrlKey: true }));
+		editor.handleKey(key({ key: "X" }));
+		editor.handleKey(key({ key: "e", ctrlKey: true }));
+		editor.handleKey(key({ key: "Y" }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["Xecho hello worldY"]);
+	});
+
+	it("moves to the end of the current line on Ctrl-E in a multi-line buffer", () => {
+		const { editor, host, core } = mount();
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		editor.setText("one\ntwo");
+		for (let step = 0; step < 4; step += 1) editor.handleKey(key({ key: "b", ctrlKey: true }));
+		editor.handleKey(key({ key: "a", ctrlKey: true }));
+		editor.handleKey(key({ key: "e", ctrlKey: true }));
+		editor.handleKey(key({ key: "Z" }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["oneZ\ntwo"]);
+	});
+
+	it("accepts the ghost suggestion on Ctrl-E once the cursor is at the end", () => {
+		const { editor, container, core, host } = mount();
+		core.feed(
+			encode(
+				"\x1b]133;A\x07\x1b]7000;v=1;cmd=git%20status\x07\x1b]133;C\x07ok\n\x1b]133;D;0\x07\x1b]7000;v=1;input-ready=1\x07",
+			),
+		);
+		editor.setText("git ");
+		expect(container.querySelector(".terminal-editor-ghost")?.textContent).toBe("status");
+		editor.handleKey(key({ key: "e", ctrlKey: true }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["git status"]);
 	});
 });
 
@@ -347,5 +451,60 @@ describe("LineEditor composition target stability", () => {
 		expect(root.textContent).toContain("abcde");
 		expect(removals).toBe(0);
 		expect(root.contains(input)).toBe(true);
+	});
+});
+
+describe("LineEditor visibility", () => {
+	it("does no render work while hidden and catches up when shown", () => {
+		const { editor, core, host, container } = mount();
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		editor.setVisible(false);
+		let mutations = 0;
+		const observer = new MutationObserver((records) => {
+			mutations += records.length;
+		});
+		observer.observe(container, { childList: true, subtree: true, attributes: true, characterData: true });
+		for (let index = 0; index < 10; index += 1) {
+			core.feed(
+				encode(
+					`\x1b]133;A\x07\x1b]7000;v=1;cmd=cmd${index}\x07\x1b]133;C\x07ok\n\x1b]133;D;0\x07`,
+				),
+			);
+		}
+		mutations += observer.takeRecords().length;
+		observer.disconnect();
+		expect(mutations).toBe(0);
+		editor.setVisible(true);
+		editor.handleKey(key({ key: "ArrowUp" }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["cmd9"]);
+	});
+
+	it("tells the host its draft is gone when the editor is disposed", () => {
+		const drafts: string[] = [];
+		const { editor, core } = mount({ onDraftChange: (draft) => drafts.push(draft) });
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		editor.handleKey(key({ key: "l" }));
+		expect(drafts.at(-1)).toBe("l");
+		editor.dispose();
+		expect(drafts.at(-1)).toBe("");
+	});
+
+	it("keeps a command in history that scrolls out of the core while hidden", () => {
+		const ready = "\x1b]7000;v=1;input-ready=1\x07";
+		const block = (cmd: string, out = "ok\n") =>
+			`\x1b]133;A\x07\x1b]7000;v=1;cmd=${cmd}\x07\x1b]133;C\x07${out}\x1b]133;D;0\x07`;
+		const flood = Array.from({ length: 300 }, (_, index) => `line${index}\n`).join("");
+		const { editor, core, host } = mount();
+		core.feed(encode(ready));
+		editor.setVisible(false);
+		core.feed(encode(block("firstcmd")));
+		core.feed(encode(block("cat", flood)));
+		core.feed(encode(block("second")));
+		editor.setVisible(true);
+		core.feed(encode(ready));
+		for (let index = 0; index < 3; index += 1) editor.handleKey(key({ key: "ArrowUp" }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["firstcmd"]);
 	});
 });

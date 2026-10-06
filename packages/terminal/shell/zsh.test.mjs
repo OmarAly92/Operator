@@ -2,7 +2,8 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { haveTmux, parseOscRecords, runInPty, splitEveryByte } from "./pty.mjs";
+import { haveTmux, parseOscRecords, runInPty, runInPtySegments, splitEveryByte } from "./pty.mjs";
+import { abortedPromptsSession, commandOutputs, coreSkip, productionSession } from "./core.mjs";
 
 const bootstrap = fileURLToPath(new URL("./zsh.sh", import.meta.url));
 const haveZsh = (() => {
@@ -199,4 +200,190 @@ test("emits the real zsh lifecycle for successful, failed, multiline, interrupte
 		);
 		assert.ok(commandIndex < releasedIndex && releasedIndex < outputIndex && outputIndex < exitIndex && exitIndex < endIndex);
 	}
+});
+
+const TYPEAHEAD_PREFIX = "7000;v=1;typeahead=";
+
+function typeaheadReports(records) {
+	return records
+		.filter((record) => record.payload.startsWith(TYPEAHEAD_PREFIX))
+		.map((record) => record.payload.slice(TYPEAHEAD_PREFIX.length));
+}
+
+function commandsRun(records) {
+	return records.map((record) => field(record.payload, "cmd")).filter((command) => command !== undefined);
+}
+
+function typeaheadSession(steps) {
+	const raw = runInPty("zsh -f -i", [`source ${bootstrap}`, ...steps], {
+		settleMs: 300,
+		env: { OPERATOR_TERMINAL_ID: "terminal-1", LANG: "C.UTF-8", LC_ALL: "C.UTF-8" },
+	});
+	return { raw, records: parseOscRecords(raw) };
+}
+
+test("reports text typed during a command once the prompt returns, and a Ctrl-U clears the shell's copy", { skip: ptySkip }, () => {
+	const { records } = typeaheadSession([
+		{ keys: "sleep 1", waitMs: 200 },
+		{ keys: "echo hi", enter: false, waitMs: 1800 },
+		{ keys: "C-u", enter: false, waitMs: 200 },
+		{ keys: "echo second", waitMs: 500 },
+	]);
+	assert.deepEqual(typeaheadReports(records), ["echo%20hi"]);
+	assert.deepEqual(commandsRun(records), ["sleep%201", "echo%20second"]);
+	const report = records.findIndex((record) => record.payload.startsWith(TYPEAHEAD_PREFIX));
+	const finished = records.findIndex((record) => record.payload === "133;D;0");
+	assert.ok(finished >= 0 && finished < report, "the report comes after the command finished");
+	assert.equal(records[report - 1].payload, "7000;v=1;input-ready=1", "the report directly follows input-ready");
+});
+
+test("keeps the reported text in the shell when nothing clears it, so a separate Enter still runs it", { skip: ptySkip }, () => {
+	const { records } = typeaheadSession([
+		{ keys: "sleep 1", waitMs: 200 },
+		{ keys: "echo sent", enter: false, waitMs: 1800 },
+		{ keys: "", waitMs: 500 },
+	]);
+	assert.deepEqual(typeaheadReports(records), ["echo%20sent"]);
+	assert.deepEqual(commandsRun(records), ["sleep%201", "echo%20sent"]);
+});
+
+test("reports typed-ahead UTF-8 as percent-encoded bytes", { skip: ptySkip }, () => {
+	const { records } = typeaheadSession([
+		{ keys: "sleep 1", waitMs: 200 },
+		{ keys: "echo café €", enter: false, waitMs: 1800 },
+	]);
+	assert.deepEqual(typeaheadReports(records), ["echo%20caf%c3%a9%20%e2%82%ac"]);
+});
+
+test("runs a line typed ahead with Enter exactly as before and reports nothing", { skip: ptySkip }, () => {
+	const { records } = typeaheadSession([
+		{ keys: "sleep 1", waitMs: 200 },
+		{ keys: "echo queued", waitMs: 1800 },
+	]);
+	assert.deepEqual(typeaheadReports(records), []);
+	assert.deepEqual(commandsRun(records), ["sleep%201", "echo%20queued"]);
+});
+
+test("runs every command of a multi-line submission and reports nothing", { skip: ptySkip }, () => {
+	const { records } = typeaheadSession([{ keys: "sleep 1\necho two\necho three", waitMs: 2000 }]);
+	assert.deepEqual(typeaheadReports(records), []);
+	assert.deepEqual(commandsRun(records), ["sleep%201", "echo%20two", "echo%20three"]);
+});
+
+test("does not report text longer than the cap and leaves it to the shell", { skip: ptySkip }, () => {
+	const long = `echo ${"x".repeat(300)}`;
+	const { records } = typeaheadSession([
+		{ keys: "sleep 1", waitMs: 200 },
+		{ keys: long, enter: false, waitMs: 1800 },
+		{ keys: "", waitMs: 600 },
+	]);
+	assert.deepEqual(typeaheadReports(records), []);
+	assert.deepEqual(commandsRun(records), ["sleep%201", `echo%20${"x".repeat(300)}`]);
+});
+
+test("never surfaces a password a program read with echo off", { skip: ptySkip }, () => {
+	const { raw, records } = typeaheadSession([
+		{ keys: "read -s -k 7 pw; echo got-${#pw}", waitMs: 300 },
+		{ keys: "hunter2", enter: false, waitMs: 800 },
+	]);
+	assert.deepEqual(typeaheadReports(records), []);
+	assert.equal(raw.includes("hunter2"), false, "the password must appear nowhere in the pane");
+	assert.match(raw, /got-7/);
+});
+
+test("a program's own prompt still receives the keys typed at it", { skip: ptySkip }, () => {
+	const { raw, records } = typeaheadSession([
+		{ keys: "read 'name?name: '; echo got-$name", waitMs: 300 },
+		{ keys: "bob", waitMs: 800 },
+	]);
+	assert.deepEqual(typeaheadReports(records), []);
+	assert.match(raw, /got-bob/);
+});
+
+test("clears the reported text with Ctrl-U in vi insert mode too", { skip: ptySkip }, () => {
+	const { records } = typeaheadSession([
+		"bindkey -v",
+		{ keys: "sleep 1", waitMs: 200 },
+		{ keys: "echo hi", enter: false, waitMs: 1800 },
+		{ keys: "C-u", enter: false, waitMs: 200 },
+		{ keys: "echo second", waitMs: 500 },
+	]);
+	assert.deepEqual(typeaheadReports(records), ["echo%20hi"]);
+	assert.deepEqual(commandsRun(records), ["bindkey%20-v", "sleep%201", "echo%20second"]);
+});
+
+test("percent-encodes non-ASCII bytes as UTF-8", { skip }, () => {
+	const out = execFileSync("zsh", ["-f", "-c", `source ${bootstrap}; __operator_terminal_pct_encode 'café € ?[x]'`], {
+		encoding: "utf8",
+		env: { ...process.env, LANG: "C.UTF-8", LC_ALL: "C.UTF-8" },
+	});
+	assert.equal(out, "caf%c3%a9%20%e2%82%ac%20%3f%5bx%5d");
+});
+
+test("after a width change redraws the prompt from its first row, counted at the old width", { skip: ptySkip }, () => {
+	const [, afterResize] = runInPtySegments(
+		"zsh -f -i",
+		[`source ${bootstrap}`, "PROMPT=$'first-line\\nsecond $ '", { keys: "clear", waitMs: 800 }, { resize: [60, 40] }],
+		{ settleMs: 800 },
+	);
+	const ups = afterResize.match(/\x1bM|\x1b\[1?A/g) ?? [];
+	assert.equal(ups.length, 1, JSON.stringify(afterResize));
+	assert.ok(afterResize.indexOf("\x1b[J") < afterResize.indexOf("first-line"), JSON.stringify(afterResize));
+	assert.match(afterResize, /second \$ /);
+});
+
+test("each command block holds only its output: no echoed command line and no partial-line mark", { skip: ptySkip || coreSkip }, async () => {
+	const { blocks } = await abortedPromptsSession("zsh");
+	assert.deepEqual(commandOutputs(blocks), [["printf x", "x"], ["echo one", "one"], ["echo two", "two"]]);
+});
+
+test("Ctrl-C and an empty Enter at the prompt add no block, and every block keeps the cwd", { skip: ptySkip || coreSkip }, async () => {
+	const { blocks } = await abortedPromptsSession("zsh");
+	assert.deepEqual(blocks.map((block) => block.command), ["printf x", "echo one", "echo two", ""]);
+	assert.notEqual(blocks[0].cwd, "");
+	assert.deepEqual(blocks.map((block) => block.cwd), blocks.map(() => blocks[0].cwd));
+});
+
+function commandTail(stream, command) {
+	const at = stream.indexOf(`cmd=${command}`);
+	assert.ok(at >= 0, `no cmd=${command} in ${JSON.stringify(stream)}`);
+	const next = stream.indexOf("cmd=", at + 4);
+	return stream.slice(at, next < 0 ? stream.length : next);
+}
+
+test("closes a command's block before zsh prints its partial-line mark", { skip: ptySkip }, () => {
+	const { stream } = productionSession("zsh", ["printf x", "echo one"]);
+	for (const command of ["printf%20x", "echo%20one"]) {
+		const tail = commandTail(stream, command);
+		const end = tail.indexOf("\x1b]133;D;0\x07");
+		const mark = tail.indexOf("\x1b[7m%");
+		assert.ok(end > 0 && mark > end, JSON.stringify(tail));
+		assert.equal(tail.match(/\x1b\]133;D/g).length, 1, JSON.stringify(tail));
+		assert.equal(tail.match(/;exit=0/g).length, 1, JSON.stringify(tail));
+	}
+});
+
+test("keeps the user's PROMPT_EOL_MARK, and ends every command once with PROMPT_SP off", { skip: ptySkip }, () => {
+	const raw = runInPty("zsh -f -i", [
+		`source ${bootstrap}`,
+		"show() { print -r -- \"eol=[${PROMPT_EOL_MARK-unset}]\" }; precmd_functions+=(show)",
+		"PROMPT_EOL_MARK=MINE",
+		"printf x",
+		"false",
+		"setopt no_prompt_sp",
+		"printf y",
+		"unset PROMPT_EOL_MARK",
+		"setopt prompt_sp",
+		"printf z",
+	], { settleMs: 600, env: { OPERATOR_TERMINAL_ID: "t" } });
+	assert.match(commandTail(raw, "printf%20x"), /eol=\[MINE\]/);
+	assert.match(commandTail(raw, "printf%20z"), /eol=\[unset\]/);
+	const printfX = commandTail(raw, "printf%20x");
+	assert.ok(printfX.indexOf("\x1b]133;D;0") < printfX.indexOf("MINE"), JSON.stringify(printfX));
+	assert.match(commandTail(raw, "false"), /;exit=1\x1b\\\x1b\]133;D;1\x07/);
+	for (const command of ["printf%20x", "false", "printf%20y", "printf%20z"]) {
+		const tail = commandTail(raw, command);
+		assert.equal(tail.match(/\x1b\]133;D/g).length, 1, `${command}: ${JSON.stringify(tail)}`);
+	}
+	assert.doesNotMatch(commandTail(raw, "printf%20y"), /yMINE/);
 });

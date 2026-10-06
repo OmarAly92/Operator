@@ -32,9 +32,8 @@ class PairingRepositoryImp implements PairingRepository {
           password: target.password,
         ),
       );
-      if (saved.isSuccess) {
-        _store.set(target);
-      }
+      final desktop = saved.valueOrNull;
+      if (desktop != null) _store.set(desktop.toServerConfig(target.password));
       return saved;
     } on Failure catch (error) {
       return Result.failure(error);

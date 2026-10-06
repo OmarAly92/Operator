@@ -121,10 +121,10 @@ class TerminalStatusBar extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         spacing: 4,
                         children: [
-                          Icon(Icons.restart_alt, size: 12, color: skin.accent),
+                          Icon(Icons.restart_alt, size: 12, color: skin.accentText),
                           AppText(
                             cubit.restoring ? 'Restoring...' : 'Restore',
-                            style: AppTextStyle.style12Bold.copyWith(color: skin.accent),
+                            style: AppTextStyle.style12Bold.copyWith(color: skin.accentText),
                           ),
                         ],
                       ),

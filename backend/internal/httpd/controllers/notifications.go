@@ -220,6 +220,7 @@ func notificationResponse(n notificationsvc.Notification) NotificationResponse {
 		Status:     string(n.Status),
 		CreatedAt:  n.CreatedAt,
 		ResolvedAt: optionalTime(n.ResolvedAt),
+		Quiet:      n.Quiet,
 		Target: NotificationTarget{
 			Kind:      string(n.Target.Kind),
 			SessionID: string(n.Target.SessionID),
@@ -240,6 +241,7 @@ func notificationResponseFromRecord(rec domain.NotificationRecord) NotificationR
 		Status:     string(rec.Status),
 		CreatedAt:  rec.CreatedAt,
 		ResolvedAt: optionalTime(rec.ResolvedAt),
+		Quiet:      rec.Quiet,
 		Target:     notificationTargetFromRecord(rec),
 	}
 }

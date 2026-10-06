@@ -5,7 +5,10 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
+import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
+import 'package:operator_mobile/core/widgets/motion/disclosure.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
@@ -15,6 +18,7 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_status_dot.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/context_readout_chip.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/floating_working_control.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 import 'package:operator_mobile/feature/usage/data/model/session_context_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
@@ -56,6 +60,10 @@ Future<void> _pump(
   _MockBlocksCubit cubit, {
   void Function(String text)? onRerun,
   _MockSessionCommandCubit? commandCubit,
+  DateTime? Function()? workingSince,
+  bool stopped = false,
+  ValueNotifier<double>? dock,
+  Widget? strip,
 }) {
   final commands = commandCubit ?? _MockSessionCommandCubit();
   if (commandCubit == null) when(() => commands.state).thenReturn(const SessionCommandState());
@@ -76,7 +84,19 @@ Future<void> _pump(
               child: SizedBox(
                 width: 400,
                 height: 700,
-                child: BlocksBody(onRerun: onRerun),
+                child: dock == null
+                    ? BlocksBody(onRerun: onRerun, workingSince: workingSince, stopped: stopped)
+                    : Stack(
+                        children: [
+                          Positioned.fill(
+                            child: ChatInsets(
+                              bottom: dock,
+                              child: BlocksBody(onRerun: onRerun, workingSince: workingSince, stopped: stopped),
+                            ),
+                          ),
+                          if (strip != null) Positioned(left: 0, right: 0, bottom: 0, child: strip),
+                        ],
+                      ),
               ),
             ),
           ),
@@ -160,7 +180,7 @@ void main() {
     ]);
 
     await _pump(tester, cubit);
-    await tester.tap(find.byIcon(Icons.chevron_right).first);
+    await tester.tap(find.byType(DisclosureChevron).first);
     await tester.pumpAndSettle();
 
     expect(find.byType(BlockCard), findsNWidgets(2));
@@ -175,7 +195,7 @@ void main() {
     when(() => cubit.blocks).thenReturn([_block(body: long)]);
 
     await _pump(tester, cubit);
-    await tester.tap(find.byIcon(Icons.chevron_right).first);
+    await tester.tap(find.byType(DisclosureChevron).first);
     await tester.pumpAndSettle();
 
     final text = tester.widget<Text>(find.text(long));
@@ -354,7 +374,7 @@ void main() {
     ]);
 
     await _pump(tester, cubit);
-    await tester.tap(find.byIcon(Icons.chevron_right).first);
+    await tester.tap(find.byType(DisclosureChevron).first);
     await tester.pumpAndSettle();
 
     final dot = tester.widget<BlockStatusDot>(
@@ -433,6 +453,151 @@ void main() {
     await tester.tap(find.bySemanticsLabel('Jump to latest'));
     await tester.pumpAndSettle();
     expect(find.bySemanticsLabel('Jump to latest'), findsNothing);
+  });
+
+  testWidgets('the chevron glides to the latest block over several frames and re-pins', (tester) async {
+    when(() => cubit.blocks).thenReturn(
+      List.generate(60, (index) => _block(id: 'seq-$index', firstSeq: index)),
+    );
+    await _pump(tester, cubit);
+    final list = tester.state<BlockListState>(find.byType(BlockList));
+    list.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(list.pinned, isFalse);
+
+    await tester.tap(find.byKey(FloatingWorkingControl.latestKey));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    final midway = list.controller.position.pixels;
+    expect(midway, greaterThan(0));
+    expect(midway, lessThan(list.controller.position.maxScrollExtent));
+
+    await tester.pumpAndSettle();
+    expect(list.controller.position.pixels, list.controller.position.maxScrollExtent);
+    expect(list.pinned, isTrue);
+    expect(find.byKey(FloatingWorkingControl.latestKey), findsNothing);
+  });
+
+  testWidgets('the working pill shows only while the session works', (tester) async {
+    when(() => cubit.blocks).thenReturn([_block()]);
+    final commands = _MockSessionCommandCubit();
+    when(() => commands.state).thenReturn(const SessionCommandState());
+    when(() => commands.activity).thenReturn('idle');
+    final since = DateTime.now().subtract(const Duration(seconds: 12));
+    await _pump(tester, cubit, commandCubit: commands, workingSince: () => since);
+    await tester.pump(AppMotion.control);
+    expect(find.byKey(FloatingWorkingControl.pillKey), findsNothing);
+
+    when(() => commands.state).thenReturn(const SessionCommandState());
+    when(() => commands.activity).thenReturn('active');
+    await _pump(tester, cubit, commandCubit: commands, workingSince: () => since);
+    await tester.pump(AppMotion.control);
+    expect(find.byKey(FloatingWorkingControl.pillKey), findsOneWidget);
+    expect(find.text('Working 12s'), findsOneWidget);
+    expect(find.byKey(FloatingWorkingControl.latestKey), findsNothing);
+  });
+
+  testWidgets('a stopped session shows no working pill', (tester) async {
+    when(() => cubit.blocks).thenReturn([_block()]);
+    final commands = _MockSessionCommandCubit();
+    when(() => commands.state).thenReturn(const SessionCommandState());
+    when(() => commands.activity).thenReturn('active');
+    await _pump(tester, cubit, commandCubit: commands, workingSince: DateTime.now, stopped: true);
+    await tester.pump(AppMotion.control);
+
+    expect(find.byKey(FloatingWorkingControl.pillKey), findsNothing);
+  });
+
+  testWidgets('a host without a working source never shows the pill', (tester) async {
+    when(() => cubit.blocks).thenReturn([_block()]);
+    final commands = _MockSessionCommandCubit();
+    when(() => commands.state).thenReturn(const SessionCommandState());
+    when(() => commands.activity).thenReturn('active');
+    await _pump(tester, cubit, commandCubit: commands);
+    await tester.pump(AppMotion.control);
+
+    expect(find.byKey(FloatingWorkingControl.pillKey), findsNothing);
+  });
+
+  testWidgets('the control floats 10pt above the composer, centred', (tester) async {
+    when(() => cubit.blocks).thenReturn([_block()]);
+    final commands = _MockSessionCommandCubit();
+    when(() => commands.state).thenReturn(const SessionCommandState());
+    when(() => commands.activity).thenReturn('active');
+    final dock = ValueNotifier<double>(60);
+    addTearDown(dock.dispose);
+    await _pump(tester, cubit, commandCubit: commands, workingSince: DateTime.now, dock: dock);
+    await tester.pump(AppMotion.control);
+
+    final body = tester.getRect(find.byType(BlocksBody));
+    final pill = tester.getRect(find.byKey(FloatingWorkingControl.pillKey));
+    expect(body.bottom - pill.bottom, moreOrLessEquals(60 + FloatingWorkingControl.lift, epsilon: 0.5));
+    expect(pill.center.dx, moreOrLessEquals(body.center.dx, epsilon: 0.5));
+  });
+
+  testWidgets('while working the pinned list clears the pill', (tester) async {
+    when(() => cubit.blocks).thenReturn(
+      List.generate(30, (index) => _block(id: 'seq-$index', firstSeq: index, title: 'Bash $index')),
+    );
+    final commands = _MockSessionCommandCubit();
+    when(() => commands.state).thenReturn(const SessionCommandState());
+    when(() => commands.activity).thenReturn('active');
+    final dock = ValueNotifier<double>(60);
+    addTearDown(dock.dispose);
+    await _pump(tester, cubit, commandCubit: commands, workingSince: DateTime.now, dock: dock);
+    for (var frame = 0; frame < 20; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    final pill = tester.getRect(find.byKey(FloatingWorkingControl.pillKey));
+    final last = tester.getRect(find.text('Bash 29'));
+    expect(last.bottom, lessThanOrEqualTo(pill.top));
+  });
+
+  testWidgets('a strip collapsing above the composer glides the pinned list down and keeps it pinned', (tester) async {
+    when(() => cubit.blocks).thenReturn(
+      List.generate(30, (index) => _block(id: 'seq-$index', firstSeq: index, title: 'Bash $index')),
+    );
+    final open = ValueNotifier<bool>(true);
+    addTearDown(open.dispose);
+    final dock = ValueNotifier<double>(360);
+    addTearDown(dock.dispose);
+    final strip = ValueListenableBuilder<bool>(
+      valueListenable: open,
+      builder: (context, isOpen, _) => MeasuredHeight(
+        onHeight: (height) => dock.value = height + 60,
+        child: Disclosure(
+          expanded: isOpen,
+          child: isOpen ? const SizedBox(height: 300, child: Text('strip')) : const SizedBox.shrink(),
+        ),
+      ),
+    );
+    await _pump(tester, cubit, dock: dock, strip: strip);
+    await tester.pumpAndSettle();
+    final list = tester.state<BlockListState>(find.byType(BlockList));
+    expect(list.pinned, isTrue);
+    final start = tester.getRect(find.text('Bash 29')).bottom;
+
+    open.value = false;
+    await tester.pump();
+    var previous = start;
+    var intermediate = false;
+    for (var frame = 0; frame < 16; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      final bottom = tester.getRect(find.text('Bash 29')).bottom;
+      expect(bottom - previous, lessThan(150));
+      if (bottom > start + 1 && bottom < start + 299) intermediate = true;
+      expect(list.pinned, isTrue);
+      previous = bottom;
+    }
+    expect(intermediate, isTrue);
+
+    await tester.pumpAndSettle();
+    expect(find.text('strip'), findsNothing);
+    expect(dock.value, 60);
+    expect(list.pinned, isTrue);
+    expect(list.controller.position.pixels, moreOrLessEquals(list.controller.position.maxScrollExtent, epsilon: 0.5));
+    expect(tester.getRect(find.text('Bash 29')).bottom, moreOrLessEquals(start + 300, epsilon: 0.5));
   });
 
   testWidgets(
