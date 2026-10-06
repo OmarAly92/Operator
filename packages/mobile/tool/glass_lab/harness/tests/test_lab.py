@@ -178,5 +178,32 @@ class NoiseTests(unittest.TestCase):
             self.assertEqual(lab.take_numbers(temp), [0, 1, 2])
 
 
+class NoiseTakeOrderTests(unittest.TestCase):
+    def takes(self, root, numbering):
+        folder = Path(root) / "takes" / "material.materialize" / "dark-photo"
+        for number, (start, duration) in zip(numbering, ((100.0, 0.30), (200.0, 0.27), (300.0, 0.25), (400.0, 0.36))):
+            take = folder / str(number)
+            take.mkdir(parents=True)
+            (take / "timing.json").write_text(json.dumps({"start": start}))
+            (take / "video.mp4").write_bytes(json.dumps({"duration": duration}).encode())
+        return [folder / str(n) for n in sorted(numbering)]
+
+    def noise(self, numbering):
+        def analyze(scene, case, cache=None):
+            native = json.loads((case / "native" / "video.mp4").read_bytes())["duration"]
+            flutter = json.loads((case / "flutter" / "video.mp4").read_bytes())["duration"]
+            return {"measures": {"block.step1e0.progress.response_pct": (abs(native - flutter) / native * 100, 5.0, "max")}}
+
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(lab.analyze, "analyze", analyze):
+            worst, _ = lab.case_noise(None, self.takes(root, numbering), Path(root) / "material.materialize" / "dark-photo")
+        return json.dumps(worst, indent=2, sort_keys=True)
+
+    def test_renumbering_takes_leaves_the_noise_byte_identical(self):
+        recorded = self.noise([0, 1, 2, 3])
+        self.assertEqual(self.noise([0, 1, 3, 2]), recorded)
+        self.assertEqual(self.noise([5, 1, 0, 7]), recorded)
+        self.assertAlmostEqual(json.loads(recorded)["block.step1e0.progress.response_pct"], 44.0, places=6)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import math
 import re
@@ -178,8 +179,19 @@ def take_numbers(folder):
     return sorted(int(p.name) for p in Path(folder).glob("*") if p.is_dir() and p.name.isdigit())
 
 
+def canonical_takes(takes):
+    def key(take):
+        timing = Path(take) / "timing.json"
+        start = json.loads(timing.read_text()).get("start") if timing.exists() else None
+        video = Path(take) / "video.mp4"
+        content = hashlib.sha256(video.read_bytes()).hexdigest() if video.exists() else ""
+        return (start is None, start or 0.0, content)
+    return sorted(takes, key=key)
+
+
 def case_noise(scene, takes, case_root):
     worst, static_worst, cache = {}, 0.0, {}
+    takes = canonical_takes(takes)
     for i in range(len(takes)):
         for j in range(i + 1, len(takes)):
             case = case_root / f"pair-{takes[i].name}-{takes[j].name}"
