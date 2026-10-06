@@ -1,0 +1,10 @@
+{
+ "photo, all": {
+  "a": 16.82,
+  "b": 1014.0,
+  "rms": 0.668,
+  "a_on_edge": false,
+  "b_on_edge": false
+ },
+ "photo, no box edge in the blind band": null
+}

@@ -1,0 +1,33 @@
+materialize dark-photo: 133ms/-1.29 275ms/-1.08 residual peak 5.12 floor 2.67
+materialize dark-stripes: 117ms/0.04 275ms/0.00 residual peak 2.85 floor nan
+materialize light-photo: 125ms/-1.54 292ms/-1.54 residual peak 5.37 floor 2.13
+materialize light-stripes: 117ms/-0.03 292ms/-0.02 residual peak 3.60 floor 1.72
+press P-20261003-012138/probe.interactive.v13/dark-stripes glass: 252.0 x 88.67 -> 264.0 x 93.33 (+12.00 / +4.66)
+press P-20261003-012427/probe.interactive.v16/dark-stripes glass: 60.0 x 58.67 -> 77.0 x 75.67 (+17.00 / +17.00)
+press P-20261003-012517/probe.interactive.v17/dark-stripes glass: 140.0 x 54.0 -> 156.0 x 60.0 (+16.00 / +6.00)
+press P-20261003-012604/probe.interactive.v18/dark-stripes glass: 252.0 x 44.67 -> 266.33 x 47.67 (+14.33 / +3.00)
+press LG-20260930-101816/button.press/dark-stripes glass: 138.33 x 53.33 -> 154.33 x 59.33 (+16.00 / +6.00)
+press LG-20260930-101816/button.press/dark-stripes prominent: 174.33 x 52.67 -> 190.33 x 58.0 (+16.00 / +5.33)
+press LG-20260930-101816/button.press/light-stripes glass: 138.33 x 53.67 -> 154.33 x 60.0 (+16.00 / +6.33)
+press LG-20260930-101816/button.press/light-stripes prominent: 174.33 x 54.0 -> 190.33 x 59.33 (+16.00 / +5.33)
+press LG-20260930-105500/button.press/dark-stripes glass: 138.33 x 53.33 -> 154.33 x 59.33 (+16.00 / +6.00)
+press LG-20260930-105500/button.press/dark-stripes prominent: 174.33 x 52.67 -> 190.33 x 58.0 (+16.00 / +5.33)
+press LG-20260930-105500/button.press/light-stripes glass: 138.33 x 53.67 -> 154.33 x 60.0 (+16.00 / +6.33)
+press LG-20260930-105500/button.press/light-stripes prominent: 174.33 x 54.0 -> 190.33 x 59.33 (+16.00 / +5.33)
+press LG-20261002-160207/button.press/dark-stripes glass: 138.33 x 53.33 -> 154.33 x 59.33 (+16.00 / +6.00)
+press LG-20261002-160207/button.press/dark-stripes prominent: 174.33 x 52.67 -> 190.33 x 58.0 (+16.00 / +5.33)
+press LG-20261002-160207/button.press/light-stripes glass: 138.33 x 53.67 -> 154.33 x 60.0 (+16.00 / +6.33)
+press LG-20261002-160207/button.press/light-stripes prominent: 174.33 x 54.0 -> 190.33 x 59.33 (+16.00 / +5.33)
+press LG-20261002-205855/button.press/dark-stripes glass: 138.33 x 53.33 -> 154.33 x 59.33 (+16.00 / +6.00)
+press LG-20261002-205855/button.press/dark-stripes prominent: 174.33 x 52.67 -> 190.33 x 58.0 (+16.00 / +5.33)
+press LG-20261002-205855/button.press/light-stripes glass: 138.33 x 53.67 -> 154.33 x 60.0 (+16.00 / +6.33)
+press LG-20261002-205855/button.press/light-stripes prominent: 174.33 x 54.0 -> 190.33 x 59.33 (+16.00 / +5.33)
+press GL-20260927-035111/button.press/dark-stripes glass: 138.33 x 53.33 -> 154.33 x 59.33 (+16.00 / +6.00)
+press GL-20260927-035111/button.press/dark-stripes prominent: 174.33 x 52.67 -> 190.33 x 58.0 (+16.00 / +5.33)
+press GL-20260927-035111/button.press/light-stripes glass: 138.33 x 53.67 -> 154.33 x 60.0 (+16.00 / +6.33)
+press GL-20260927-035111/button.press/light-stripes prominent: 174.33 x 54.0 -> 190.33 x 59.33 (+16.00 / +5.33)
+press GL-20260927-022300/button.press/dark-stripes glass: 138.33 x 53.33 -> 154.33 x 59.33 (+16.00 / +6.00)
+press GL-20260927-022300/button.press/dark-stripes prominent: 174.33 x 52.67 -> 190.33 x 58.0 (+16.00 / +5.33)
+menu pair-01: events [2, 2] springs 0.27/0.78 0.26/0.81
+menu pair-02: events [2, 2] springs 0.27/0.78 0.30/0.74
+menu pair-12: events [2, 2] springs 0.26/0.81 0.30/0.74
