@@ -1,0 +1,27 @@
+12 scene, case and frame triples compared; 12 Flutter frames byte-identical to the 2A run
+identical flutter material.tinted dark-black ready: native frame max difference 0.0
+identical flutter material.tinted dark-black settled: native frame max difference 0.0
+identical flutter material.tinted dark-stripes ready: native frame max difference 0.0
+identical flutter material.tinted dark-stripes settled: native frame max difference 0.0
+identical flutter material.tinted dark-white ready: native frame max difference 0.0
+identical flutter material.tinted dark-white settled: native frame max difference 0.0
+identical flutter material.tinted light-black ready: native frame max difference 0.0
+identical flutter material.tinted light-black settled: native frame max difference 0.0
+identical flutter material.tinted light-stripes ready: native frame max difference 0.0
+identical flutter material.tinted light-stripes settled: native frame max difference 0.0
+identical flutter material.tinted light-white ready: native frame max difference 0.0
+identical flutter material.tinted light-white settled: native frame max difference 0.0
+material.tinted dark-black ready rim_rms: 24.35 -> 24.35 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.tinted dark-black settled rim_rms: 24.35 -> 24.35 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.tinted dark-stripes ready rim_rms: 10.04 -> 10.04 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.tinted dark-stripes settled rim_rms: 10.04 -> 10.04 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.tinted dark-white ready rim_rms: 9.51 -> 9.51 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.tinted dark-white settled rim_rms: 9.51 -> 9.51 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.tinted light-black ready rim_rms: 14.34 -> 14.34 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.tinted light-black settled rim_rms: 14.34 -> 14.34 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.tinted light-stripes ready rim_rms: 9.04 -> 9.04 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.tinted light-stripes settled rim_rms: 9.04 -> 9.04 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.tinted light-white ready rim_rms: 10.73 -> 10.73 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.tinted light-white settled rim_rms: 10.73 -> 10.73 (fail -> fail), flutter frame max difference 0.0, native 0.0
+missing: 0
+worse: 0
