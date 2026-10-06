@@ -164,6 +164,16 @@ class PeakGainTests(unittest.TestCase):
         self.assertGreater(found["appearances"]["light"]["value"], found["appearances"]["dark"]["value"])
         self.assertEqual(found["case_spread"]["per_take"]["dark-photo"], found["cases"]["dark-photo"]["value"])
         self.assertEqual(set(found["take_spread"]["per_take"]), {"t0"})
+        self.assertEqual(found["dropped"], {})
+
+    def test_a_native_case_with_no_flutter_scan_row_is_reported_as_dropped(self):
+        curves = [curve(case, True, 0.5, 0.7, gain=0.4) for case in CASES]
+        rows = identity_rows()
+        del rows["light-photo"]
+        found = fitvis.peak_gains(curves, 0.5, 0.7, rows, *tables(rows))
+        self.assertNotIn("light-photo", found["cases"])
+        self.assertNotIn("light-photo", found["pooled"]["cases"])
+        self.assertEqual(found["dropped"], {"light-photo": "no Flutter scan row for light-photo"})
 
 
 class SpringCheckTests(unittest.TestCase):
@@ -353,6 +363,22 @@ class WriteGuardTests(unittest.TestCase):
         self.assertEqual(fitvis.write_problems(found, labels[:2], recorded), [p for p in problems if p.startswith(labels[2])])
         self.assertEqual(sorted(recorded), sorted(labels[:2]))
         self.assertEqual(fitvis.write_problems(found, labels), [])
+
+    def test_a_per_case_fit_that_came_back_unfitted_or_a_dropped_case_refuses_the_write_unless_named_in_an_override(self):
+        mapping = complete_mapping()
+        mapping["material.materialize.snappy"]["exponent_cases"]["light-stripes"] = None
+        mapping["material.materialize.bouncy"]["gains"]["cases"]["dark-photo"] = None
+        mapping["material.materialize.bouncy"]["reduce_motion_gains"]["dropped"] = {"light-photo-reduce-motion": "no Flutter scan row for light-photo"}
+        found = summary(mapping)
+        labels = ["material.materialize.snappy/exponent/light-stripes", "material.materialize.bouncy/gain/dark-photo", "material.materialize.bouncy/reduce_motion_gain/light-photo-reduce-motion"]
+        problems = fitvis.write_problems(found)
+        self.assertEqual(len(problems), 3)
+        self.assertIn("material.materialize.snappy/exponent/light-stripes: not fitted", problems)
+        self.assertIn("material.materialize.bouncy/gain/dark-photo: not fitted", problems)
+        self.assertIn("material.materialize.bouncy/reduce_motion_gain/light-photo-reduce-motion: dropped, no Flutter scan row for light-photo", problems)
+        recorded = []
+        self.assertEqual(fitvis.write_problems(found, labels, recorded), [])
+        self.assertEqual(sorted(recorded), sorted(labels))
 
     def test_the_inert_default_gain_is_written_and_never_called_unfitted(self):
         found = summary(complete_mapping())

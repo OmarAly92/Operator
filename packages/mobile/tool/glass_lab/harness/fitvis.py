@@ -219,7 +219,13 @@ def peak_gains(curves, response, damping, rows, table, above):
 
     cases = {case: fit_peak_gain({case: value}, realised) for case, value in sorted(known.items())}
     takes = {take: fit_peak_gain({c: v for c, v in overshoot_targets(found).items() if c in known}, realised) for take, found in sorted(by_take(curves).items())}
+    dropped = {
+        case: "no native overshoot measured" if case not in targets else f"no Flutter scan row for {base_case(case)}"
+        for case in sorted({c["case"] for c in curves if c["appearing"]})
+        if case not in known
+    }
     return {
+        "dropped": dropped,
         "pooled": fit_peak_gain(known, realised),
         "appearances": {
             appearance: fit_peak_gain({c: v for c, v in known.items() if appearance_of(c) == appearance}, realised)
@@ -555,11 +561,21 @@ def edge_problems(label, fit, allowed=(), recorded=None):
         found.append(f"{label} = {fit['value']}: on the grid ceiling or edge")
     if fit.get("at_floor"):
         found.append(f"{label} = {fit['value']}: on the grid floor")
+    return overridable(label, found, allowed, recorded)
+
+
+def overridable(label, found, allowed=(), recorded=None):
     if found and label in allowed:
         if recorded is not None:
             recorded.append(label)
         return []
     return found
+
+
+def case_problems(label, fit, allowed=(), recorded=None):
+    if not fit:
+        return overridable(label, [f"{label}: not fitted"], allowed, recorded)
+    return edge_problems(label, fit, allowed, recorded)
 
 
 def write_problems(summary, allowed=(), recorded=None):
@@ -594,10 +610,14 @@ def write_problems(summary, allowed=(), recorded=None):
                 found.append(f"{label}: not fitted ({fit.get('from', 'not identifiable')})")
             found += edge_problems(label, fit)
         for case, fit in (entry.get("exponent_cases") or {}).items():
-            found += edge_problems(f"{scene_id}/exponent/{case}", fit, allowed, recorded)
+            found += case_problems(f"{scene_id}/exponent/{case}", fit, allowed, recorded)
         for key in ("gains", "reduce_motion_gains"):
-            for case, fit in ((entry.get(key) or {}).get("cases") or {}).items():
-                found += edge_problems(f"{scene_id}/{key.removesuffix('s')}/{case}", fit, allowed, recorded)
+            gains = entry.get(key) or {}
+            for case, fit in (gains.get("cases") or {}).items():
+                found += case_problems(f"{scene_id}/{key.removesuffix('s')}/{case}", fit, allowed, recorded)
+            for case, reason in (gains.get("dropped") or {}).items():
+                label = f"{scene_id}/{key.removesuffix('s')}/{case}"
+                found += overridable(label, [f"{label}: dropped, {reason}"], allowed, recorded)
     return found
 
 
