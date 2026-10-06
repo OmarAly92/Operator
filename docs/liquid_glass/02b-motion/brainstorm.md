@@ -167,3 +167,7 @@ Other points the spec must settle (from `context.md` §6):
 ## 2B.1 plan ready (2026-10-03)
 
 `plan-2b1.md` (21 tasks, 34 rulings) is on `development`. It was written prototype-first on `proto/2b1` (prototype `bba17e92a`, plan `a35735fd3`; ruling 34 added here). An independent review (`plan-2b1-review.md`: 1 blocker, 11 major, 20 minor, then R1–R10) and two fix rounds (`plan-2b1-fixwave-status.md`) ended with "Ready to execute: yes". Execution is a fresh local session in worktree `/Users/omaraly/development/AI/Operator-2b1`, branch `feat/ios-liquid-glass-2b1`. Keep the worktrees `Operator-2b-proto` and `Operator-2b1-proto` until 2B.1 merges: the plan reads spike runs and prototype runs from them.
+
+## 2B.1 merged (2026-10-06)
+
+After the execution, an independent code review and measurement audit (C1–C19, A1–A10), a two-part fix wave (code; then re-recording after a fresh simulator boot, re-fit and re-run), a part 1 re-review, a part 2 re-audit and its fix round, the user chose to merge (A) and approved deleting superseded recordings. Merged and pushed as `c4de9358a`; gates on the merged tree: app 2146, package 155, example 13, harness 204. Done item 4 is 133 / 168 in both modes, with 70 failures classed in `todo-2b1.md`. Recordings are archived at `/Users/omaraly/development/AI/glass-lab-runs/2b1/`. Next: the 2B.2 plan (ROADMAP §9).

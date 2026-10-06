@@ -9,7 +9,7 @@ Last updated: 2026-10-06. Owner: Omar Aly (the user). This is the single source 
 | 1 | Reference lab (measuring instrument) | **DONE**, merged to `development` (`7f74f5a0b`), not pushed |
 | 2A | Package foundation + how glass looks | **DONE**, merged to `development` on 2026-10-02 (2A, 2A.1 and the review fix wave). Done item 3 passes 10 of 20 cases, item 4 5 of 6, item 5 17 of 20, item 6 22 of 32 measures, item 8 passes. Results: `docs/liquid_glass/02a-looks/results-2a1.md`. |
 | 2A.2 | Static-look polish (shader residuals) | TODO, not planned: `docs/liquid_glass/02a-looks/todo-2a2.md` |
-| 2B | How glass moves | **2B.1 EXECUTED, its review fix wave and the re-audit's fix round done** on `feat/ios-liquid-glass-2b1`, awaiting the user's review: the lab measures motion per shape, the native references N1, N2, N5, N7 and the materialize Reduce Motion runs are recorded (N1, N2, N5 and N6 again after fresh simulator boots) with noise floors over at least two boots, and the package has its coordinator with materialize. Results: `02b-motion/results-2b1.md`. Plan `02b-motion/plan-2b1.md`; spec `02b-motion/spec.md`; reviews `02b-motion/review-2b1-code.md`, `review-2b1-audit.md`. Done item 4 passes 133 of 168 progress measures in normal mode and 133 of 168 under Reduce Motion at the blur ramp k = 1 (event and touch gates 120 of 120; 136 and 133 at part 2's k = 0.5, 129 and 134 at k = 3); item 5 passes with `worse` 0 and `missing` 0 in all nine scenes (120 of 124 Flutter frames byte-identical to 2A's). The 70 residual failures (35 model, 33 tunable, 2 measurement) are in `02b-motion/todo-2b1.md`. 2B.2 (merge, union, morph) is planned after 2B.1 merges. |
+| 2B | How glass moves | **2B.1 DONE**, merged to `development` and pushed on 2026-10-06 (`c4de9358a`): the lab measures motion per shape, the native references and noise floors are recorded over fresh simulator boots, and the package has its motion coordinator with materialize and dematerialize. Done items 1, 2, 3, 5 and 6 pass; item 4 passes 133 of 168 progress measures in normal and Reduce Motion (gates 120 of 120), and its 70 classed failures are in `02b-motion/todo-2b1.md`. Results `02b-motion/results-2b1.md`; reviews `review-2b1-code.md`, `review-2b1-audit.md`. Recordings archived at `/Users/omaraly/development/AI/glass-lab-runs/2b1/`. **Next: the 2B.2 plan** (merge, split, union, morph). |
 | 3 | Every iOS component inside the package | NOT STARTED |
 | 4 | Operator adopts the package | NOT STARTED |
 | 5 | Real-device verification pass | NOT STARTED |
@@ -308,7 +308,7 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
 - **2A review (2026-09-30):** the code was sound, but the look failed the spec's thresholds, mostly for tuning-setup reasons. 2A.1 (below) is the fix round. Its plan is `docs/liquid_glass/02a-looks/plan-2a1.md` (10 tasks, 18 rulings), its prototype `/Users/omaraly/development/AI/Operator-2a1-proto` (`PROTOTYPE-2A1.md`, uncommitted, throwaway), its results `docs/liquid_glass/02a-looks/results-2a1.md` and its tuning log `docs/liquid_glass/02a-looks/tuning-log-2a1.md`.
 - **Next:** the user reviews 2A.1 and its review fix wave and decides the merge (§9).
 
-#### 2A.1: the 2A review's fix round (executed, with a review fix wave; awaiting the user's review)
+#### 2A.1: the 2A review's fix round (done; merged with 2A on 2026-10-02)
 
 Same branch, `feat/ios-liquid-glass-2a`. The review's findings, one line each:
 1. The rim measure sampled only the centre column; it now scores all four sides of every pinned glass at its exact edge, never looser than 2A's.
@@ -394,7 +394,7 @@ Done cases still failing, with their cause class from `results-2a1.md`. Classes:
   - Operator's stamped sources omit its path-dependency packages `packages/xterm` and `speech_to_text` (`tool/glass_lab/harness/build.py`, `SOURCES`).
 
 
-### Project 2B: How glass moves (2B.1 executed and fix wave done, awaiting the user's review; spec `02b-motion/spec.md`)
+### Project 2B: How glass moves (2B.1 done and merged 2026-10-06; 2B.2 next; spec `02b-motion/spec.md`)
 
 #### 2B.1: the instrument and the first motion
 - **Plan:** `02b-motion/plan-2b1.md` (21 tasks; 34 rulings in its header, each with prototype evidence; written, reviewed and fixed twice before execution). Prototype: worktree `/Users/omaraly/development/AI/Operator-2b1-proto`, branch `proto/2b1` (throwaway, never merged).
@@ -575,7 +575,13 @@ After the review fix wave (runs `20261002-200447` to `20261002-210140`; the firs
 
 ## 9. Exact next steps
 
-1. **2B.1 is executed, its review fix wave and the re-audit's fix round are done; it awaits the user's review** (§5 step 4): a check of the fix round's numbers (k = 1, Done item 4 at 133 / 133, the H classes), then merge only when the user says. Before 2B.2 reuses `noise.json`, exclude the one take of gotcha 52. The run data under `packages/mobile/build/glass_lab/` is about 140 GB (noise caches and the stale session); deleting any of it is the user's call. Then write the 2B.2 plan (merge, split, union, morph), prototype-first, from the merged baseline.
+1. **Write the 2B.2 plan** (spec §4: merge, split, union, morph; container spacing animation moved here by plan-2b1 ruling 29), prototype-first, from `development` at `c4de9358a` or later, and have it independently reviewed before execution (§5). Carry in:
+   - **Fit on moving glass.** `fitvis` learns from still glass, but moving Flutter glass runs 0.06–0.10 of progress ahead of that prediction; this drives most of 2B.1's 33 tunable (a) failures (`results-2b1.md`, `todo-2b1.md`). Prototype a fit on moving glass first.
+   - **Native merge reach** is about half of `spacing` in the 2B.1 prototype, against spec M4's "closer than `spacing`"; settle it with the N7 scenes before calibrating.
+   - **Gotcha 52:** exclude its one take before 2B.2 reuses `noise.json`.
+   - **2B.1's recordings** (native references, current noise takes, Done runs, `reference/` for `reproduce.py`) live at `/Users/omaraly/development/AI/glass-lab-runs/2b1/`, moved from the removed worktree `Operator-2b1/packages/mobile/build/glass_lab/`; run folders cited in `results-2b1.md` are under its `runs/`. Copy what a new worktree needs into its own `build/glass_lab/`; never record into the archive. Superseded data (the stale noise session, excluded takes, extracted frame caches, the scan scratch and the prototype worktree) was deleted with the user's approval on 2026-10-06; the branch `proto/2b1` keeps the prototype's commits.
+   - Free disk was 155 GB after the cleanup; noise recording takes about 7 GB per Done run pair and more for noise takes. Check before recording.
+
 2. **2A.2 (static-look polish)** is a to-do list, not yet planned: `docs/liquid_glass/02a-looks/todo-2a2.md`. The user decides when, likely alongside project 3, since the tinted rings are a prominent-button detail.
 3. **Pending user decisions:**
    - native `material.interactive` (§1), which 2B question 1 settles;
