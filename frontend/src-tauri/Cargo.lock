@@ -2835,7 +2835,7 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "operator"
-version = "0.14.14"
+version = "0.14.15"
 dependencies = [
  "arboard",
  "base64 0.22.1",
