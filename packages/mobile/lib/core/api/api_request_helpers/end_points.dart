@@ -16,6 +16,8 @@ sealed class EndPoints {
   static const String usageRollup = '/api/v1/usage/rollup';
   static const String usageQuota = '/api/v1/usage/quota';
 
+  static String projectBranches(String projectId) => '$projects/${Uri.encodeComponent(projectId)}/branches';
+
   static String notification(String id) => '$notifications/${Uri.encodeComponent(id)}';
   static String usageSession(String sessionId) =>
       '/api/v1/usage/sessions/${Uri.encodeComponent(sessionId)}';

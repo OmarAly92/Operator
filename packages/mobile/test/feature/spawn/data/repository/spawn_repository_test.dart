@@ -5,7 +5,9 @@ import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/spawn/data/data_source/spawn_remote_data_source.dart';
+import 'package:operator_mobile/feature/spawn/data/model/params/get_project_branches_params.dart';
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
+import 'package:operator_mobile/feature/spawn/data/model/project_branches_model.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
@@ -150,6 +152,42 @@ void main() {
 
       expect(result.isFailure, isTrue);
       verifyNever(() => dataSource.getClaudeAccounts());
+    });
+  });
+
+  group('getBranches', () {
+    const params = GetProjectBranchesParams(projectId: 'p');
+
+    test('fails fast with noNetwork when the daemon is unreachable', () async {
+      when(() => network.isConnected).thenAnswer((_) async => false);
+
+      final result = await repository.getBranches(params);
+
+      expect(result.isFailure, isTrue);
+      verifyNever(() => dataSource.getBranches(params));
+    });
+
+    test('returns the branch listing on success', () async {
+      when(() => network.isConnected).thenAnswer((_) async => true);
+      when(() => dataSource.getBranches(params)).thenAnswer(
+        (_) async => const GlobalResponse<ProjectBranchesModel>(data: ProjectBranchesModel(current: 'main')),
+      );
+
+      final result = await repository.getBranches(params);
+
+      result.when(
+        onSuccess: (r) => expect(r.data!.current, 'main'),
+        onFailure: (_) => fail('expected success'),
+      );
+    });
+
+    test('propagates a Failure', () async {
+      when(() => network.isConnected).thenAnswer((_) async => true);
+      when(() => dataSource.getBranches(params)).thenThrow(ServerFailure.noNetwork());
+
+      final result = await repository.getBranches(params);
+
+      expect(result.isFailure, isTrue);
     });
   });
 }

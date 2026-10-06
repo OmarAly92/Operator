@@ -11,6 +11,7 @@ import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/settings_group.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/spawn/logic/branch_options.dart';
 import 'package:operator_mobile/feature/spawn/logic/spawn_option_values.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/ui/widgets/spawn_option_rows.dart';
@@ -106,7 +107,7 @@ class _SpawnBodyState extends State<SpawnBody> {
         final project = SpawnOptionValues.projectById(_sessionsCubit.projects, _cubit.projectId);
         String? errorText;
         if (state is SpawnValidationFailureState) errorText = state.message;
-        if (state is SpawnFailureState) errorText = state.failure.message;
+        if (state is SpawnFailureState) errorText = BranchOptions.spawnFailureMessage(state.failure);
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -140,6 +141,22 @@ class _SpawnBodyState extends State<SpawnBody> {
                         value: _cubit.useWorktree,
                         onChanged: (value) => _cubit.setUseWorktree(value),
                       ),
+                    ),
+                  if (project?.kind == 'single_repo')
+                    SettingsRow(
+                      key: const ValueKey('spawn-branch-row'),
+                      icon: Icons.account_tree_outlined,
+                      label: 'Branch',
+                      subtitle: _cubit.branchesError != null ? kBranchesFailedText : null,
+                      subtitleColor: skin.red,
+                      value: BranchOptions.rowValue(
+                        useWorktree: _cubit.useWorktree,
+                        selected: _cubit.selectedBranch,
+                        current: _cubit.currentBranch,
+                        loading: _cubit.branchesLoading,
+                        failed: _cubit.branchesError != null,
+                      ),
+                      onTap: _cubit.useWorktree ? () => _openOptions(context, SpawnOption.branch) : null,
                     ),
                 ],
               ),

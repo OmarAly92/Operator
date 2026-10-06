@@ -4,6 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
 import 'package:operator_mobile/feature/spawn/data/data_source/spawn_remote_data_source.dart';
+import 'package:operator_mobile/feature/spawn/data/model/params/get_project_branches_params.dart';
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
 
 class _MockApiConsumer extends Mock implements ApiConsumer {}
@@ -119,5 +120,37 @@ void main() {
 
     final body = verify(() => apiConsumer.post(EndPoints.sessions, body: captureAny(named: 'body'))).captured.single as Map<String, dynamic>;
     expect(body['claudeAccountId'], 'personal');
+  });
+
+  test('sends branch only when it is non-empty', () async {
+    when(() => apiConsumer.post(any(), body: any(named: 'body')))
+        .thenAnswer((_) async => jsonResponse({'session': {'id': 's1', 'projectId': 'p'}}));
+
+    await dataSource.spawn(const SpawnSessionParams(projectId: 'p', workspaceMode: 'worktree', branch: 'feat/x'));
+    await dataSource.spawn(const SpawnSessionParams(projectId: 'p', workspaceMode: 'worktree', branch: ''));
+
+    final bodies = verify(() => apiConsumer.post(EndPoints.sessions, body: captureAny(named: 'body')))
+        .captured.cast<Map<String, dynamic>>();
+    expect(bodies.first, {'projectId': 'p', 'workspaceMode': 'worktree', 'branch': 'feat/x'});
+    expect(bodies.last.containsKey('branch'), isFalse);
+  });
+
+  test('lists project branches from the project branches route', () async {
+    when(() => apiConsumer.get(EndPoints.projectBranches('p 1'))).thenAnswer(
+      (_) async => jsonResponse({
+        'current': 'logic/home',
+        'branches': [
+          {'name': 'logic/home', 'checkedOutAt': '/abs/path', 'isMainCheckout': true},
+          {'name': 'main', 'isMainCheckout': false},
+        ],
+      }),
+    );
+
+    final listing = (await dataSource.getBranches(const GetProjectBranchesParams(projectId: 'p 1'))).data!;
+
+    expect(EndPoints.projectBranches('p 1'), '/api/v1/projects/p%201/branches');
+    expect(listing.current, 'logic/home');
+    expect(listing.branches!.map((b) => b.name), ['logic/home', 'main']);
+    expect(listing.branches!.last.checkedOutAt, isNull);
   });
 }

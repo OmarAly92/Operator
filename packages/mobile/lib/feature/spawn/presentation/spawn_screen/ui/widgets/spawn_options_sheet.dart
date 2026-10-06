@@ -5,12 +5,15 @@ import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/loading_widget/app_loader.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
+import 'package:operator_mobile/core/widgets/main_widgets/app_text_field.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/settings_group.dart';
 import 'package:operator_mobile/core/widgets/pickers/agent_picker_sheet.dart';
 import 'package:operator_mobile/core/widgets/pickers/claude_account_picker_sheet.dart';
 import 'package:operator_mobile/core/widgets/pickers/project_picker_sheet.dart';
 import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
+import 'package:operator_mobile/feature/spawn/data/model/project_branch_model.dart';
+import 'package:operator_mobile/feature/spawn/logic/branch_options.dart';
 import 'package:operator_mobile/feature/spawn/logic/spawn_option_values.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/ui/widgets/spawn_option_rows.dart';
@@ -32,6 +35,7 @@ Future<void> showSpawnOptionsSheet(
         SpawnOption.agent => _agentPage(cubit, onRefreshAgents),
         SpawnOption.account => _accountPage(cubit),
         SpawnOption.permission => _permissionPage(cubit),
+        SpawnOption.branch => _branchPage(),
       };
 
   final root = AppSheetPage(
@@ -149,6 +153,97 @@ AppSheetPage _permissionPage(SpawnCubit cubit) => AppSheetPage(
         ),
       ],
     );
+
+AppSheetPage _branchPage() => AppSheetPage(
+      title: 'Branch',
+      subtitle: 'Which branch the agent works on.',
+      rows: (context, _) => [const _BranchPicker()],
+    );
+
+class _BranchPicker extends StatefulWidget {
+  const _BranchPicker();
+
+  @override
+  State<_BranchPicker> createState() => _BranchPickerState();
+}
+
+class _BranchPickerState extends State<_BranchPicker> {
+  final TextEditingController _search = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _pick(SpawnCubit cubit, String? branch) {
+    Haptics.select();
+    cubit.setBranch(branch);
+    AppSheet.of(context).close();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = context.skin;
+    return BlocBuilder<SpawnCubit, SpawnState>(
+      builder: (context, _) {
+        final cubit = context.read<SpawnCubit>();
+        final searchable = BranchOptions.showsSearch(cubit.branches);
+        final query = searchable ? _query : '';
+        final visible = BranchOptions.filter(cubit.branches, query);
+        final check = Icon(Icons.check_rounded, size: 18, color: skin.accent);
+        final rows = <Widget>[
+          if (query.trim().isEmpty)
+            SettingsRow(
+              key: const ValueKey('spawn-branch-new'),
+              label: kNewBranchLabel,
+              trailing: cubit.selectedBranch == null ? check : const SizedBox.shrink(),
+              onTap: () => _pick(cubit, null),
+            ),
+          for (final branch in visible) _branchRow(cubit, branch, check),
+        ];
+        final String? note = cubit.branchesLoading
+            ? 'Loading branches…'
+            : cubit.branchesError != null
+            ? kBranchesFailedText
+            : query.trim().isNotEmpty && visible.isEmpty
+            ? kNoBranchMatchesText
+            : null;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (searchable) ...[
+              AppTextField(
+                key: const ValueKey('spawn-branch-search'),
+                controller: _search,
+                hintText: kSearchBranchesHint,
+                autocorrect: false,
+                onChanged: (value) => setState(() => _query = value),
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (rows.isNotEmpty) SettingsGroup(children: rows),
+            if (note != null) AgentPickerEmpty(note),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _branchRow(SpawnCubit cubit, ProjectBranchModel branch, Widget check) {
+    final name = branch.name ?? '';
+    final reason = BranchOptions.busyReason(branch);
+    final row = SettingsRow(
+      key: ValueKey('spawn-branch-$name'),
+      label: name,
+      subtitle: reason,
+      trailing: cubit.selectedBranch == name ? check : const SizedBox.shrink(),
+      onTap: reason == null ? () => _pick(cubit, name) : null,
+    );
+    return reason == null ? row : Opacity(opacity: 0.45, child: row);
+  }
+}
 
 class _RefreshAgentsAction extends StatelessWidget {
   const _RefreshAgentsAction({required this.onRefresh});

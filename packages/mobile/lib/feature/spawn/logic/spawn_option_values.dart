@@ -3,7 +3,7 @@ import 'package:operator_mobile/feature/spawn/data/model/claude_account_model.da
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
 import 'package:operator_mobile/feature/terminal/logic/permission_modes.dart';
 
-enum SpawnOption { project, agent, account, permission }
+enum SpawnOption { project, agent, account, permission, branch }
 
 sealed class SpawnOptionValues {
   static ProjectModel? projectById(List<ProjectModel> projects, String? id) {

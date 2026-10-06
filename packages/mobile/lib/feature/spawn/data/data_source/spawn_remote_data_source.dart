@@ -3,7 +3,9 @@ import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/spawn/data/model/claude_account_model.dart';
+import 'package:operator_mobile/feature/spawn/data/model/params/get_project_branches_params.dart';
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
+import 'package:operator_mobile/feature/spawn/data/model/project_branches_model.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
 
 abstract class SpawnRemoteDataSource {
@@ -11,6 +13,7 @@ abstract class SpawnRemoteDataSource {
   Future<GlobalResponse<AgentCatalog>> refreshAgents();
   Future<GlobalResponse<SessionModel>> spawn(SpawnSessionParams params);
   Future<GlobalResponse<List<ClaudeAccountModel>>> getClaudeAccounts();
+  Future<GlobalResponse<ProjectBranchesModel>> getBranches(GetProjectBranchesParams params);
 }
 
 class SpawnRemoteDataSourceImp implements SpawnRemoteDataSource {
@@ -57,6 +60,16 @@ class SpawnRemoteDataSourceImp implements SpawnRemoteDataSource {
       response.data as Map<String, dynamic>,
       withDataKey: false,
       fromJsonT: ClaudeAccountModel.listFromJson,
+    );
+  }
+
+  @override
+  Future<GlobalResponse<ProjectBranchesModel>> getBranches(GetProjectBranchesParams params) async {
+    final response = await _apiConsumer.get(EndPoints.projectBranches(params.projectId));
+    return GlobalResponse<ProjectBranchesModel>.fromJson(
+      response.data as Map<String, dynamic>,
+      withDataKey: false,
+      fromJsonT: ProjectBranchesModel.fromJson,
     );
   }
 }

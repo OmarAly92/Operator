@@ -73,10 +73,14 @@ class SettingsRow extends StatelessWidget {
     this.loading = false,
     this.disabled = false,
     this.trailing,
+    this.subtitle,
+    this.subtitleColor,
   });
 
   final IconData? icon;
   final String label;
+  final String? subtitle;
+  final Color? subtitleColor;
   final String? value;
   final Color? valueColor;
   final Widget? leading;
@@ -103,7 +107,19 @@ class SettingsRow extends StatelessWidget {
               const HorizontalSpace(10),
             ],
             Expanded(
-              child: AppText(label, style: AppTextStyle.style15Regular.copyWith(color: labelColor)),
+              child: subtitle == null
+                  ? AppText(label, style: AppTextStyle.style15Regular.copyWith(color: labelColor))
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AppText(label, style: AppTextStyle.style15Regular.copyWith(color: labelColor)),
+                        AppText(
+                          subtitle!,
+                          style: AppTextStyle.style12Regular.copyWith(color: subtitleColor ?? skin.textTertiary),
+                          maxLines: 2,
+                        ),
+                      ],
+                    ),
             ),
             if (trailing != null)
               trailing!

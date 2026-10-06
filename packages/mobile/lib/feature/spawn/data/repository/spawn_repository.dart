@@ -5,7 +5,9 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/spawn/data/data_source/spawn_remote_data_source.dart';
 import 'package:operator_mobile/feature/spawn/data/model/claude_account_model.dart';
+import 'package:operator_mobile/feature/spawn/data/model/params/get_project_branches_params.dart';
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
+import 'package:operator_mobile/feature/spawn/data/model/project_branches_model.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
 
 abstract class SpawnRepository {
@@ -13,6 +15,7 @@ abstract class SpawnRepository {
   FutureResult<GlobalResponse<AgentCatalog>> refreshAgents();
   FutureResult<GlobalResponse<SessionModel>> spawn(SpawnSessionParams params);
   FutureResult<GlobalResponse<List<ClaudeAccountModel>>> getClaudeAccounts();
+  FutureResult<GlobalResponse<ProjectBranchesModel>> getBranches(GetProjectBranchesParams params);
 }
 
 class SpawnRepositoryImp implements SpawnRepository {
@@ -62,6 +65,18 @@ class SpawnRepositoryImp implements SpawnRepository {
     if (await _network.isConnected) {
       try {
         return Result.success(await _remoteDataSource.getClaudeAccounts());
+      } on Failure catch (error) {
+        return Result.failure(error);
+      }
+    }
+    return Result.failure(ServerFailure.noNetwork());
+  }
+
+  @override
+  FutureResult<GlobalResponse<ProjectBranchesModel>> getBranches(GetProjectBranchesParams params) async {
+    if (await _network.isConnected) {
+      try {
+        return Result.success(await _remoteDataSource.getBranches(params));
       } on Failure catch (error) {
         return Result.failure(error);
       }
