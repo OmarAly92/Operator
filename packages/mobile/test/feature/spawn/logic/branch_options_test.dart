@@ -28,13 +28,13 @@ void main() {
     });
   });
 
-  test('busyReason names the project folder or the worktree folder', () {
+  test('busyReason names the worktree folder and leaves the project folder branch pickable', () {
     expect(BranchOptions.busyReason(const ProjectBranchModel(name: 'main')), isNull);
     expect(
       BranchOptions.busyReason(
         const ProjectBranchModel(name: 'logic/home', checkedOutAt: '/Users/me/rafeeq', isMainCheckout: true),
       ),
-      'Checked out in your project folder — turn off worktree to work on it',
+      isNull,
     );
     expect(
       BranchOptions.busyReason(

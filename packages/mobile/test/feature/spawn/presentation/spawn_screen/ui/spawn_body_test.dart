@@ -276,16 +276,32 @@ void main() {
       verifyNever(() => spawnRepository.getBranches(any()));
     });
 
-    testWidgets('without a worktree shows the current branch and is not tappable', (tester) async {
-      await pumpSingleRepo(tester);
+    testWidgets('without a worktree shows the current branch and still opens the page', (tester) async {
+      final spawnCubit = await pumpSingleRepo(tester);
 
       expect(find.descendant(of: branchRow(), matching: find.text('Branch')), findsOneWidget);
       expect(find.descendant(of: branchRow(), matching: find.text('logic/home')), findsOneWidget);
-      expect(find.descendant(of: branchRow(), matching: find.byIcon(Icons.chevron_right)), findsNothing);
 
       await tester.tap(branchRow());
       await tester.pumpAndSettle();
+      expect(find.byKey(AppSheet.surfaceKey), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('spawn-branch-main')));
+      await tester.pumpAndSettle();
+      expect(spawnCubit.useWorktree, isTrue);
+      expect(spawnCubit.selectedBranch, 'main');
+      expect(find.descendant(of: branchRow(), matching: find.text('main')), findsOneWidget);
+    });
+
+    testWidgets('picking the project folder branch turns the worktree off', (tester) async {
+      final spawnCubit = await pumpSingleRepo(tester);
+      await openBranchPage(tester, spawnCubit);
+
+      await tester.tap(find.byKey(const ValueKey('spawn-branch-logic/home')));
+      await tester.pumpAndSettle();
+      expect(spawnCubit.useWorktree, isFalse);
       expect(find.byKey(AppSheet.surfaceKey), findsNothing);
+      expect(find.descendant(of: branchRow(), matching: find.text('logic/home')), findsOneWidget);
     });
 
     testWidgets('without a worktree on a detached HEAD reads Detached HEAD', (tester) async {
@@ -320,14 +336,12 @@ void main() {
       expect(tester.getTopLeft(feat).dy, lessThan(tester.getTopLeft(main).dy));
 
       expect(
-        find.descendant(
-          of: home,
-          matching: find.text('Checked out in your project folder — turn off worktree to work on it'),
-        ),
+        find.descendant(of: home, matching: find.text('Works in your project folder, no worktree')),
         findsOneWidget,
       );
       expect(find.descendant(of: feat, matching: find.text('In use by rafeeq-3')), findsOneWidget);
-      expect(find.ancestor(of: home, matching: find.byType(Opacity)), findsOneWidget);
+      expect(find.ancestor(of: home, matching: find.byType(Opacity)), findsNothing);
+      expect(find.ancestor(of: feat, matching: find.byType(Opacity)), findsOneWidget);
       expect(find.ancestor(of: main, matching: find.byType(Opacity)), findsNothing);
 
       await tester.tap(feat);

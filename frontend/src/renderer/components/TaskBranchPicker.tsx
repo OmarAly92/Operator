@@ -17,37 +17,27 @@ type TaskBranchPickerProps = {
 	branches: ProjectBranch[];
 	loading: boolean;
 	failed: boolean;
-	onChange: (branch: string) => void;
+	onPick: (pick: { worktree: boolean; branch: string }) => void;
 };
 
 function busyBranchReason(branch: ProjectBranch, t: TFunction) {
-	if (!branch.checkedOutAt) return undefined;
-	if (branch.isMainCheckout) return t("newTask.branchInProjectFolder");
+	if (!branch.checkedOutAt || branch.isMainCheckout) return undefined;
 	const folder = branch.checkedOutAt.replace(/[/\\]+$/, "").split(/[/\\]/).pop() ?? branch.checkedOutAt;
 	return t("newTask.branchInUseBy", { folder });
 }
 
-export function TaskBranchPicker({ id, worktree, value, current, branches, loading, failed, onChange }: TaskBranchPickerProps) {
+export function TaskBranchPicker({ id, worktree, value, current, branches, loading, failed, onPick }: TaskBranchPickerProps) {
 	const { t } = useTranslation();
 	const [search, setSearch] = useState("");
 	const [menuOpen, setMenuOpen] = useState(false);
 	const onCloseAutoFocus = useSuppressStrayFocusRing(menuOpen);
 
 	const triggerClass =
-		"composer-chip max-w-56 justify-between rounded-md! text-caption text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-70";
-
-	if (!worktree) {
-		return (
-			<button type="button" id={id} disabled aria-label={t("newTask.branch")} className={triggerClass}>
-				<GitBranch className="size-icon-sm shrink-0" aria-hidden="true" />
-				<span className="min-w-0 truncate">{current || t("newTask.detachedHead")}</span>
-			</button>
-		);
-	}
+		"composer-chip max-w-56 justify-between rounded-md! text-caption text-muted-foreground hover:text-foreground";
 
 	const query = search.trim().toLocaleLowerCase();
 	const visible = query ? branches.filter((branch) => branch.name.toLocaleLowerCase().includes(query)) : branches;
-	const label = value || t("newTask.newBranch");
+	const label = worktree ? value || t("newTask.newBranch") : current || t("newTask.detachedHead");
 
 	return (
 		<DropdownMenu
@@ -89,21 +79,30 @@ export function TaskBranchPicker({ id, worktree, value, current, branches, loadi
 				)}
 				<div className="model-menu-scroll min-h-0 overflow-y-auto overscroll-contain">
 					{query === "" && (
-						<DropdownMenuItem onSelect={() => onChange("")} className={branchItemClass(value === "")}>
+						<DropdownMenuItem
+							onSelect={() => onPick({ worktree: true, branch: "" })}
+							className={branchItemClass(worktree && value === "")}
+						>
 							{t("newTask.newBranch")}
 						</DropdownMenuItem>
 					)}
 					{visible.map((branch) => {
 						const reason = busyBranchReason(branch, t);
+						const selected = branch.isMainCheckout ? !worktree : worktree && branch.name === value;
 						return (
 							<DropdownMenuItem
 								key={branch.name}
 								disabled={reason !== undefined}
-								onSelect={() => onChange(branch.name)}
-								className={branchItemClass(branch.name === value)}
+								onSelect={() =>
+									onPick(branch.isMainCheckout ? { worktree: false, branch: "" } : { worktree: true, branch: branch.name })
+								}
+								className={branchItemClass(selected)}
 							>
 								<div className="min-w-0 flex-1">
 									<p className="truncate text-settings-label">{branch.name}</p>
+									{branch.isMainCheckout && (
+										<p className="text-xs whitespace-normal text-settings-muted">{t("newTask.branchInProjectFolder")}</p>
+									)}
 									{reason && <p className="text-xs whitespace-normal text-settings-muted">{reason}</p>}
 								</div>
 							</DropdownMenuItem>

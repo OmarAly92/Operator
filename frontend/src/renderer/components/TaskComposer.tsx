@@ -449,7 +449,10 @@ export function TaskComposer({
 							branches={branchesQuery.data?.branches ?? []}
 							loading={branchesQuery.isPending && branchesQuery.fetchStatus !== "idle"}
 							failed={branchesQuery.isError}
-							onChange={setBranch}
+							onPick={(pick) => {
+								setUseWorktree(pick.worktree);
+								setBranch(pick.branch);
+							}}
 						/>
 					</div>
 				)}

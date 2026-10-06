@@ -156,7 +156,7 @@ class _SpawnBodyState extends State<SpawnBody> {
                         loading: _cubit.branchesLoading,
                         failed: _cubit.branchesError != null,
                       ),
-                      onTap: _cubit.useWorktree ? () => _openOptions(context, SpawnOption.branch) : null,
+                      onTap: () => _openOptions(context, SpawnOption.branch),
                     ),
                 ],
               ),

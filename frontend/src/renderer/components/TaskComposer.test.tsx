@@ -748,14 +748,53 @@ describe("TaskComposer branch picker", () => {
 		return h.post.mock.calls[0][1].body as Record<string, unknown>;
 	}
 
-	it("locks to the project folder's branch without a worktree and sends it for the daemon to check", async () => {
+	it("shows the project folder's branch without a worktree and sends it for the daemon to check", async () => {
 		h.post.mockResolvedValueOnce({ data: { workerId: "sess-in-place" } });
 		renderWithBranches();
 
 		await waitFor(async () => expect(await branchTrigger()).toHaveTextContent("logic/home"));
-		expect(await branchTrigger()).toBeDisabled();
+		expect(await branchTrigger()).toBeEnabled();
 		const body = await submit();
 		expect(body).toMatchObject({ workspaceMode: "in_place", branch: "logic/home" });
+	});
+
+	it("ticks the worktree when another branch is picked from the folder's branch", async () => {
+		h.post.mockResolvedValueOnce({ data: { workerId: "sess-feat" } });
+		renderWithBranches();
+		await waitFor(async () => expect(await branchTrigger()).toHaveTextContent("logic/home"));
+		await userEvent.click(await branchTrigger());
+		await userEvent.click(await screen.findByRole("menuitem", { name: "feat/x" }));
+
+		expect(await worktreeBox()).toBeChecked();
+		expect(await branchTrigger()).toHaveTextContent("feat/x");
+		const body = await submit();
+		expect(body).toMatchObject({ workspaceMode: "worktree", branch: "feat/x" });
+	});
+
+	it("unticks the worktree when the folder's branch is picked", async () => {
+		h.post.mockResolvedValueOnce({ data: { workerId: "sess-home" } });
+		renderWithBranches();
+		await userEvent.click(await worktreeBox());
+		await userEvent.click(await branchTrigger());
+		await userEvent.click(await screen.findByRole("menuitem", { name: /logic\/home/ }));
+
+		expect(await worktreeBox()).not.toBeChecked();
+		expect(await branchTrigger()).toHaveTextContent("logic/home");
+		const body = await submit();
+		expect(body).toMatchObject({ workspaceMode: "in_place", branch: "logic/home" });
+	});
+
+	it("ticks the worktree when New branch is picked", async () => {
+		h.post.mockResolvedValueOnce({ data: { workerId: "sess-new-pick" } });
+		renderWithBranches();
+		await waitFor(async () => expect(await branchTrigger()).toHaveTextContent("logic/home"));
+		await userEvent.click(await branchTrigger());
+		await userEvent.click(await screen.findByRole("menuitem", { name: "New branch" }));
+
+		expect(await worktreeBox()).toBeChecked();
+		const body = await submit();
+		expect(body.workspaceMode).toBe("worktree");
+		expect(body.branch).toBeUndefined();
 	});
 
 	it("defaults to a new branch with a worktree and sends no branch", async () => {
@@ -769,15 +808,14 @@ describe("TaskComposer branch picker", () => {
 		expect(body.branch).toBeUndefined();
 	});
 
-	it("disables branches that are checked out and says where", async () => {
+	it("disables branches other sessions hold and labels the folder's branch", async () => {
 		renderWithBranches();
 		await userEvent.click(await worktreeBox());
-		await waitFor(async () => expect(await branchTrigger()).toBeEnabled());
 		await userEvent.click(await branchTrigger());
 
 		const home = await screen.findByRole("menuitem", { name: /logic\/home/ });
-		expect(home).toHaveAttribute("aria-disabled", "true");
-		expect(home).toHaveTextContent("Checked out in your project folder — turn off worktree to work on it");
+		expect(home).not.toHaveAttribute("aria-disabled", "true");
+		expect(home).toHaveTextContent("Works in your project folder, no worktree");
 		const session = screen.getByRole("menuitem", { name: /session\/rafeeq-3\/root/ });
 		expect(session).toHaveAttribute("aria-disabled", "true");
 		expect(session).toHaveTextContent("In use by rafeeq-3");

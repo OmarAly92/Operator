@@ -6,6 +6,7 @@ const String kDetachedHeadLabel = 'Detached HEAD';
 const String kBranchesFailedText = "Couldn't load branches";
 const String kSearchBranchesHint = 'Search branches';
 const String kNoBranchMatchesText = 'No matching branches';
+const String kProjectFolderBranchText = 'Works in your project folder, no worktree';
 const int kBranchSearchThreshold = 10;
 
 const String kBranchCheckedOutElsewhere = 'BRANCH_CHECKED_OUT_ELSEWHERE';
@@ -26,8 +27,7 @@ sealed class BranchOptions {
   }
 
   static String? busyReason(ProjectBranchModel branch) {
-    if (!branch.isBusy) return null;
-    if (branch.isMainCheckout == true) return 'Checked out in your project folder — turn off worktree to work on it';
+    if (!branch.isBusy || branch.isMainCheckout == true) return null;
     return 'In use by ${folderName(branch.checkedOutAt!)}';
   }
 

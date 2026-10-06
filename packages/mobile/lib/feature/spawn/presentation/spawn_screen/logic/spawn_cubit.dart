@@ -79,8 +79,9 @@ class SpawnCubit extends Cubit<SpawnState> {
     }
   }
 
-  void setBranch(String? next) {
-    selectedBranch = next;
+  void pickBranch({required bool worktree, String? branch}) {
+    useWorktree = worktree;
+    selectedBranch = worktree ? branch : null;
     _bump();
   }
 

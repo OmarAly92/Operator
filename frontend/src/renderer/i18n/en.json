@@ -402,7 +402,7 @@
 	"newTask.addImage": "Add image",
 	"newTask.branch": "Branch",
 	"newTask.branchCheckedOutElsewhere": "That branch is checked out somewhere else. Pick another branch or New branch.",
-	"newTask.branchInProjectFolder": "Checked out in your project folder — turn off worktree to work on it",
+	"newTask.branchInProjectFolder": "Works in your project folder, no worktree",
 	"newTask.branchInUseBy": "In use by {{folder}}",
 	"newTask.branchNotCheckedOut": "The project folder is on a different branch now. Check the branch and start again.",
 	"newTask.branchesFailed": "Couldn't load branches",

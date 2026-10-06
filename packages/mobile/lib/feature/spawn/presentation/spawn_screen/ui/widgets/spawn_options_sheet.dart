@@ -177,9 +177,9 @@ class _BranchPickerState extends State<_BranchPicker> {
     super.dispose();
   }
 
-  void _pick(SpawnCubit cubit, String? branch) {
+  void _pick(SpawnCubit cubit, {required bool worktree, String? branch}) {
     Haptics.select();
-    cubit.setBranch(branch);
+    cubit.pickBranch(worktree: worktree, branch: branch);
     AppSheet.of(context).close();
   }
 
@@ -198,8 +198,8 @@ class _BranchPickerState extends State<_BranchPicker> {
             SettingsRow(
               key: const ValueKey('spawn-branch-new'),
               label: kNewBranchLabel,
-              trailing: cubit.selectedBranch == null ? check : const SizedBox.shrink(),
-              onTap: () => _pick(cubit, null),
+              trailing: cubit.useWorktree && cubit.selectedBranch == null ? check : const SizedBox.shrink(),
+              onTap: () => _pick(cubit, worktree: true),
             ),
           for (final branch in visible) _branchRow(cubit, branch, check),
         ];
@@ -234,12 +234,18 @@ class _BranchPickerState extends State<_BranchPicker> {
   Widget _branchRow(SpawnCubit cubit, ProjectBranchModel branch, Widget check) {
     final name = branch.name ?? '';
     final reason = BranchOptions.busyReason(branch);
+    final inFolder = branch.isMainCheckout == true;
+    final selected = inFolder ? !cubit.useWorktree : cubit.useWorktree && cubit.selectedBranch == name;
     final row = SettingsRow(
       key: ValueKey('spawn-branch-$name'),
       label: name,
-      subtitle: reason,
-      trailing: cubit.selectedBranch == name ? check : const SizedBox.shrink(),
-      onTap: reason == null ? () => _pick(cubit, name) : null,
+      subtitle: inFolder ? kProjectFolderBranchText : reason,
+      trailing: selected ? check : const SizedBox.shrink(),
+      onTap: reason != null
+          ? null
+          : inFolder
+          ? () => _pick(cubit, worktree: false)
+          : () => _pick(cubit, worktree: true, branch: name),
     );
     return reason == null ? row : Opacity(opacity: 0.45, child: row);
   }

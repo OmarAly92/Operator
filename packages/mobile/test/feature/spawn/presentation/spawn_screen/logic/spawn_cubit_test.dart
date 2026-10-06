@@ -156,7 +156,7 @@ void main() {
       final cubit = buildCubit();
       await cubit.setProject('p1', kind: 'single_repo');
       cubit.setUseWorktree(true);
-      cubit.setBranch('feat/x');
+      cubit.pickBranch(worktree: true, branch: 'feat/x');
 
       when(() => repository.getBranches(const GetProjectBranchesParams(projectId: 'p2'))).thenAnswer(
         (_) async => Result.success(
@@ -186,17 +186,35 @@ void main() {
       await cubit.close();
     });
 
+    test('picking the folder branch turns the worktree off and picking another turns it on', () async {
+      final cubit = buildCubit();
+      await cubit.loadCatalog();
+      await cubit.setProject('p1', kind: 'single_repo');
+
+      cubit.pickBranch(worktree: true, branch: 'feat/x');
+      expect(cubit.useWorktree, isTrue);
+      expect(cubit.selectedBranch, 'feat/x');
+
+      cubit.pickBranch(worktree: false, branch: 'ignored');
+      expect(cubit.useWorktree, isFalse);
+      expect(cubit.selectedBranch, isNull);
+      final body = (await submitted(cubit)).toJson();
+      expect(body['workspaceMode'], 'in_place');
+      expect(body['branch'], 'logic/home');
+      await cubit.close();
+    });
+
     test('toggling the worktree resets the pick', () async {
       final cubit = buildCubit();
       await cubit.setProject('p1', kind: 'single_repo');
       cubit.setUseWorktree(true);
-      cubit.setBranch('feat/x');
+      cubit.pickBranch(worktree: true, branch: 'feat/x');
 
       cubit.setUseWorktree(false);
       expect(cubit.selectedBranch, isNull);
 
       cubit.setUseWorktree(true);
-      cubit.setBranch('main');
+      cubit.pickBranch(worktree: true, branch: 'main');
       cubit.setUseWorktree(true);
       expect(cubit.selectedBranch, isNull);
       await cubit.close();
@@ -237,7 +255,7 @@ void main() {
       await cubit.loadCatalog();
       await cubit.setProject('p1', kind: 'single_repo');
       cubit.setUseWorktree(true);
-      cubit.setBranch('feat/x');
+      cubit.pickBranch(worktree: true, branch: 'feat/x');
 
       final body = (await submitted(cubit)).toJson();
       expect(body['workspaceMode'], 'worktree');
@@ -275,7 +293,7 @@ void main() {
       await cubit.loadCatalog();
       await cubit.setProject('p1', kind: 'workspace');
       cubit.setUseWorktree(true);
-      cubit.setBranch('feat/x');
+      cubit.pickBranch(worktree: true, branch: 'feat/x');
 
       expect((await submitted(cubit)).toJson().containsKey('branch'), isFalse);
       await cubit.close();
@@ -295,7 +313,7 @@ void main() {
         await cubit.loadCatalog();
         await cubit.setProject('p1', kind: 'single_repo');
         cubit.setUseWorktree(true);
-        cubit.setBranch('feat/x');
+        cubit.pickBranch(worktree: true, branch: 'feat/x');
         cubit.name = 'n';
         cubit.prompt = 'p';
         await cubit.submit();
