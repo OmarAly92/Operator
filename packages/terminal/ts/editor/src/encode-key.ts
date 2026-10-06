@@ -55,16 +55,23 @@ function controlCode(key: string): string | null {
 	return null;
 }
 
-export function encodeKey(event: KeyboardEvent, applicationCursorKeys = false): string | null {
+export function encodeKey(event: KeyboardEvent, applicationCursorKeys = false, altScreen = false): string | null {
 	const { key, ctrlKey, altKey, metaKey, shiftKey } = event;
 	if (key === "Shift" || key === "Control" || key === "Alt" || key === "Meta") return null;
 	// Command belongs to the application's own shortcuts, never to the child --
-	// with the two exceptions Warp also carves out for a running command
-	// (terminal/view/init.rs): the kill-line chords, which no application
-	// shortcut claims and which every readline-style input understands.
+	// with the exceptions Warp also carves out for a running command
+	// (terminal/view/init.rs): the kill-line chords and Command+Left/Right as
+	// line start and end, which no application shortcut claims and which every
+	// readline-style input understands. Warp binds them only off the alternate
+	// screen (terminal/view.rs, LongRunningCommand is unset while AltScreen is).
 	if (metaKey) {
+		if (altScreen) return null;
 		if (key === "Backspace") return "\x15";
 		if (key === "Delete") return "\x0b";
+		if (!shiftKey && !altKey && !ctrlKey) {
+			if (key === "ArrowLeft") return "\x01";
+			if (key === "ArrowRight") return "\x05";
+		}
 		return null;
 	}
 

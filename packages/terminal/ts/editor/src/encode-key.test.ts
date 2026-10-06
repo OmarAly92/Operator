@@ -66,9 +66,22 @@ describe("encodeKey", () => {
 		expect(encodeKey(key({ key: "Delete", metaKey: true }))).toBe("\x0b");
 	});
 
+	it("moves to the line start on Command+Left and to the end on Command+Right", () => {
+		expect(encodeKey(key({ key: "ArrowLeft", metaKey: true }))).toBe("\x01");
+		expect(encodeKey(key({ key: "ArrowRight", metaKey: true }))).toBe("\x05");
+	});
+
+	it("leaves the Command line chords to the application on the alternate screen", () => {
+		expect(encodeKey(key({ key: "ArrowLeft", metaKey: true }), false, true)).toBeNull();
+		expect(encodeKey(key({ key: "ArrowRight", metaKey: true }), false, true)).toBeNull();
+		expect(encodeKey(key({ key: "Backspace", metaKey: true }), false, true)).toBeNull();
+		expect(encodeKey(key({ key: "Delete", metaKey: true }), false, true)).toBeNull();
+	});
+
 	it("still leaves every other Command chord to the application", () => {
 		expect(encodeKey(key({ key: "c", metaKey: true }))).toBeNull();
-		expect(encodeKey(key({ key: "ArrowLeft", metaKey: true }))).toBeNull();
+		expect(encodeKey(key({ key: "ArrowUp", metaKey: true }))).toBeNull();
+		expect(encodeKey(key({ key: "ArrowLeft", metaKey: true, shiftKey: true }))).toBeNull();
 	});
 
 	it("sends Escape-Return for the newline chord and a bare Return for submit", () => {

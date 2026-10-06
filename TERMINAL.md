@@ -1991,6 +1991,14 @@ history of `master`.
   prevents that default in `onCloseAutoFocus` and `BlockTerminal` gives the surface a
   new focus token. (Enter in that dialog cancels: the close button has initial focus,
   the safe default for a paste-safety prompt.)
+- Command+Left/Right did nothing in Claude Code's input (2026-10-07): `encodeKey`
+  dropped every Command chord but the kill-line pair. A program holding the line now
+  gets `^A`/`^E`, Warp's `cmd-left`/`cmd-right` for a running command
+  (`terminal/view/init.rs`), which Claude Code reads as line start/end; the owned box
+  maps them to `home`/`end-or-accept-suggestion`. On the alternate screen every
+  Command chord stays with the app (`encodeKey(…, altScreen)`), because Warp sets
+  `LongRunningCommand` only off it (`terminal/view.rs`) and `^A` is vim's increment.
+  Guards: `encode-key.test.ts`, `keymap.test.ts`, `TerminalSurface.keys.test.tsx`.
 - Guards: `line-editor.test.ts` (Ctrl-C, Ctrl-E), `keymap.test.ts`,
   `line-editor-typeahead.test.ts`, `TerminalSurface.typeahead.test.tsx`,
   `TerminalSurface.test.tsx` focus hand-off, `usePasteConfirm.test.tsx`,

@@ -414,7 +414,7 @@ export function TerminalSurface({
 			if (isCopyChord(event, isMacPlatform())) {
 				return;
 			}
-			const data = encodeKey(event, appCursor());
+			const data = encodeKey(event, appCursor(), true);
 			if (data === null) {
 				return;
 			}

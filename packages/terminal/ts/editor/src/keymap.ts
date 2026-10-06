@@ -71,8 +71,10 @@ export function mapKey(event: KeyboardEvent): EditorCommand | null {
 		case "Delete":
 			return metaKey ? { kind: "delete-line-forward" } : { kind: "delete-forward" };
 		case "ArrowLeft":
+			if (metaKey) return { kind: "home" };
 			return altKey ? { kind: "move-word", direction: -1 } : { kind: "move", delta: -1 };
 		case "ArrowRight":
+			if (metaKey) return { kind: "end-or-accept-suggestion" };
 			return altKey ? { kind: "move-word", direction: 1 } : { kind: "accept-suggestion" };
 		case "ArrowUp":
 			return { kind: "history", direction: -1 };

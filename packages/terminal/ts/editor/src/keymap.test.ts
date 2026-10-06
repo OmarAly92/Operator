@@ -36,6 +36,11 @@ describe("mapKey", () => {
 		expect(mapKey(key({ key: "k", ctrlKey: true }))).toEqual({ kind: "delete-line-forward" });
 	});
 
+	it("moves to the line start on Command+Left and to the end on Command+Right", () => {
+		expect(mapKey(key({ key: "ArrowLeft", metaKey: true }))).toEqual({ kind: "home" });
+		expect(mapKey(key({ key: "ArrowRight", metaKey: true }))).toEqual({ kind: "end-or-accept-suggestion" });
+	});
+
 	it("leaves the word chords alone", () => {
 		expect(mapKey(key({ key: "Backspace", altKey: true }))).toEqual({
 			kind: "delete-word-backward",
