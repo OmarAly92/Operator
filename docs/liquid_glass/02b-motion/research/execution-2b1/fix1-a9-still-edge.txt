@@ -1,0 +1,19 @@
+12 scene, case and frame triples compared; 12 Flutter frames byte-identical to the 2A run
+identical flutter material.edge.automatic dark-scroll ready: native frame max difference 0.0
+identical flutter material.edge.automatic dark-scroll settled: native frame max difference 0.0
+identical flutter material.edge.automatic light-scroll ready: native frame max difference 1.0
+identical flutter material.edge.automatic light-scroll settled: native frame max difference 1.0
+identical flutter material.edge.hard dark-scroll ready: native frame max difference 0.0
+identical flutter material.edge.hard dark-scroll settled: native frame max difference 0.0
+identical flutter material.edge.hard light-scroll ready: native frame max difference 0.0
+identical flutter material.edge.hard light-scroll settled: native frame max difference 0.0
+identical flutter material.edge.soft dark-scroll ready: native frame max difference 0.0
+identical flutter material.edge.soft dark-scroll settled: native frame max difference 0.0
+identical flutter material.edge.soft light-scroll ready: native frame max difference 1.0
+identical flutter material.edge.soft light-scroll settled: native frame max difference 1.0
+material.edge.automatic light-scroll ready mad: 2.07 -> 2.07 (pass -> pass), flutter frame max difference 0.0, native 1.0
+material.edge.automatic light-scroll settled mad: 2.07 -> 2.07 (pass -> pass), flutter frame max difference 0.0, native 1.0
+material.edge.soft light-scroll ready mad: 4.07 -> 4.07 (fail -> fail), flutter frame max difference 0.0, native 1.0
+material.edge.soft light-scroll settled mad: 4.07 -> 4.07 (fail -> fail), flutter frame max difference 0.0, native 1.0
+missing: 0
+worse: 0

@@ -1,0 +1,25 @@
+{
+  "perf.none": {
+    "takes": 4,
+    "frames": 1450,
+    "raster_median_ms": 0.6595,
+    "raster_p90_ms": 0.9125000000000001,
+    "build_median_ms": 1.4685000000000001
+  },
+  "perf.glass": {
+    "takes": 4,
+    "frames": 1398,
+    "raster_median_ms": 12.7545,
+    "raster_p90_ms": 14.0515,
+    "build_median_ms": 0.836
+  },
+  "perf.material": {
+    "takes": 4,
+    "frames": 1425,
+    "raster_median_ms": 13.379999999999999,
+    "raster_p90_ms": 15.5155,
+    "build_median_ms": 0.97
+  },
+  "glass_cost_ms": 12.095,
+  "material_cost_ms": 12.7205
+}
