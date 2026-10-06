@@ -1910,6 +1910,7 @@ func (c *SessionsController) delegateTask(w http.ResponseWriter, r *http.Request
 		Model:           domain.SanitizeControlChars(strings.TrimSpace(in.Model)),
 		Attachments:     attachments,
 		WorkspaceMode:   workspaceMode,
+		Branch:          strings.TrimSpace(in.Branch),
 		Cols:            in.Cols,
 		Rows:            in.Rows,
 		ClaudeAccountID: domain.ClaudeAccountID(strings.TrimSpace(string(in.ClaudeAccountID))),

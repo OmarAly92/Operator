@@ -287,6 +287,21 @@ type WorkspaceCommit struct {
 // root-as-repo parent plus child repositories. It materialises the parent
 // worktree at the session root and each child repo at its registered relative
 // path inside that root.
+type BranchInfo struct {
+	Name           string
+	CheckedOutAt   string
+	IsMainCheckout bool
+}
+
+type BranchListing struct {
+	Current  string
+	Branches []BranchInfo
+}
+
+type BranchLister interface {
+	ListBranches(ctx context.Context, repoPath string) (BranchListing, error)
+}
+
 type WorkspaceProject interface {
 	CreateWorkspaceProject(ctx context.Context, cfg WorkspaceProjectConfig) (WorkspaceProjectInfo, error)
 	DestroyWorkspaceProject(ctx context.Context, info WorkspaceProjectInfo) error
@@ -301,7 +316,8 @@ var (
 	ErrWorkspaceBranchCheckedOutElsewhere = errors.New("workspace: branch is already checked out in another worktree")
 	// ErrWorkspaceBranchNotFetched reports the requested branch exists nowhere
 	// reachable (no local head, no remote-tracking branch, no tag).
-	ErrWorkspaceBranchNotFetched = errors.New("workspace: branch is not fetched")
+	ErrWorkspaceBranchNotFetched    = errors.New("workspace: branch is not fetched")
+	ErrWorkspaceBranchNotCheckedOut = errors.New("workspace: branch is not checked out in the project folder")
 	// ErrWorkspaceBranchInvalid reports the requested branch name is not a valid
 	// git ref (rejected by `git check-ref-format`).
 	ErrWorkspaceBranchInvalid = errors.New("workspace: invalid branch name")

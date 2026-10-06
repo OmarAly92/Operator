@@ -40,3 +40,14 @@ type WorkspaceRepo struct {
 	RelativePath string `json:"relativePath"`
 	Repo         string `json:"repo"`
 }
+
+type Branch struct {
+	Name           string `json:"name"`
+	CheckedOutAt   string `json:"checkedOutAt,omitempty"`
+	IsMainCheckout bool   `json:"isMainCheckout"`
+}
+
+type Branches struct {
+	Current  string   `json:"current"`
+	Branches []Branch `json:"branches"`
+}

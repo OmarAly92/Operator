@@ -551,9 +551,6 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		if projectKind != domain.ProjectKindSingleRepo {
 			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", ErrInPlaceUnsupported)
 		}
-		if strings.TrimSpace(cfg.Branch) != "" {
-			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: an in-place session cannot take a branch", ErrInPlaceUnsupported)
-		}
 	}
 	// A per-project role override picks the harness when the spawn names none.
 	cfg.Harness = effectiveHarness(cfg.Harness, project.Config)

@@ -2214,6 +2214,19 @@ func TestSessionsAPI_DelegateTaskPassesClaudeAccountThrough(t *testing.T) {
 	}
 }
 
+func TestSessionsAPI_DelegateTaskPassesBranchThrough(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions/delegate", `{"projectId":"p","brief":"x","workspaceMode":"worktree","branch":" logic/home "}`)
+	if status != http.StatusAccepted {
+		t.Fatalf("delegate = %d, want 202; body=%s", status, body)
+	}
+	if svc.delegationInput.Branch != "logic/home" {
+		t.Fatalf("delegationInput.Branch = %q, want logic/home", svc.delegationInput.Branch)
+	}
+}
+
 func TestDelegateRouteMovedOffOrchestratorPrefix(t *testing.T) {
 	svc := newFakeSessionService()
 	srv := newSessionTestServer(t, svc)

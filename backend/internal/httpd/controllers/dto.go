@@ -757,6 +757,7 @@ type DelegateTaskRequest struct {
 	// references to the worker prompt.
 	Attachments     []AttachmentInput      `json:"attachments,omitempty"`
 	WorkspaceMode   string                 `json:"workspaceMode,omitempty" enum:"worktree,in_place"`
+	Branch          string                 `json:"branch,omitempty" maxLength:"255" description:"Existing local branch the worker commits on. With a worktree it is checked out there; in place it must be the branch already checked out in the project folder. Omit for a new session branch."`
 	Cols            int                    `json:"cols,omitempty" description:"Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown." minimum:"1" maximum:"1000"`
 	Rows            int                    `json:"rows,omitempty" description:"Rows of the terminal pane that will show the session; see cols." minimum:"1" maximum:"1000"`
 	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64" description:"Claude account for a claude-code worker. Omit for the default account."`

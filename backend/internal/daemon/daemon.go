@@ -21,6 +21,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/adapters/process"
 	"github.com/OmarAly92/operator/backend/internal/adapters/projectscan"
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/runtimeselect"
+	"github.com/OmarAly92/operator/backend/internal/adapters/workspace/gitworktree"
 	"github.com/OmarAly92/operator/backend/internal/config"
 	"github.com/OmarAly92/operator/backend/internal/daemon/supervisor"
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -230,7 +231,7 @@ func Run() error {
 	lcStack.LCM.SetInteractionRegistry(sessMgr)
 	lcStack.LCM.SetDialogObserver(sessMgr)
 	termMgr.SetSessionInputLease(sessMgr)
-	projectSvc := projectsvc.NewWithDeps(projectsvc.Deps{Store: store, Sessions: sessionSvc, DefaultHarness: domain.AgentHarness(cfg.Agent), Telemetry: telemetrySink})
+	projectSvc := projectsvc.NewWithDeps(projectsvc.Deps{Store: store, Sessions: sessionSvc, DefaultHarness: domain.AgentHarness(cfg.Agent), Telemetry: telemetrySink, Branches: gitworktree.NewBranchLister("")})
 	if err := seedScratchProjectOnBoot(ctx, cfg, projectSvc); err != nil {
 		stop()
 		lcStack.Stop()

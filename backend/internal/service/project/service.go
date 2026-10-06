@@ -46,6 +46,8 @@ type Manager interface {
 	// Remove unregisters a project, stopping its sessions and reclaiming
 	// managed workspaces.
 	Remove(ctx context.Context, id domain.ProjectID) (RemoveResult, error)
+
+	Branches(ctx context.Context, id domain.ProjectID) (Branches, error)
 }
 
 // SessionTeardowner is the narrow session-service surface project removal
@@ -61,6 +63,7 @@ type Service struct {
 	clock          func() time.Time
 	telemetry      ports.EventSink
 	defaultHarness domain.AgentHarness
+	branches       ports.BranchLister
 	// addMu serialises the whole body of Add. Workspace registration performs
 	// filesystem mutations (git init, .gitignore writes, commits) that are not
 	// covered by the store's own writeMu, so path/id conflict checks plus the
@@ -81,6 +84,7 @@ type Deps struct {
 	Sessions       SessionTeardowner
 	Clock          func() time.Time
 	Telemetry      ports.EventSink
+	Branches       ports.BranchLister
 }
 
 // New returns a project service backed by the given durable store.
@@ -100,6 +104,7 @@ func NewWithDeps(d Deps) *Service {
 		clock:          d.Clock,
 		telemetry:      d.Telemetry,
 		defaultHarness: defaultHarness,
+		branches:       d.Branches,
 	}
 	if s.clock == nil {
 		s.clock = time.Now

@@ -708,6 +708,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{id}/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a single-repo project's local branches, newest commit first, with where each is checked out */
+        get: operations["listProjectBranches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{id}/config": {
         parameters: {
             query?: never;
@@ -2379,6 +2396,8 @@ export interface components {
             /** @enum {string} */
             agent?: "claude-code" | "codex" | "aider" | "opencode" | "grok" | "droid" | "amp" | "agy" | "crush" | "cursor" | "qwen" | "copilot" | "goose" | "auggie" | "continue" | "devin" | "cline" | "kimi" | "muse" | "kiro" | "kilocode" | "vibe" | "pi" | "kimchi" | "prime-agent" | "autohand" | "fake";
             attachments?: components["schemas"]["AttachmentInput"][];
+            /** @description Existing local branch the worker commits on. With a worktree it is checked out there; in place it must be the branch already checked out in the project folder. Omit for a new session branch. */
+            branch?: string;
             brief: string;
             /** @description Claude account for a claude-code worker. Omit for the default account. */
             claudeAccountId?: string;
@@ -2863,6 +2882,15 @@ export interface components {
             path: string;
             repo: string;
             workspaceRepos?: components["schemas"]["WorkspaceRepo"][];
+        };
+        ProjectBranch: {
+            checkedOutAt?: string;
+            isMainCheckout: boolean;
+            name: string;
+        };
+        ProjectBranches: {
+            branches: components["schemas"]["ProjectBranch"][];
+            current: string;
         };
         ProjectConfig: {
             agent?: string;
@@ -5776,6 +5804,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RemoveProjectResult"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listProjectBranches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectBranches"];
                 };
             };
             /** @description Bad Request */

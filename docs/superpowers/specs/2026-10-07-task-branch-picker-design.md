@@ -88,13 +88,16 @@ Response `ProjectBranchesResponse`:
 
 **Where it lives.**
 
-- **gitworktree adapter:** `(*Workspace).ListBranches(ctx, projectID)` returns
-  `[]ports.BranchInfo{Name, CheckedOutAt, IsMainCheckout}`. It reuses `repoPath` and
-  `listRecords`.
-- **Port:** a new interface `ports.WorkspaceBranchLister`. The workspace router forwards
-  it to the gitworktree adapter.
-- **Project service:** `projectsvc.Manager` gets `Branches(ctx, id)`. It checks the
-  project kind, calls the lister, and fills `current`.
+- **Lister:** `gitworktree.BranchLister.ListBranches(ctx, repoPath)` implements a new
+  `ports.BranchLister` and returns a `ports.BranchListing`. It parses with the existing
+  `parseWorktreePorcelain`.
+- **No router:** it takes a repo path rather than a project id, so it skips the workspace
+  router.
+- **Project service:** `projectsvc.Deps.Branches` injects the lister, and `daemon.go`
+  passes `gitworktree.NewBranchLister("")`. `projectsvc.Manager.Branches(ctx, id)` checks
+  the project kind and lists the branches at `project.Path`.
+- **Why not the port design in the earlier draft:** the session workspace adapter is built
+  inside `startSession` and is not exposed.
 - **Controller:** `ProjectsController` registers the route, returning 501 when `Mgr` is
   nil, like its siblings.
 

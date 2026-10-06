@@ -784,6 +784,8 @@ func toAPIError(err error) error {
 		return apierr.Conflict("WORKSPACE_NOT_EMPTY", err.Error(), nil)
 	case errors.Is(err, ports.ErrWorkspaceBranchCheckedOutElsewhere):
 		return apierr.Conflict("BRANCH_CHECKED_OUT_ELSEWHERE", err.Error(), nil)
+	case errors.Is(err, ports.ErrWorkspaceBranchNotCheckedOut):
+		return apierr.Conflict("BRANCH_NOT_CHECKED_OUT", err.Error(), nil)
 	case errors.Is(err, ports.ErrWorkspaceBranchNotFetched):
 		return apierr.Invalid("BRANCH_NOT_FETCHED", err.Error(), nil)
 	case errors.Is(err, ports.ErrWorkspaceBranchInvalid):

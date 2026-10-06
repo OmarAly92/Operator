@@ -1673,6 +1673,46 @@ paths:
       summary: Atomically replace a project's display name and config
       tags:
       - projects
+  /api/v1/projects/{id}/branches:
+    get:
+      operationId: listProjectBranches
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectBranches'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+      summary: List a single-repo project's local branches, newest commit first, with
+        where each is checked out
+      tags:
+      - projects
   /api/v1/projects/{id}/config:
     put:
       operationId: setProjectConfig
@@ -6882,6 +6922,12 @@ components:
           items:
             $ref: '#/components/schemas/AttachmentInput'
           type: array
+        branch:
+          description: Existing local branch the worker commits on. With a worktree
+            it is checked out there; in place it must be the branch already checked
+            out in the project folder. Omit for a new session branch.
+          maxLength: 255
+          type: string
         brief:
           maxLength: 65536
           type: string
@@ -8078,6 +8124,30 @@ components:
       - path
       - repo
       - defaultBranch
+      type: object
+    ProjectBranch:
+      properties:
+        checkedOutAt:
+          type: string
+        isMainCheckout:
+          type: boolean
+        name:
+          type: string
+      required:
+      - name
+      - isMainCheckout
+      type: object
+    ProjectBranches:
+      properties:
+        branches:
+          items:
+            $ref: '#/components/schemas/ProjectBranch'
+          type: array
+        current:
+          type: string
+      required:
+      - current
+      - branches
       type: object
     ProjectConfig:
       properties:

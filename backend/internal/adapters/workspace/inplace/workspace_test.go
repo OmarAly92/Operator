@@ -2,6 +2,7 @@ package inplace
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -71,13 +72,32 @@ func TestCreateReturnsTheProjectPathAndCurrentBranch(t *testing.T) {
 	}
 }
 
-func TestCreateRejectsABranchRequest(t *testing.T) {
+func TestCreateRejectsABranchThatIsNotCheckedOut(t *testing.T) {
 	repo := newRepo(t)
 	w := newWorkspace(t, repo)
-	if _, err := w.Create(context.Background(), ports.WorkspaceConfig{
+	_, err := w.Create(context.Background(), ports.WorkspaceConfig{
 		ProjectID: "p-1", SessionID: "s-1", Branch: "feature/x",
-	}); err == nil {
-		t.Fatal("want an error: in-place cannot honour a requested branch")
+	})
+	if !errors.Is(err, ports.ErrWorkspaceBranchNotCheckedOut) {
+		t.Fatalf("want ErrWorkspaceBranchNotCheckedOut, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "feature/x") {
+		t.Fatalf("want the requested branch named, got %v", err)
+	}
+}
+
+func TestCreateAcceptsTheCheckedOutBranch(t *testing.T) {
+	repo := newRepo(t)
+	run(t, repo, "checkout", "-b", "logic/home")
+	w := newWorkspace(t, repo)
+	info, err := w.Create(context.Background(), ports.WorkspaceConfig{
+		ProjectID: "p-1", SessionID: "s-1", Branch: "logic/home",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Branch != "logic/home" || info.Path != repo {
+		t.Fatalf("want the project folder on logic/home, got %#v", info)
 	}
 }
 

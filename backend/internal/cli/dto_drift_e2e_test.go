@@ -141,6 +141,10 @@ func (f *fakeProjectManager) Remove(context.Context, domain.ProjectID) (projects
 	return projectsvc.RemoveResult{}, nil
 }
 
+func (f *fakeProjectManager) Branches(context.Context, domain.ProjectID) (projectsvc.Branches, error) {
+	return projectsvc.Branches{}, nil
+}
+
 // startDriftTestDaemon stands up the real router+controllers backed by the
 // supplied fakes and points the CLI's run-file at it. The CLI discovers the
 // server purely via OPERATOR_RUN_FILE + the run-file port, so this is a genuine

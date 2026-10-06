@@ -368,6 +368,8 @@ var schemaNames = map[string]string{ //nolint:gosec // G101: schema type names s
 	// service/project entities + DTOs
 	"ProjectProject":                    "Project",
 	"ProjectSummary":                    "ProjectSummary",
+	"ProjectBranches":                   "ProjectBranches",
+	"ProjectBranch":                     "ProjectBranch",
 	"ProjectDegraded":                   "DegradedProject",
 	"ProjectAddInput":                   "AddProjectInput",
 	"ProjectInitializeRepositoryInput":  "InitializeRepositoryInput",
@@ -1420,6 +1422,17 @@ func projectOperations() []operation {
 			pathParams: []any{controllers.ProjectIDParam{}},
 			resps: []respUnit{
 				{http.StatusOK, controllers.GetProjectResponse{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/projects/{id}/branches", id: "listProjectBranches", tag: "projects",
+			summary:    "List a single-repo project's local branches, newest commit first, with where each is checked out",
+			pathParams: []any{controllers.ProjectIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, projectsvc.Branches{}},
+				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusNotFound, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 			},
