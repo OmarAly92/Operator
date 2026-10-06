@@ -59,7 +59,6 @@ void main() {
     expect(GlassMaterialize.visibility(0.25, table: table), closeTo(0.1, 1e-12));
     expect(GlassMaterialize.visibility(0.75, table: table), closeTo(0.6, 1e-12));
     expect(GlassMaterialize.visibility(1, table: table), 1);
-    expect(GlassMaterialize.visibility(1.05, table: table), closeTo(1.08, 1e-12));
     expect(GlassMaterialize.visibility(-1, table: table), 0);
     expect(GlassMaterialize.visibility(1.05, table: table, above: const []), closeTo(1.08, 1e-12));
     expect(ios27VisibilityForProgress.first, 0);
@@ -83,6 +82,10 @@ void main() {
       expect(value, greaterThanOrEqualTo(previous));
       previous = value;
     }
+    final step = 1 / (ios27VisibilityForProgress.length - 1);
+    expect(ios27VisibilityAboveFull, isNotEmpty);
+    expect(GlassMaterialize.visibility(1 + step), closeTo(ios27VisibilityAboveFull.first, 1e-12));
+    expect(GlassMaterialize.visibility(1 + step / 2), closeTo((1 + ios27VisibilityAboveFull.first) / 2, 1e-12));
   });
 
   test('reversing keeps the visible progress, and a falling rate stays continuous', () {
