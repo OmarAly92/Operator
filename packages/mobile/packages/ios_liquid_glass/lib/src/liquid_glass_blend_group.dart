@@ -300,6 +300,17 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
   }
 
   @override
+  bool shapesMoved() {
+    var moved = false;
+    for (final entry in link.shapeEntries) {
+      final renderObject = entry.key;
+      if (!renderObject.attached || !renderObject.hasSize) continue;
+      moved = (renderObject.motion?.syncMoved() ?? false) || moved;
+    }
+    return moved;
+  }
+
+  @override
   (Rect, List<ShapeGeometry>, bool) gatherShapeData() {
     final candidates = <(ShapeGeometry, bool)>[];
     final cachedShapes = geometry?.shapes ?? [];

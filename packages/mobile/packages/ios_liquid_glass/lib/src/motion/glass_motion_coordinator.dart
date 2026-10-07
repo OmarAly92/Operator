@@ -47,6 +47,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
   _Arrival? _arrival;
   bool _contentFades = false;
   bool _sinking = false;
+  bool _moved = false;
   GlassPresence presence = GlassPresence.present;
   GlassMaterializeMapping _mapping = GlassMaterializeMapping.defaultSpring;
   bool reduceMotion = false;
@@ -248,7 +249,9 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
   @override
   bool syncMoved() {
     _sync();
-    return false;
+    final moved = _moved;
+    _moved = false;
+    return moved;
   }
 
   void _sync() {
@@ -270,12 +273,14 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
     if (arrival != null && size != null) {
       _arrival = null;
       _anchor = anchor;
+      _moved = true;
       _arrive(arrival, live & size);
       return;
     }
     final previous = _anchor;
     _anchor = anchor;
     if (previous == null || previous == anchor) return;
+    _moved = true;
     final animation = _changed();
     if (animation == null) return;
     final now = coordinator._now;

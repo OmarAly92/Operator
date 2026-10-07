@@ -16,6 +16,7 @@ class _Motion extends ChangeNotifier implements GlassShapeMotion {
   _Motion({this.transient = false});
 
   final bool transient;
+  bool moved = false;
 
   @override
   Rect resolve(RenderBox shape) => Offset.zero & shape.size;
@@ -24,7 +25,11 @@ class _Motion extends ChangeNotifier implements GlassShapeMotion {
   bool get isTransient => transient;
 
   @override
-  bool syncMoved() => false;
+  bool syncMoved() {
+    final result = moved;
+    moved = false;
+    return result;
+  }
 
   @override
   GlassUnionOutline? union(RenderBox shape) => null;
@@ -39,6 +44,10 @@ class _Group extends RenderLiquidGlassBlendGroup {
 
   @override
   void updateGeometryShaderShapes(List<ShapeGeometry> shapes) {}
+
+  LiquidGlassGeometryState get state => geometryState;
+
+  void settle() => geometryState = LiquidGlassGeometryState.updated;
 }
 
 Future<(_Group, List<RenderLiquidGlass>)> _group(List<_Motion> motions) async {
@@ -85,5 +94,25 @@ void main() {
     final (_, shapes, _) = group.gatherShapeData();
     expect(shapes, hasLength(16));
     expect(shapes.map((shape) => shape.renderObject), isNot(contains(glasses[8])));
+  });
+
+  test('a settled geometry is marked for an update in the frame a member moves, and left alone when none did', () async {
+    final moving = _Motion(), still = _Motion();
+    final (group, _) = await _group([still, moving]);
+    group.settle();
+    expect(group.state, LiquidGlassGeometryState.updated);
+    group.revalidateGeometry();
+    expect(group.state, LiquidGlassGeometryState.updated);
+    moving.moved = true;
+    group.revalidateGeometry();
+    expect(group.state, LiquidGlassGeometryState.mightNeedUpdate);
+    expect(moving.moved, isFalse);
+  });
+
+  test('a ghost reports nothing, so it never marks the geometry', () async {
+    final (group, _) = await _group([_Motion(transient: true)]);
+    group.settle();
+    group.revalidateGeometry();
+    expect(group.state, LiquidGlassGeometryState.updated);
   });
 }
