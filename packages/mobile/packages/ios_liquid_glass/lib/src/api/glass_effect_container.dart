@@ -4,13 +4,14 @@ import 'package:ios_liquid_glass/src/api/glass.dart';
 import 'package:ios_liquid_glass/src/api/glass_material_context.dart';
 import 'package:ios_liquid_glass/src/liquid_glass_blend_group.dart';
 import 'package:ios_liquid_glass/src/liquid_glass_settings.dart';
+import 'package:ios_liquid_glass/src/motion/glass_animation.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_coordinator.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_widgets.dart';
 import 'package:ios_liquid_glass/src/rendering/liquid_glass_layer.dart';
 import 'package:meta/meta.dart';
 
 class GlassEffectContainer extends StatefulWidget {
-  const GlassEffectContainer({super.key, this.spacing = 20, this.glass = Glass.regular, this.side = 88, required this.child});
+  const GlassEffectContainer({super.key, this.spacing = 8, this.glass = Glass.regular, this.side = 88, required this.child});
 
   final double spacing;
   final Glass glass;
@@ -61,6 +62,7 @@ class _GlassEffectContainerState extends State<GlassEffectContainer> with Single
 
   @override
   Widget build(BuildContext context) {
+    _coordinator.spacingTo(widget.spacing, scope: GlassAnimationScope.maybeOf(context));
     return ListenableBuilder(
       listenable: GlassAccessibility.platform,
       builder: (context, _) {
@@ -72,6 +74,7 @@ class _GlassEffectContainerState extends State<GlassEffectContainer> with Single
             settings: settings,
             child: LiquidGlassBlendGroup(
               blend: widget.spacing,
+              blendMotion: _coordinator.spacing,
               child: GlassContainerScope(
                 glass: widget.glass,
                 settings: settings,

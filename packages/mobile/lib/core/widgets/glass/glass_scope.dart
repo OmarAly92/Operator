@@ -11,5 +11,5 @@ class GlassScope extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      GlassEffectContainer(glass: glassForVariant(context, variant), side: size, child: child);
+      GlassEffectContainer(spacing: 20, glass: glassForVariant(context, variant), side: size, child: child);
 }

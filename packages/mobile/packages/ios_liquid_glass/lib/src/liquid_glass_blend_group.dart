@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_shaders/flutter_shaders.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
@@ -8,7 +10,6 @@ import 'package:ios_liquid_glass/src/liquid_glass_render_scope.dart';
 import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:ios_liquid_glass/src/rendering/liquid_glass_render_object.dart';
 import 'package:ios_liquid_glass/src/shaders.dart';
-import 'package:meta/meta.dart';
 
 /// A widget that groups multiple liquid glass shapes for blending.
 ///
@@ -21,6 +22,7 @@ class LiquidGlassBlendGroup extends StatefulWidget {
   const LiquidGlassBlendGroup({
     required this.child,
     this.blend = 20.0,
+    this.blendMotion,
     super.key,
   });
 
@@ -29,6 +31,9 @@ class LiquidGlassBlendGroup extends StatefulWidget {
   /// Roughly corresponds to distance of logical pixels at which shapes start to
   /// blend.
   final double blend;
+
+  @internal
+  final ValueListenable<double>? blendMotion;
 
   /// The child widget containing liquid glass shapes.
   final Widget child;
@@ -82,6 +87,7 @@ class _LiquidGlassBlendGroupState extends State<LiquidGlassBlendGroup> {
       child: ShaderBuilder(
         (context, shader, child) => _RawLiquidGlassBlendGroup(
           blend: widget.blend,
+          blendMotion: widget.blendMotion,
           shader: shader,
           link: _geometryLink,
           renderLink: InheritedGeometryRenderLink.of(context)!,
@@ -124,12 +130,14 @@ class _RawLiquidGlassBlendGroup extends SingleChildRenderObjectWidget {
     required this.renderLink,
     required this.link,
     required this.settings,
+    this.blendMotion,
     this.visibility,
     this.settingsSource,
     super.child,
   });
 
   final double blend;
+  final ValueListenable<double>? blendMotion;
   final FragmentShader shader;
   final GeometryRenderLink renderLink;
   final GlassGroupLink link;
@@ -145,8 +153,9 @@ class _RawLiquidGlassBlendGroup extends SingleChildRenderObjectWidget {
       geometryShader: shader,
       settings: settings,
       link: link,
-      blend: blend,
+      blend: blendMotion?.value ?? blend,
     )
+      ..blendMotion = blendMotion
       ..visibility = visibility
       ..settingsSource = settingsSource;
   }
@@ -157,7 +166,8 @@ class _RawLiquidGlassBlendGroup extends SingleChildRenderObjectWidget {
     RenderLiquidGlassBlendGroup renderObject,
   ) {
     renderObject
-      ..blend = blend
+      ..blend = blendMotion?.value ?? blend
+      ..blendMotion = blendMotion
       ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context)
       ..settings = settings
       ..visibility = visibility
@@ -203,6 +213,33 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
     updateShaderWithSettings(settings, devicePixelRatio);
     markGeometryNeedsUpdate(force: true);
     markNeedsPaint();
+  }
+
+  ValueListenable<double>? _blendMotion;
+  set blendMotion(ValueListenable<double>? value) {
+    if (_blendMotion == value) return;
+    if (attached) _blendMotion?.removeListener(_followBlend);
+    _blendMotion = value;
+    if (attached) value?.addListener(_followBlend);
+    _followBlend();
+  }
+
+  void _followBlend() {
+    final motion = _blendMotion;
+    if (motion != null) blend = motion.value;
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _blendMotion?.addListener(_followBlend);
+    _followBlend();
+  }
+
+  @override
+  void detach() {
+    _blendMotion?.removeListener(_followBlend);
+    super.detach();
   }
 
   void _onLinkUpdate() {

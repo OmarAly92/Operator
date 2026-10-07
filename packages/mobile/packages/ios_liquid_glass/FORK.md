@@ -89,6 +89,12 @@ The package was renamed from `liquid_glass_renderer` to `ios_liquid_glass`, with
 - A rendered geometry cache (`RenderedGeometryCache`) keeps its picture and rasterizes its image at the sub-pixel phase it is drawn at (`matteAt`); `LiquidGlassRenderObject` draws a cached matte under a pure translation on the pixel grid at that phase (`drawMatteAt`), so glass at a fractional position draws its rim where the uncached picture does. Upstream drew the image rasterized on its own grid with nearest sampling at the fractional offset, up to half a pixel off. Other transforms draw the phase-zero image as before.
 - `requiresGeometryRebuild(null)` is true, and `RenderLiquidGlassGeometry.attach` and `LiquidGlassRenderObject.attach` re-apply the settings against the kept baseline (refreshing the uniforms) instead of clearing it.
 
+## ios_liquid_glass 0.1.0, project 2B.2 (merge and split)
+
+- `sdf.glsl` replaces upstream's quadratic `smoothUnion` with `angleSmoothUnion`, a quadratic smooth-min with k = blend whose correction is weighted by (1 − n_a · n_b) / 2, the angle between the two shapes' unit gradients. Each shape's gradient is analytic (`getShapeSDFGrad`); the fold carries the blended field's gradient, neglecting the change of the angle weight itself. A blend of 0 is still the plain minimum. `sceneSDF`'s unrolled path for one to four shapes is gone; every count runs the same loop.
+- `LiquidGlassBlendGroup` takes an optional internal `blendMotion` (a `ValueListenable<double>`); `RenderLiquidGlassBlendGroup` listens to it and takes its value as `blend`, so a container's spacing animates with no rebuild. Its own `blend` default stays 20.
+- `GlassEffectContainer.spacing` defaults to 8 pt, native's default, and animates through the container's coordinator.
+
 Record every later change to `lib/` in this file.
 
 Upstream: https://github.com/whynotmake-it/flutter_liquid_glass/tree/main/packages/liquid_glass_renderer

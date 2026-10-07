@@ -71,26 +71,6 @@ sealed class MaterialScenes {
         ),
       ],
     ),
-    'material.merge': (launch) => LabCentered(
-      backdrop: launch.backdrop,
-      bottom: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [LabButton(title: 'Merge', id: 'merge'), SizedBox(width: 24), LabButton(title: 'Split', id: 'split')],
-      ),
-      children: const [
-        GlassEffectContainer(
-          spacing: 40,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LabBlock(width: 80, height: 80, shape: GlassShape.circle()),
-              SizedBox(width: 80),
-              LabBlock(width: 80, height: 80, shape: GlassShape.circle()),
-            ],
-          ),
-        ),
-      ],
-    ),
     'material.union': (launch) => LabCentered(
       backdrop: launch.backdrop,
       children: [

@@ -401,8 +401,32 @@ class GlassMotionCoordinator {
   GlassMotionCoordinator? _successor;
   int _structureUntil = -1;
   GlassAnimation? _structureAnimation;
+  final GlassMotionValue spacing = GlassMotionValue(0);
+  GlassSpring? _spacing;
+  int _spacingFrame = -2;
+  Duration? _spacingTime;
 
   Iterable<GlassMember> get members => _members;
+
+  void spacingTo(double target, {GlassAnimation? scope}) {
+    final spring = _spacing;
+    if (spring == null) {
+      _spacing = GlassSpring(target);
+      spacing.value = target;
+      return;
+    }
+    if (spring.target == target) return;
+    final frame = GlassFrame.current, now = _now, last = _spacingTime;
+    final following = _spacingFrame == frame - 1 && now != null && last != null && now - last <= GlassMember.followGap;
+    _spacingFrame = frame;
+    _spacingTime = now;
+    final animation = _disposed || _ticker.muted || (following && pendingGlassAnimation == null)
+        ? GlassAnimation.none
+        : resolveGlassAnimation(scope);
+    spring.animateTo(target, animation, now);
+    spacing.value = spring.value;
+    if (spring.isMoving) _start();
+  }
 
   GlassMotionCoordinator? get ghostOwner => _departing ? _successor : this;
 
@@ -576,6 +600,11 @@ class GlassMotionCoordinator {
   void _tick(Duration _) {
     final now = SchedulerBinding.instance.currentFrameTimeStamp;
     var moving = false;
+    final spacingSpring = _spacing;
+    if (spacingSpring != null && spacingSpring.isMoving) {
+      moving = spacingSpring.sample(now);
+      spacing.value = spacingSpring.value;
+    }
     for (final member in _members.toList()) {
       if (member._due) moving = member._sample(now) || moving;
     }
@@ -599,6 +628,7 @@ class GlassMotionCoordinator {
   void dispose() {
     _disposed = true;
     _ticker.dispose();
+    spacing.dispose();
     dropGhosts();
     _dropLeaving();
     for (final member in _members) {

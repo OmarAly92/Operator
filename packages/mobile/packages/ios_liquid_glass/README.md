@@ -31,7 +31,7 @@ The glass is drawn behind the child, in the shape you choose, sized by the child
 | `.glassEffect(.identity)` | `GlassEffect(glass: Glass.identity, ...)` |
 | `.glassEffect(.regular.interactive())` | `Glass.regular.interactive()` (the press arrives in a later version) |
 | `.glassEffect(in: .circle)`, `.rect(cornerRadius:)`, capsule | `GlassShape.circle()`, `GlassShape.rect(r)`, `GlassShape.superellipse(r)`, `GlassShape.capsule()` |
-| `GlassEffectContainer(spacing:)` | `GlassEffectContainer(spacing: 20, child: ...)` |
+| `GlassEffectContainer(spacing:)`, `GlassEffectContainer()` | `GlassEffectContainer(spacing: 40, child: ...)`, `GlassEffectContainer(child: ...)` (native default, 8 pt) |
 | `.glassEffectTransition(.materialize)`, `.identity` | `GlassEffect(transition: GlassEffectTransition.materialize)`, `GlassEffectTransition.identity` |
 | `Animation.default`, `.snappy`, `.bouncy`, `.smooth` | `GlassAnimation.defaultSpring`, `.snappy`, `.bouncy`, `.smooth` |
 | `.spring(duration:bounce:)`, `.spring(response:dampingFraction:)` | `GlassAnimation.spring(duration:, bounce:)`, `GlassAnimation.dampedSpring(response:, dampingFraction:)` |
@@ -61,7 +61,9 @@ What animates:
 
 The timing is native's, measured on the iOS 27 simulator. Appearing glass follows the animation's spring and overshoots where the spring does, scaled by a fitted gain (0.44 for `snappy`, 0.5 for `bouncy`; the default spring does not overshoot, so it needs none); `lab.py fitvis` fits the gain on native's overshoot peak against the overshoot Flutter's own frames show, read through a visibility table that extends above full visibility, and the table has room for a gain per appearance, used only when the fit shows a consistent difference between light and dark (the shipped table uses one gain for both). Disappearing glass follows the spring's remainder to a fitted power (3.1 for the default, 2.75 for `snappy`, 2.7 for `bouncy`), which is why removal is about twice as fast as insertion. An app's own spring uses the preset nearest its damping. The backdrop blur ramps linearly with visibility (the fitted power is 1), the exponent that best matches native's half-way sharpness and its per-backdrop progress together. The numbers ship as a table, `ios27_motion.dart`, written by the lab. Under Reduce Motion native keeps materialize's timing and blur and overshoots more, so glass that begins to appear under Reduce Motion takes a second fitted gain (0.6 for `snappy`, 0.8 for `bouncy`).
 
-Each glass resolves its material (tone, frost, edge light and shadow) from its drawn size at layout and on every animated frame, so a glass growing from 44 to 200 pt changes its shadow as it grows. Container spacing does not animate yet.
+Each glass resolves its material (tone, frost, edge light and shadow) from its drawn size at layout and on every animated frame, so a glass growing from 44 to 200 pt changes its shadow as it grows.
+
+A container's glass blends with its neighbours as native's does: glass closer than `spacing` deforms toward its neighbour, and joins it into one shape when closer than about half of `spacing`. The shape is a smooth union weighted by the angle between the two shapes' edges, which matches native's necks and bulges on the iOS 27 simulator for spacings from 4 to 80 pt. Shapes blend by their drawn rects, so glass that springs toward or away from its neighbour joins and splits as it moves. A `spacing` change animates like a move: with `withGlassAnimation`'s animation, the nearest `GlassAnimationScope` or the default spring, and a spacing the app changes on consecutive frames follows its value.
 
 ### Theme
 
