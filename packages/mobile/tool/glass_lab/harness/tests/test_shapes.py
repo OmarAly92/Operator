@@ -1,8 +1,10 @@
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 import numpy as np
+from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -11,7 +13,7 @@ import analyze
 import manifest
 import shapes
 import springfit
-from synthetic import capture_of, spring_series
+from synthetic import capture_of, glass_pair, spring_series
 
 
 class ShapeTopologyTests(unittest.TestCase):
@@ -72,6 +74,37 @@ class ShapeTopologyTests(unittest.TestCase):
         self.assertAlmostEqual(shapes.neck_difference({"count": 1.0, "neck": 25.33}, {"count": 1.0, "neck": 24.0}), 1.33, places=6)
         self.assertEqual(shapes.neck_difference({"count": 1.0, "neck": 2.0}, {"count": 2.0, "neck": nan}), float("inf"))
         self.assertEqual(shapes.neck_difference({"count": 1.0, "neck": nan}, {"count": 1.0, "neck": 4.0}), float("inf"))
+
+    def test_still_gaps_compare_like_necks(self):
+        nan = float("nan")
+        self.assertEqual(shapes.gap_difference({"gap": nan}, {"gap": nan}), 0.0)
+        self.assertAlmostEqual(shapes.gap_difference({"gap": 3.0}, {"gap": 2.33}), 0.67, places=6)
+        self.assertEqual(shapes.gap_difference({"gap": 3.0}, {"gap": nan}), float("inf"))
+
+    def test_static_topology_reads_the_gap_between_two_shapes(self):
+        scene = manifest.parse([{"id": "x", "group": "material", "title": "t", "inventory": "2.14", "app": "lab", "backdrops": ["black"], "appearances": ["light"], "steps": [{"wait": 0.5}], "regions": {"g20": [0, 0, 240, 120], "g4": [0, 0, 240, 120]}, "topology": ["g20"]}])[0]
+        bare = np.zeros((360, 720, 3), dtype=np.float32)
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for app, gap in (("native", 20), ("flutter", 18)):
+                (root / app / "bare").mkdir(parents=True)
+                Image.fromarray(bare.astype(np.uint8)).save(root / app / "bare" / "ready.png")
+                Image.fromarray(glass_pair(bare, gap, gain=0.0, lift=130.0, rim=0.0).astype(np.uint8)).save(root / app / "ready.png")
+            found = shapes.static_topology(scene, root / "native", root / "flutter")["g20"]
+        self.assertAlmostEqual(found["native"]["gap"], 20, delta=0.67)
+        self.assertAlmostEqual(found["flutter"]["gap"], 18, delta=0.67)
+        self.assertAlmostEqual(found["gap_pt"], 2, delta=0.67)
+        self.assertEqual(found["count"], 0.0)
+        self.assertEqual(found["neck_pt"], 0.0)
+
+    def test_still_topology_measures_include_the_gap_with_its_own_threshold(self):
+        topology = {"g20": {"count": 0.0, "neck_pt": 0.0, "gap_pt": 0.67}}
+        found = analyze.topology_measures(topology, {})
+        self.assertEqual(found["ready.topology.g20.gap_pt"], (0.67, 1.0, "max"))
+        self.assertEqual(found["ready.topology.g20.neck_pt"], (0.0, 1.0, "max"))
+        self.assertEqual(found["ready.topology.g20.count"], (0.0, 0.0, "max"))
+        noisy = analyze.topology_measures(topology, {"ready.topology.g20.gap_pt": 1.0})
+        self.assertEqual(noisy["ready.topology.g20.gap_pt"][1], 1.5)
 
     def test_the_neck_series_holds_each_frame_like_the_count(self):
         nan = float("nan")

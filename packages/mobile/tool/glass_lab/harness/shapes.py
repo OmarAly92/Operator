@@ -104,7 +104,7 @@ def capture(scene, case_dir, found):
             row = track.shape_row(crop, part["bare"], part["edges"], part["origin"])
             row.update(track.progress_row(shrink(crop), part["bare_pt"], part["full_pt"], part["inner"]))
             if name in scene.topology:
-                row.update(track.topology_row(crop, part["bare"], part["edges"]))
+                row.update(track.topology_row(crop, part["bare"]))
             rows[name].append(row)
     windows = [w for w in touch.read(case_dir / "video.mp4", case_dir / "marker") if w[1] >= start - LEAD_SECONDS and w[0] <= end]
     events = []
@@ -322,13 +322,20 @@ def transitions(counts):
     return joins, splits
 
 
-def neck_difference(a, b):
-    a_neck, b_neck = a["neck"], b["neck"]
-    if np.isfinite(a_neck) and np.isfinite(b_neck):
-        return float(abs(a_neck - b_neck))
-    if not np.isfinite(a_neck) and not np.isfinite(b_neck):
+def finite_difference(a, b):
+    if np.isfinite(a) and np.isfinite(b):
+        return float(abs(a - b))
+    if not np.isfinite(a) and not np.isfinite(b):
         return 0.0
     return float("inf")
+
+
+def neck_difference(a, b):
+    return finite_difference(a["neck"], b["neck"])
+
+
+def gap_difference(a, b):
+    return finite_difference(a["gap"], b["gap"])
 
 
 def transition_gap(a, b):
@@ -483,11 +490,13 @@ def static_topology(scene, native_dir, flutter_dir):
         rows = {}
         for app, folder in (("native", native_dir), ("flutter", flutter_dir)):
             bare = track.crop_px(metrics.load(folder / "bare" / "ready.png"), px)
-            rows[app] = track.topology(track.still_mask(track.crop_px(metrics.load(folder / "ready.png"), px), bare))
+            mask = track.still_mask(track.crop_px(metrics.load(folder / "ready.png"), px), bare)
+            rows[app] = dict(track.topology(mask), gap=track.gap(mask))
         found[name] = {
             "native": rows["native"],
             "flutter": rows["flutter"],
             "count": abs(rows["native"]["count"] - rows["flutter"]["count"]),
             "neck_pt": neck_difference(rows["native"], rows["flutter"]),
+            "gap_pt": gap_difference(rows["native"], rows["flutter"]),
         }
     return found

@@ -255,6 +255,17 @@ def limit(key, name, noise, value):
     return (value, max(metrics.THRESHOLDS[key], NOISE_FACTOR * noise.get(name, 0.0)), "max")
 
 
+TOPOLOGY_MEASURES = ("count", "neck_pt", "gap_pt")
+
+
+def topology_measures(topology, noise):
+    return {
+        f"ready.topology.{name}.{key}": limit(key, f"ready.topology.{name}.{key}", noise, entry[key])
+        for name, entry in topology.items()
+        for key in TOPOLOGY_MEASURES
+    }
+
+
 def analyze(scene, case_dir, noise=None, cache=None):
     noise = noise or {}
     case_dir = Path(case_dir)
@@ -289,9 +300,7 @@ def analyze(scene, case_dir, noise=None, cache=None):
     }
     if scene.topology:
         result["topology"] = shapes.static_topology(scene, native_dir, flutter_dir)
-        for name, entry in result["topology"].items():
-            for key, threshold in (("count", "count"), ("neck_pt", "neck_pt")):
-                measures[f"ready.topology.{name}.{key}"] = limit(threshold, f"ready.topology.{name}.{key}", noise, entry[key])
+        measures.update(topology_measures(result["topology"], noise))
     checks = {name: within(*entry) for name, entry in measures.items()}
     if not scene.rest and (scene.track or scene.topology):
         native, flutter = shape_capture(scene, native_dir, cache), shape_capture(scene, flutter_dir, cache)

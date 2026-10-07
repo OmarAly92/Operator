@@ -19,6 +19,7 @@ THRESHOLDS = {
     "progress_rms": 0.05,
     "sharpness": 1.0,
     "neck_pt": 1.0,
+    "gap_pt": 1.0,
     "count": 0.0,
 }
 
