@@ -17,6 +17,37 @@ void main() {
     expect(GlassMaterialize.progress(1.2, appearing: false, mapping: mapping), 1);
   });
 
+  test('appearing glass follows its spring to the fitted appear exponent below full and its gain above', () {
+    const shaped = GlassMaterializeMapping(disappearExponent: 3, appearGain: 0.5, appearExponent: 2);
+    expect(GlassMaterialize.progress(0.4, appearing: true, mapping: shaped), closeTo(0.16, 1e-12));
+    expect(GlassMaterialize.progress(1, appearing: true, mapping: shaped), 1);
+    expect(GlassMaterialize.progress(1.08, appearing: true, mapping: shaped), closeTo(1.04, 1e-12));
+    expect(GlassMaterialize.progress(-0.05, appearing: true, mapping: shaped), 0);
+    expect(GlassMaterialize.progress(0.4, appearing: false, mapping: shaped), closeTo(math.pow(0.4, 3), 1e-12));
+    expect(mapping.appearExponent, 1);
+    expect(GlassMaterializeMapping.defaultSpring.appearExponent, ios27DefaultAppearExponent);
+    expect(GlassMaterializeMapping.snappy.appearExponent, ios27SnappyAppearExponent);
+    expect(GlassMaterializeMapping.bouncy.appearExponent, ios27BouncyAppearExponent);
+  });
+
+  test('reversing a shaped appear keeps the visible progress and a continuous rate', () {
+    const shaped = GlassMaterializeMapping(disappearExponent: 3, appearGain: 0.5, appearExponent: 1.6);
+    for (final (presence, velocity) in [(0.6, -2.0), (0.3, -1.5), (0.9, -0.4)]) {
+      final before = GlassMaterialize.progress(presence, appearing: true, mapping: shaped);
+      final (next, nextVelocity) = GlassMaterialize.reverse(presence, velocity, toAppearing: false, from: shaped, to: shaped);
+      expect(GlassMaterialize.progress(next, appearing: false, mapping: shaped), closeTo(before, 1e-9));
+      expect(3 * math.pow(next, 2) * nextVelocity, closeTo(1.6 * math.pow(presence, 0.6) * velocity, 1e-9));
+    }
+    for (final (presence, velocity) in [(0.6, 2.0), (0.3, 1.5)]) {
+      final before = GlassMaterialize.progress(presence, appearing: false, mapping: shaped);
+      final (next, nextVelocity) = GlassMaterialize.reverse(presence, velocity, toAppearing: true, from: shaped, to: shaped);
+      expect(GlassMaterialize.progress(next, appearing: true, mapping: shaped), closeTo(before, 1e-9));
+      expect(1.6 * math.pow(next, 0.6) * nextVelocity, closeTo(3 * math.pow(presence, 2) * velocity, 1e-9));
+    }
+    final (still, stillVelocity) = GlassMaterialize.reverse(0, 0, toAppearing: true, from: shaped, to: shaped);
+    expect((still, stillVelocity), (0.0, 0.0));
+  });
+
   test('under Reduce Motion an appearing glass overshoots by its own fitted gain', () {
     const both = GlassMaterializeMapping(disappearExponent: 3, appearGain: 0.3, reduceMotionAppearGain: 0.8);
     expect(GlassMaterialize.progress(1.1, appearing: true, mapping: both), closeTo(1.03, 1e-12));

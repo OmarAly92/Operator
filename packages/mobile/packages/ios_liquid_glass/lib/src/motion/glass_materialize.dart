@@ -9,6 +9,7 @@ import 'package:meta/meta.dart';
 class GlassMaterializeMapping {
   const GlassMaterializeMapping({
     required this.disappearExponent,
+    this.appearExponent = 1,
     required double appearGain,
     double? lightAppearGain,
     double? reduceMotionAppearGain,
@@ -20,6 +21,7 @@ class GlassMaterializeMapping {
 
   static const GlassMaterializeMapping defaultSpring = GlassMaterializeMapping(
     disappearExponent: ios27DefaultDisappearExponent,
+    appearExponent: ios27DefaultAppearExponent,
     appearGain: ios27DefaultDarkAppearGain,
     lightAppearGain: ios27DefaultLightAppearGain,
     reduceMotionAppearGain: ios27DefaultDarkReduceMotionAppearGain,
@@ -27,6 +29,7 @@ class GlassMaterializeMapping {
   );
   static const GlassMaterializeMapping snappy = GlassMaterializeMapping(
     disappearExponent: ios27SnappyDisappearExponent,
+    appearExponent: ios27SnappyAppearExponent,
     appearGain: ios27SnappyDarkAppearGain,
     lightAppearGain: ios27SnappyLightAppearGain,
     reduceMotionAppearGain: ios27SnappyDarkReduceMotionAppearGain,
@@ -34,6 +37,7 @@ class GlassMaterializeMapping {
   );
   static const GlassMaterializeMapping bouncy = GlassMaterializeMapping(
     disappearExponent: ios27BouncyDisappearExponent,
+    appearExponent: ios27BouncyAppearExponent,
     appearGain: ios27BouncyDarkAppearGain,
     lightAppearGain: ios27BouncyLightAppearGain,
     reduceMotionAppearGain: ios27BouncyDarkReduceMotionAppearGain,
@@ -41,6 +45,7 @@ class GlassMaterializeMapping {
   );
 
   final double disappearExponent;
+  final double appearExponent;
   final double darkAppearGain;
   final double lightAppearGain;
   final double darkReduceMotionAppearGain;
@@ -78,7 +83,7 @@ sealed class GlassMaterialize {
   }) {
     if (presence <= 0) return 0;
     if (!appearing) return math.pow(math.min(presence, 1.0), mapping.disappearExponent).toDouble();
-    return presence <= 1 ? presence : 1 + mapping.gain(reduceMotion: reduceMotion, dark: dark) * (presence - 1);
+    return presence <= 1 ? math.pow(presence, mapping.appearExponent).toDouble() : 1 + mapping.gain(reduceMotion: reduceMotion, dark: dark) * (presence - 1);
   }
 
   static double visibility(double progress, {List<double> table = ios27VisibilityForProgress, List<double> above = ios27VisibilityAboveFull}) {
@@ -110,12 +115,14 @@ sealed class GlassMaterialize {
     if (toAppearing) {
       final p = presence.clamp(0.0, 1.0);
       final alpha = math.pow(p, from.disappearExponent).toDouble();
+      if (alpha <= 0) return (0, 0);
       final rate = from.disappearExponent * math.pow(p, from.disappearExponent - 1).toDouble() * velocity;
-      return (alpha, math.max(0, rate));
+      final root = math.pow(alpha, 1 / to.appearExponent).toDouble();
+      return (root, math.max(0, rate / (to.appearExponent * math.pow(root, to.appearExponent - 1).toDouble())));
     }
     final alpha = progress(presence, appearing: true, mapping: from, reduceMotion: reduceMotion, dark: dark).clamp(0.0, 1.0);
     if (alpha <= 0) return (0, 0);
-    final rate = velocity * (presence > 1 ? from.gain(reduceMotion: reduceMotion, dark: dark) : 1);
+    final rate = velocity * (presence > 1 ? from.gain(reduceMotion: reduceMotion, dark: dark) : from.appearExponent * math.pow(presence, from.appearExponent - 1).toDouble());
     final root = math.pow(alpha, 1 / to.disappearExponent).toDouble();
     return (root, math.min(0, rate / (to.disappearExponent * math.pow(root, to.disappearExponent - 1).toDouble())));
   }

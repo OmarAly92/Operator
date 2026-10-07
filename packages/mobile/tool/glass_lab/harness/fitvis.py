@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 
+import align
 import analyze
 import build
 import manifest
@@ -40,6 +41,12 @@ SHARPNESS_AT = (0.25, 0.5, 0.75)
 SHARPNESS_BIN = 0.1
 SPRING_TOLERANCE = (0.05, 0.05)
 OUTLIER_RMS = 0.1
+FRAME_HZ = 60.0
+FRAME_SECONDS = 2.0
+APPEAR_EXPONENTS = np.arange(1.0, 3.0001, 0.05)
+MOVING_MEASURES = ("t10_90_ms", "settle_ms", "overshoot_pct", "response_pct", "damping", "rms")
+FIRST_FRAME_OUTCOMES = (True, False)
+NOISE = manifest.LAB / "noise.json"
 
 
 def levels(count=LEVELS):
@@ -88,13 +95,14 @@ def native_curves(roots, scene):
             t, a = times[chosen] - event["onset"], values[chosen]
             if len(t) < 4:
                 continue
-            curves.append({"case": case, "take": take, "appearing": bool(a[-1] > a[0]), "t": t, "alpha": a, "sharpness": sharpness[chosen]})
+            series = event.get("series", {}).get(scene.track[0], {}).get("progress")
+            curves.append({"case": case, "take": take, "appearing": bool(a[-1] > a[0]), "t": t, "alpha": a, "sharpness": sharpness[chosen], "series": series})
     return curves
 
 
-def mapped(s, appearing, exponent, gain):
+def mapped(s, appearing, exponent, gain, appear_exponent=1.0):
     if appearing:
-        return np.where(s <= 1, np.maximum(s, 0.0), 1 + gain * (s - 1))
+        return np.where(s <= 1, np.maximum(s, 0.0) ** appear_exponent, 1 + gain * (s - 1))
     return np.clip(1 - s, 0.0, 1.0) ** exponent
 
 
@@ -348,6 +356,115 @@ def spring_check(curves, mapping, scene_id=DEFAULT_SCENE):
     return result
 
 
+def flutter_frames(rows, table, above, response, damping, gain, appear_exponent, hz=FRAME_HZ, seconds=FRAME_SECONDS):
+    visibilities = sorted(rows)
+    progress = np.maximum.accumulate([rows[v] for v in visibilities])
+    times = np.arange(int(round(seconds * hz))) / hz
+    alpha = mapped(springfit.step_response(times, response, damping), True, 1.0, gain, appear_exponent)
+    return times, np.interp([visibility(a, table, above) for a in alpha], visibilities, progress)
+
+
+def recorded_series(times, progress, slope, keep_first):
+    kept = [i for i in range(len(times)) if keep_first or i != 1]
+    stamps, values = [float(times[i]) for i in kept], [float(progress[i]) for i in kept]
+    diffs = [0.0] + [abs(b - a) * slope for a, b in zip(values, values[1:])]
+    found = align.events(diffs, stamps)
+    if not found:
+        return None
+    first, last = found[0]
+    rows = [{**{key: 0.0 for key in shapes.KEYS}, "progress": value, "sharpness": 0.0, "residual": 0.0} for value in values]
+    return shapes.event_series(stamps, rows, first, last)["progress"]
+
+
+def moving_limits(noise, scene_id, case):
+    found = noise.get(scene_id, {}).get(case, {})
+    return {
+        measure: max(metrics.THRESHOLDS[shapes.LIMITS[measure]], 1.5 * found.get(f"block.step3e0.progress.{measure}", 0.0))
+        for measure in MOVING_MEASURES
+    }
+
+
+def progress_series(values):
+    return {"progress": list(values), "sharpness": [0.0] * len(values), "residual": [0.0] * len(values)}
+
+
+def moving_score(events, scene_id, rows, slopes, table, above, gain_of, appear_exponent, noise, outcomes=FIRST_FRAME_OUTCOMES):
+    response, damping = SCENES[scene_id]
+    failing, ratios, count = 0, [], 0
+    simulated = {}
+    for event in events:
+        case = event["case"]
+        base = base_case(case)
+        if base not in rows or base not in slopes or event.get("series") is None:
+            continue
+        limits = moving_limits(noise, scene_id, case)
+        for keep_first in outcomes:
+            key = (base, gain_of(case), keep_first)
+            if key not in simulated:
+                times, progress = flutter_frames(rows[base], table, above, response, damping, gain_of(case), appear_exponent)
+                simulated[key] = recorded_series(times, progress, slopes[base], keep_first)
+            series = simulated[key]
+            if series is None:
+                continue
+            found = shapes.compare_progress(progress_series(event["series"]), progress_series(series)) or {}
+            count += 1
+            for measure in MOVING_MEASURES:
+                value = found.get(measure, float("inf"))
+                failing += int(not value <= limits[measure])
+                ratios.append(min(value / limits[measure], 10.0) if np.isfinite(value) else 10.0)
+    if not count:
+        return {"failing": float("inf"), "ratio": float("inf"), "pairs": 0}
+    return {"failing": round(failing / count, 4), "ratio": round(float(np.mean(ratios)), 4), "pairs": count}
+
+
+def fit_appear_exponent(events, scene_id, rows, slopes, table, above, gain_of, noise, outcomes=FIRST_FRAME_OUTCOMES):
+    scores = {round(float(a), 2): moving_score(events, scene_id, rows, slopes, table, above, gain_of, float(a), noise, outcomes) for a in APPEAR_EXPONENTS}
+    best = min(scores, key=lambda a: (scores[a]["failing"], scores[a]["ratio"]))
+    return {
+        "value": best,
+        "at_grid_edge": at_edge(best, APPEAR_EXPONENTS),
+        "events": len([e for e in events if e.get("series") is not None]),
+        "objective": "mean failing Done measures per native appear and first-frame outcome, Flutter simulated from the scan at 60 Hz from its build frame; ties by mean value / limit",
+        "table": {str(a): score for a, score in scores.items()},
+    }
+
+
+def fit_appear_exponents(mapping, curves_by_scene, reduce_motion_by_scene, rows, slopes, table, above, noise, mode="pooled"):
+    for scene_id, entry in mapping.items():
+        gains = written_gains(entry, mode)
+
+        def gain_of(case, gains=gains):
+            fit = gains.get(("reduce_motion" if case.endswith("-reduce-motion") else "normal", appearance_of(case)))
+            return float(fit["value"]) if fit else 0.0
+
+        events = [c for c in (*curves_by_scene.get(scene_id, []), *reduce_motion_by_scene.get(scene_id, [])) if c["appearing"]]
+        entry["appear_exponent"] = fit_appear_exponent(events, scene_id, rows, slopes, table, above, gain_of, noise)
+    return mapping
+
+
+def appear_lines(mapping):
+    lines = ["appear exponent (Done measures on simulated moving glass against every native appear, both first-frame outcomes):"]
+    for scene_id, entry in mapping.items():
+        fit = entry.get("appear_exponent")
+        if not fit:
+            continue
+        table = fit["table"]
+        one = table.get("1.0", {})
+        chosen = table[str(fit["value"])]
+        lines.append(f"  {scene_id:28} {fit['value']}  failing per appear {chosen['failing']} (at 1.0: {one.get('failing')}), mean value/limit {chosen['ratio']} (at 1.0: {one.get('ratio')}), {fit['events']} appears{', ON THE GRID EDGE' if fit['at_grid_edge'] else ''}")
+    return lines
+
+
+def scan_slopes(scan_dir, region):
+    rect = track.pixel_rect(region)
+    found = {}
+    for case_dir in sorted(Path(scan_dir).glob("*")):
+        bare, full = case_dir / "0.0" / "ready.png", case_dir / "1.0" / "ready.png"
+        if bare.exists() and full.exists():
+            found[case_dir.name] = metrics.mad(shapes.shrink(track.crop_px(metrics.load(full), rect)), shapes.shrink(track.crop_px(metrics.load(bare), rect)))
+    return found
+
+
 def scan(udid, cases, out, values, ramp):
     folder = Path(out) / f"ramp{ramp}"
     for name in cases:
@@ -559,6 +676,9 @@ def table_values(mapping, mode):
         if not entry.get("exponent"):
             raise ValueError(f"{scene_id} disappear exponent: not fitted")
         values[f"ios27{name}DisappearExponent"] = float(entry["exponent"]["value"])
+        if not entry.get("appear_exponent"):
+            raise ValueError(f"{scene_id} appear exponent: not fitted")
+        values[f"ios27{name}AppearExponent"] = float(entry["appear_exponent"]["value"])
         gains = written_gains(entry, mode) if "gains" in entry else legacy_gains(entry)
         for (key, appearance), fit in gains.items():
             label = f"ios27{name}{appearance.title()}{'ReduceMotion' if key == 'reduce_motion' else ''}AppearGain"
@@ -634,6 +754,11 @@ def write_problems(summary, allowed=(), recorded=None):
             found.append(f"ios27{name}DisappearExponent: not fitted")
         elif exponent.get("at_grid_edge"):
             found.append(f"ios27{name}DisappearExponent = {exponent['value']}: on the grid edge")
+        appear = entry.get("appear_exponent")
+        if not appear:
+            found.append(f"ios27{name}AppearExponent: not fitted")
+        elif appear.get("at_grid_edge"):
+            found.append(f"ios27{name}AppearExponent = {appear['value']}: on the grid edge")
         for (key, appearance), fit in written_gains(entry, mode).items():
             label = f"ios27{name}{appearance.title()}{'ReduceMotion' if key == 'reduce_motion' else ''}AppearGain"
             if not fit:
@@ -676,6 +801,11 @@ def run(udid, roots, out, count=LEVELS, write=False, ramps=RAMPS, mode="pooled",
     table, mean = invert(progress)
     above, above_mean = invert_above(progress)
     fit_gains(mapping, curves, reduce_motion, final, table, above)
+    slopes = scan_slopes(Path(out) / "table" / f"ramp{ramp['value']}", region)
+    noise = json.loads(NOISE.read_text()) if NOISE.exists() else {}
+    fit_appear_exponents(mapping, curves, reduce_motion, progress, slopes, table, above, noise, mode)
+    for line in appear_lines(mapping):
+        print(line)
     check = spring_check(curves[DEFAULT_SCENE], mapping)
     summary = {
         "roots": [str(root) for root in roots],
@@ -691,6 +821,7 @@ def run(udid, roots, out, count=LEVELS, write=False, ramps=RAMPS, mode="pooled",
         "flutter_progress_mean_above_full": above_mean,
         "visibility_for_progress": table,
         "visibility_above_full": above,
+        "scan_slopes": {case: round(value, 4) for case, value in slopes.items()},
     }
     recorded = []
     problems = write_problems(summary, allowed, recorded)
