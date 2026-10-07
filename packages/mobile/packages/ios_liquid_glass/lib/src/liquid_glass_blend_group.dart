@@ -301,7 +301,7 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
 
   @override
   (Rect, List<ShapeGeometry>, bool) gatherShapeData() {
-    final shapes = <ShapeGeometry>[];
+    final candidates = <(ShapeGeometry, bool)>[];
     final cachedShapes = geometry?.shapes ?? [];
 
     var anyShapeChangedInLayer = false;
@@ -317,29 +317,41 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
       try {
         final union = renderObject.unionOutline;
         if (union != null && !union.leads) continue;
-        final shapeData = _computeShapeInfo(
-          renderObject,
-          union?.shape ?? shape,
-          glassContainsChild,
-          union?.rect ?? renderObject.drawnRect,
-        );
-        final index = shapes.length;
-        shapes.add(shapeData);
-
-        layerBounds = layerBounds?.expandToInclude(shapeData.shapeBounds) ??
-            shapeData.shapeBounds;
-
-        final existingShape =
-            cachedShapes.length > index ? cachedShapes[index] : null;
-
-        if (existingShape == null) {
-          anyShapeChangedInLayer = true;
-        } else if (existingShape.shapeBounds != shapeData.shapeBounds ||
-            existingShape.shape != shapeData.shape) {
-          anyShapeChangedInLayer = true;
-        }
+        candidates.add((
+          _computeShapeInfo(
+            renderObject,
+            union?.shape ?? shape,
+            glassContainsChild,
+            union?.rect ?? renderObject.drawnRect,
+          ),
+          renderObject.motion?.isTransient ?? false,
+        ));
       } catch (e) {
         debugPrint('Failed to compute shape info: $e');
+      }
+    }
+
+    var excess = candidates.length - LiquidGlassBlendGroup.maxShapesPerLayer;
+    for (var i = candidates.length - 1; i >= 0 && excess > 0; i--) {
+      if (!candidates[i].$2) continue;
+      candidates.removeAt(i);
+      excess--;
+    }
+
+    final shapes = [for (final (shapeData, _) in candidates) shapeData];
+
+    for (final (index, shapeData) in shapes.indexed) {
+      layerBounds = layerBounds?.expandToInclude(shapeData.shapeBounds) ??
+          shapeData.shapeBounds;
+
+      final existingShape =
+          cachedShapes.length > index ? cachedShapes[index] : null;
+
+      if (existingShape == null) {
+        anyShapeChangedInLayer = true;
+      } else if (existingShape.shapeBounds != shapeData.shapeBounds ||
+          existingShape.shape != shapeData.shape) {
+        anyShapeChangedInLayer = true;
       }
     }
 
