@@ -71,25 +71,7 @@ sealed class MaterialScenes {
         ),
       ],
     ),
-    'material.union': (launch) => LabCentered(
-      backdrop: launch.backdrop,
-      children: [
-        GlassEffectContainer(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final (index, icon) in const [Icons.star, Icons.favorite, Icons.bolt, Icons.eco].indexed) ...[
-                if (index > 0) const SizedBox(width: 16),
-                GlassEffect(
-                  shape: const GlassShape.rect(20),
-                  child: SizedBox.square(dimension: 64, child: GlassForeground(child: Icon(icon, size: 24))),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    ),
+    'material.union': (launch) => UnionScene(backdrop: launch.backdrop),
     'material.morph': (launch) => LabCentered(
       backdrop: launch.backdrop,
       children: [
@@ -218,6 +200,44 @@ class _EdgeSceneState extends State<EdgeScene> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class UnionScene extends StatefulWidget {
+  const UnionScene({super.key, required this.backdrop});
+
+  static const List<IconData> symbols = [Icons.star, Icons.favorite, Icons.bolt, Icons.eco];
+
+  final String backdrop;
+
+  @override
+  State<UnionScene> createState() => _UnionSceneState();
+}
+
+class _UnionSceneState extends State<UnionScene> {
+  final GlassNamespace _namespace = GlassNamespace();
+
+  @override
+  Widget build(BuildContext context) {
+    return LabCentered(
+      backdrop: widget.backdrop,
+      children: [
+        GlassEffectContainer(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (index, icon) in UnionScene.symbols.indexed) ...[
+                if (index > 0) const SizedBox(width: 16),
+                GlassEffect(
+                  union: GlassEffectUnion(index < 2 ? 'first' : 'second', _namespace),
+                  child: SizedBox.square(dimension: 64, child: GlassForeground(child: Icon(icon, size: 24))),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

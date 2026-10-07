@@ -689,7 +689,32 @@
       "light",
       "dark"
     ],
-    "steps": []
+    "steps": [],
+    "regions": {
+      "first": [
+        37,
+        407,
+        168,
+        88
+      ],
+      "second": [
+        197,
+        407,
+        168,
+        88
+      ],
+      "pair": [
+        37,
+        407,
+        328,
+        88
+      ]
+    },
+    "topology": [
+      "first",
+      "second",
+      "pair"
+    ]
   },
   {
     "id": "material.morph",

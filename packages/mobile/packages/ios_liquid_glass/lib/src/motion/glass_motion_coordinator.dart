@@ -3,6 +3,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
+import 'package:ios_liquid_glass/src/api/glass.dart';
+import 'package:ios_liquid_glass/src/api/glass_namespace.dart';
 import 'package:ios_liquid_glass/src/liquid_glass_settings.dart';
 import 'package:ios_liquid_glass/src/liquid_shape.dart';
 import 'package:ios_liquid_glass/src/motion/glass_animation.dart';
@@ -55,6 +57,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
   int _heldFrame = -2;
   GlassAnimation? _requested;
   GlassMotionCoordinator? _ghostOwner;
+  (GlassEffectUnion, LiquidShape, Glass?)? _union;
 
   LiquidGlassSettings? get settings => sharedSettings ?? material?.settings;
 
@@ -85,6 +88,53 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
     if (live == null || size == null) return null;
     return Rect.fromLTWH(live.dx + _offset[0].value, live.dy + _offset[1].value, size.width, size.height);
   }
+
+  void unite(GlassEffectUnion? union, {Glass? glass, required bool grouped}) {
+    final shape = this.shape;
+    final next = union == null || shape == null || !grouped ? null : (union, shape, glass);
+    final previous = _union;
+    if (next == previous) return;
+    _union = next;
+    coordinator._unionChanged(previous);
+    coordinator._unionChanged(next);
+  }
+
+  bool get _drawsInUnion {
+    final box = _box;
+    return _union != null && box != null && box.attached && box.hasSize;
+  }
+
+  GlassUnionOutline? get unionOutline {
+    final key = _union;
+    if (key == null || !_drawsInUnion) return null;
+    Rect? bounds;
+    GlassMember? leader;
+    var count = 0;
+    var counted = false;
+    for (final member in coordinator._members) {
+      if (member._union != key || !member._drawsInUnion) continue;
+      final rect = member.drawn;
+      if (rect == null) continue;
+      leader ??= member;
+      count++;
+      counted = counted || identical(member, this);
+      bounds = bounds?.expandToInclude(rect) ?? rect;
+    }
+    if (bounds == null || count < 2 || !counted) return null;
+    return GlassUnionOutline(rect: bounds, shape: unionShape(key.$2), leads: identical(leader, this));
+  }
+
+  static LiquidShape unionShape(LiquidShape shape) => shape is LiquidOval ? const LiquidRoundedRectangle(borderRadius: 999) : shape;
+
+  @override
+  GlassUnionOutline? union(RenderBox shape) {
+    final outline = unionOutline;
+    final space = coordinator.space;
+    if (outline == null || space == null || !shape.attached || !space.attached) return null;
+    return outline.shift(-MatrixUtils.transformPoint(shape.getTransformTo(space), Offset.zero));
+  }
+
+  void _unionMoved() => notifyListeners();
 
   void attachBox(RenderBox box) => _box = box;
 
@@ -312,6 +362,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
     visibility.value = GlassMaterialize.visibility(progress);
     _resizeMaterial();
     notifyListeners();
+    if (coordinator._members.contains(this)) coordinator._unionChanged(_union, except: this);
   }
 
   void _resizeMaterial() {
@@ -408,6 +459,13 @@ class GlassMotionCoordinator {
 
   Iterable<GlassMember> get members => _members;
 
+  void _unionChanged(Object? union, {GlassMember? except}) {
+    if (union == null) return;
+    for (final member in _members) {
+      if (member._union == union && !identical(member, except)) member._unionMoved();
+    }
+  }
+
   void spacingTo(double target, {GlassAnimation? scope}) {
     final spring = _spacing;
     if (spring == null) {
@@ -483,6 +541,7 @@ class GlassMotionCoordinator {
     }
     final rect = _globalRect(member);
     _members.remove(member);
+    _unionChanged(member._union);
     final ghostOwner = owner ?? this;
     final animation = resolveGlassAnimation(member.scopeAnimation);
     final settings = member.settings, shape = member.shape;
@@ -516,7 +575,9 @@ class GlassMotionCoordinator {
   }
 
   void reattach(GlassMember member) {
-    if (member._ghostOwner == null) _members.add(member);
+    if (member._ghostOwner != null) return;
+    _members.add(member);
+    _unionChanged(member._union);
   }
 
   void _adopt(GlassMember member, _Leaving leaving) {
@@ -535,7 +596,10 @@ class GlassMotionCoordinator {
   void drop(GlassMember member) {
     final leaving = member._ghostOwner?._leaving.remove(member);
     leaving?.release();
-    if (_members.remove(member) || leaving != null) member.dispose();
+    if (_members.remove(member) || leaving != null) {
+      _unionChanged(member._union);
+      member.dispose();
+    }
   }
 
   void rejoin(GlassMember member) {
@@ -544,6 +608,7 @@ class GlassMotionCoordinator {
     leaving.release();
     member._ghostOwner = null;
     _members.add(member);
+    _unionChanged(member._union);
   }
 
   List<GlassGhost> takeGhosts() {

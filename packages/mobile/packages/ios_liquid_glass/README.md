@@ -32,6 +32,8 @@ The glass is drawn behind the child, in the shape you choose, sized by the child
 | `.glassEffect(.regular.interactive())` | `Glass.regular.interactive()` (the press arrives in a later version) |
 | `.glassEffect(in: .circle)`, `.rect(cornerRadius:)`, capsule | `GlassShape.circle()`, `GlassShape.rect(r)`, `GlassShape.superellipse(r)`, `GlassShape.capsule()` |
 | `GlassEffectContainer(spacing:)`, `GlassEffectContainer()` | `GlassEffectContainer(spacing: 40, child: ...)`, `GlassEffectContainer(child: ...)` (native default, 8 pt) |
+| `@Namespace` | `GlassNamespace()`, created once in a `State` |
+| `.glassEffectUnion(id:namespace:)` | `GlassEffect(union: GlassEffectUnion(id, namespace), ...)` |
 | `.glassEffectTransition(.materialize)`, `.identity` | `GlassEffect(transition: GlassEffectTransition.materialize)`, `GlassEffectTransition.identity` |
 | `Animation.default`, `.snappy`, `.bouncy`, `.smooth` | `GlassAnimation.defaultSpring`, `.snappy`, `.bouncy`, `.smooth` |
 | `.spring(duration:bounce:)`, `.spring(response:dampingFraction:)` | `GlassAnimation.spring(duration:, bounce:)`, `GlassAnimation.dampedSpring(response:, dampingFraction:)` |
@@ -64,6 +66,8 @@ The timing is native's, measured on the iOS 27 simulator. Appearing glass follow
 Each glass resolves its material (tone, frost, edge light and shadow) from its drawn size at layout and on every animated frame, so a glass growing from 44 to 200 pt changes its shadow as it grows.
 
 A container's glass blends with its neighbours as native's does: glass closer than `spacing` deforms toward its neighbour, and joins it into one shape when closer than about half of `spacing`. The shape is a smooth union weighted by the angle between the two shapes' edges, which matches native's necks and bulges on the iOS 27 simulator for spacings from 4 to 80 pt. Shapes blend by their drawn rects, so glass that springs toward or away from its neighbour joins and splits as it moves. A `spacing` change animates like a move: with `withGlassAnimation`'s animation, the nearest `GlassAnimationScope` or the default spring, and a spacing the app changes on consecutive frames follows its value.
+
+Glass in one container that shares a `GlassEffectUnion` (the same id in the same `GlassNamespace`), the same shape and the same `Glass` draws as one shape at any distance, as native's `.glassEffectUnion` does: a shape on the bounding rect of the members' drawn rects, so it follows a member that moves. Circles and capsules become a capsule of that rect, as native draws two 64 pt circles 16 pt apart as one 144 × 64 pt capsule; rounded rectangles and superellipses keep their corner radius. Each member's content stays where that member is laid out. A union counts as one shape against a container's 16 shapes, and blends with the container's other glass by `spacing` like any shape. Glass with the same union id but a different shape or `Glass` forms its own union. A member that is materializing draws on its own and joins its union when it settles; a removed member leaves its union at once and dematerializes on its own. A union needs a container: glass outside one draws on its own whatever its union. The fallback renderer without shader support (`FakeGlass`) draws each member on its own.
 
 ### Theme
 

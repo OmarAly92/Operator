@@ -6,6 +6,7 @@ import 'package:ios_liquid_glass/src/api/glass.dart';
 import 'package:ios_liquid_glass/src/api/glass_effect_container.dart';
 import 'package:ios_liquid_glass/src/api/glass_effect_transition.dart';
 import 'package:ios_liquid_glass/src/api/glass_material_context.dart';
+import 'package:ios_liquid_glass/src/api/glass_namespace.dart';
 import 'package:ios_liquid_glass/src/api/glass_shape.dart';
 import 'package:ios_liquid_glass/src/api/glass_theme.dart';
 import 'package:ios_liquid_glass/src/liquid_glass.dart';
@@ -20,6 +21,7 @@ class GlassEffect extends StatefulWidget {
     this.glass = Glass.regular,
     this.shape = const GlassShape.capsule(),
     this.transition = GlassEffectTransition.materialize,
+    this.union,
     this.sideHint,
     required this.child,
   });
@@ -29,6 +31,7 @@ class GlassEffect extends StatefulWidget {
   final Glass glass;
   final GlassShape shape;
   final GlassEffectTransition transition;
+  final GlassEffectUnion? union;
   final double? sideHint;
   final Widget child;
 
@@ -221,7 +224,8 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
           ..material = material
           ..sharedSettings = grouped ? container.settings : null
           ..reduceMotion = GlassAccessibility.of(context).reduceMotion
-          ..dark = GlassTheme.brightnessOf(context) == Brightness.dark;
+          ..dark = GlassTheme.brightnessOf(context) == Brightness.dark
+          ..unite(widget.union, glass: widget.glass, grouped: grouped && !member.ownsLayer);
         final Widget glass;
         if (grouped && !member.ownsLayer) {
           glass = LiquidGlass.grouped(shape: shape, shadows: material.shadows, shadowSource: material, motion: member, child: content);

@@ -304,26 +304,26 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
     final shapes = <ShapeGeometry>[];
     final cachedShapes = geometry?.shapes ?? [];
 
-    var anyShapeChangedInLayer =
-        cachedShapes.length != link.shapeEntries.length;
+    var anyShapeChangedInLayer = false;
 
     Rect? layerBounds;
 
-    for (final (
-          index,
-          MapEntry(
-            key: renderObject,
-            value: (shape, glassContainsChild),
-          )
-        ) in link.shapeEntries.indexed) {
+    for (final MapEntry(
+          key: renderObject,
+          value: (shape, glassContainsChild),
+        ) in link.shapeEntries) {
       if (!renderObject.attached || !renderObject.hasSize) continue;
 
       try {
+        final union = renderObject.unionOutline;
+        if (union != null && !union.leads) continue;
         final shapeData = _computeShapeInfo(
           renderObject,
-          shape,
+          union?.shape ?? shape,
           glassContainsChild,
+          union?.rect ?? renderObject.drawnRect,
         );
+        final index = shapes.length;
         shapes.add(shapeData);
 
         layerBounds = layerBounds?.expandToInclude(shapeData.shapeBounds) ??
@@ -342,6 +342,8 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
         debugPrint('Failed to compute shape info: $e');
       }
     }
+
+    if (cachedShapes.length != shapes.length) anyShapeChangedInLayer = true;
 
     return (
       (layerBounds ?? Rect.zero).inflate(blend * .25 + settings.outlineWidth + 1),
@@ -376,6 +378,7 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
     RenderLiquidGlass renderObject,
     LiquidShape shape,
     bool glassContainsChild,
+    Rect drawnRect,
   ) {
     if (!hasSize) {
       throw StateError(
@@ -396,7 +399,7 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
 
     final blendGroupRect = MatrixUtils.transformRect(
       transformToGeometry,
-      renderObject.drawnRect,
+      drawnRect,
     );
 
     return ShapeGeometry(
