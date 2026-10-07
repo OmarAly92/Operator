@@ -226,8 +226,17 @@ abstract class RenderLiquidGlassGeometry extends RenderProxyBox {
     return path;
   }
 
+  @protected
+  bool shapesMoved() => false;
+
+  @visibleForTesting
+  void revalidateGeometry() {
+    if (shapesMoved()) markGeometryNeedsUpdate();
+  }
+
   /// Should be called from within [paint] to maybe rebuild the [geometry].
   GeometryCache? maybeRebuildGeometry() {
+    revalidateGeometry();
     if (geometryState == LiquidGlassGeometryState.updated && geometry != null) {
       return geometry;
     }

@@ -245,6 +245,12 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
 
   void sync() => _sync();
 
+  @override
+  bool syncMoved() {
+    _sync();
+    return false;
+  }
+
   void _sync() {
     final box = _box;
     final space = coordinator.space;
@@ -528,6 +534,9 @@ class GlassGhost extends ChangeNotifier implements GlassShapeMotion {
 
   @override
   bool get isTransient => true;
+
+  @override
+  bool syncMoved() => false;
 
   @override
   void dispose() {

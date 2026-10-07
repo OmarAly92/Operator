@@ -9,6 +9,8 @@ abstract interface class GlassShapeMotion implements Listenable {
   GlassUnionOutline? union(RenderBox shape);
 
   bool get isTransient;
+
+  bool syncMoved();
 }
 
 @internal
