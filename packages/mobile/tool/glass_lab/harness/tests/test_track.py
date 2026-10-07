@@ -64,6 +64,16 @@ class BoxTests(unittest.TestCase):
         self.assertEqual(empty["width"], 0.0)
         self.assertTrue(np.isnan(empty["cx"]))
 
+    def test_shape_rows_report_each_outer_edge_in_absolute_points(self):
+        bare = stripes()
+        row = track.shape_row(draw(bare, (30, 20, 50, 20)), bare, track.edges(bare), (100, 200))
+        self.assertAlmostEqual(row["xmin"], 130, delta=1.0)
+        self.assertAlmostEqual(row["xmax"], 180, delta=1.0)
+        self.assertAlmostEqual(row["ymin"], 220, delta=1.0)
+        self.assertAlmostEqual(row["ymax"], 240, delta=1.0)
+        empty = track.shape_row(bare, bare, track.edges(bare), (100, 200))
+        self.assertTrue(all(np.isnan(empty[key]) for key in ("xmin", "xmax", "ymin", "ymax")))
+
 
 class ProgressTests(unittest.TestCase):
     def setUp(self):
@@ -101,6 +111,14 @@ class TopologyTests(unittest.TestCase):
         found = track.topology_row(disks(20), self.bare)
         self.assertEqual(found["count"], 2.0)
         self.assertTrue(np.isnan(found["neck"]))
+
+    def test_a_video_topology_row_carries_the_gap_between_two_shapes(self):
+        apart = track.topology_row(disks(20), self.bare)
+        self.assertEqual(apart["count"], 2.0)
+        self.assertAlmostEqual(apart["gap"], 20.0, delta=2.0)
+        joined = track.topology_row(disks(0, bridge=20), self.bare)
+        self.assertTrue(np.isnan(joined["gap"]))
+        self.assertTrue(np.isnan(track.topology_row(self.bare.copy(), self.bare)["gap"]))
 
     def test_a_frame_with_no_glass_has_no_neck(self):
         found = track.topology_row(self.bare.copy(), self.bare)

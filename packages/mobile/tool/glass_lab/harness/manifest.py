@@ -11,13 +11,15 @@ STEP_KINDS = ("wait", "tap", "doubleTap", "press", "pressDrag")
 TOUCH_STEPS = ("tap", "doubleTap", "press", "pressDrag")
 FIELDS = ("id", "group", "title", "inventory", "app", "backdrops", "appearances", "steps")
 STATIC_MEASURES = ("mad", "luminance", "rim_rms", "bbox_pt", "centre_pt")
+EDGE_KEYS = ("xmin", "xmax", "ymin", "ymax")
 MOTION_MEASURES = (
     "delay_ms",
     "topology.count",
     "topology.join_ms",
     "topology.split_ms",
     "topology.neck_rms",
-    *(f"{key}.{measure}" for key in ("width", "height", "cx", "cy", "luma") for measure in ("peak_ms", "settle_ms", "overshoot_pct", "response_pct", "damping")),
+    "topology.gap_rms",
+    *(f"{key}.{measure}" for key in ("width", "height", "cx", "cy", "luma", *EDGE_KEYS) for measure in ("peak_ms", "settle_ms", "overshoot_pct", "response_pct", "damping")),
     "progress.t10_90_ms",
     "progress.settle_ms",
     "progress.overshoot_pct",
@@ -44,6 +46,7 @@ class Scene:
     measures: tuple = STATIC_MEASURES
     motion: tuple = ()
     topology: tuple = ()
+    edges: dict = field(default_factory=dict)
 
     @property
     def native_only(self):
@@ -131,6 +134,20 @@ def validate(raw):
             errors.append(f"{where}: topology must be a region name or a non-empty list of them")
         elif topology is not None and any(name not in regions for name in names):
             errors.append(f"{where}: topology names an unknown region")
+        edges = entry.get("edges", {})
+        tracked = set(([track] if isinstance(track, str) else track or [])) | set(([topology] if isinstance(topology, str) else topology or []))
+        if not isinstance(edges, dict):
+            errors.append(f"{where}: edges must map a region to a non-empty list of edge keys")
+            edges = {}
+        for name, keys in edges.items():
+            if name not in regions:
+                errors.append(f"{where}: edges names an unknown region {name}")
+            elif name not in tracked:
+                errors.append(f"{where}: edges names a region that is not tracked {name}")
+            if not (isinstance(keys, list) and keys and all(isinstance(k, str) for k in keys)):
+                errors.append(f"{where}: edges must map a region to a non-empty list of edge keys")
+                continue
+            errors += [f"{where}: unknown edge {k}" for k in keys if k not in EDGE_KEYS]
         motion = entry.get("motion", [])
         if not isinstance(motion, list):
             errors.append(f"{where}: motion must be a list")
@@ -140,6 +157,12 @@ def validate(raw):
                 errors.append(f"{where}: motion measures need a track")
             if any(m.startswith("topology.") for m in motion) and topology is None:
                 errors.append(f"{where}: topology measures need topology regions")
+            wanted = [m for m in motion if m.split(".")[0] in EDGE_KEYS]
+            if wanted and not edges:
+                errors.append(f"{where}: edge measures need edges")
+            else:
+                listed = {k for keys in edges.values() if isinstance(keys, list) for k in keys}
+                errors += [f"{where}: {m} needs a region with the edge {m.split('.')[0]}" for m in wanted if m.split(".")[0] not in listed]
         measures = entry.get("measures", list(STATIC_MEASURES))
         if not isinstance(measures, list) or not measures:
             errors.append(f"{where}: measures must be a non-empty list")
@@ -176,6 +199,7 @@ def parse(raw):
             measures=tuple(entry.get("measures", STATIC_MEASURES)),
             motion=tuple(entry.get("motion", [])),
             topology=tracks(entry.get("topology")),
+            edges={name: tuple(keys) for name, keys in entry.get("edges", {}).items()},
         )
         for entry in raw
     ]

@@ -86,6 +86,26 @@ class RealManifestTests(unittest.TestCase):
         self.assertEqual(lab, registered)
 
 
+class RealMotionManifestTests(unittest.TestCase):
+    @staticmethod
+    def entry(scene_id):
+        return next(entry for entry in json.loads(manifest.MANIFEST.read_text()) if entry["id"] == scene_id)
+
+    def test_merge_judges_each_circle_by_its_outer_edge_and_the_pair_by_join_neck_and_gap(self):
+        entry = self.entry("material.merge")
+        self.assertEqual(entry["edges"], {"left": ["xmin"], "right": ["xmax"]})
+        self.assertFalse([m for m in entry["motion"] if m.startswith("width.")])
+        for name in ("xmin.settle_ms", "xmax.settle_ms", "cx.settle_ms", "topology.join_ms", "topology.split_ms", "topology.neck_rms", "topology.gap_rms", "topology.count"):
+            self.assertIn(name, entry["motion"])
+
+    def test_morph_judges_the_stack_by_the_edges_of_its_outermost_glasses(self):
+        for scene_id in ("material.morph", "material.morph.plain"):
+            entry = self.entry(scene_id)
+            self.assertEqual(entry["edges"], {"stack": ["ymin", "ymax"]})
+            for name in ("ymin.settle_ms", "ymax.settle_ms", "ymin.response_pct", "ymax.damping", "cy.settle_ms", "width.settle_ms", "topology.gap_rms"):
+                self.assertIn(name, entry["motion"])
+
+
 class TrackTests(unittest.TestCase):
     def base(self, **changes):
         entry = {"id": "x", "group": "material", "title": "t", "inventory": "2.13", "app": "lab", "backdrops": ["stripes"], "appearances": ["dark"], "steps": [], "regions": {"a": [0, 0, 1, 1], "b": [1, 1, 1, 1]}}
@@ -112,7 +132,26 @@ class TrackTests(unittest.TestCase):
         self.assertTrue(any("non-empty list" in e for e in manifest.validate([self.base(track=[])])))
         self.assertTrue(any("unknown motion measure progress.wobble" in e for e in manifest.validate([self.base(track="a", motion=["progress.wobble"])])))
         self.assertTrue(any("need a track" in e for e in manifest.validate([self.base(motion=["progress.rms"])])))
-        self.assertEqual(manifest.validate([self.base(track="a", topology="a", motion=list(manifest.MOTION_MEASURES))]), [])
+        edges = {"a": list(manifest.EDGE_KEYS)}
+        self.assertEqual(manifest.validate([self.base(track="a", topology="a", edges=edges, motion=list(manifest.MOTION_MEASURES))]), [])
+
+    def test_edges_name_regions_and_edge_keys_and_the_edge_measures_need_them(self):
+        scene = manifest.parse([self.base(track="a", edges={"a": ["xmin", "ymax"]})])[0]
+        self.assertEqual(scene.edges, {"a": ("xmin", "ymax")})
+        self.assertEqual(manifest.parse([self.base(track="a")])[0].edges, {})
+        self.assertTrue(any("edges names an unknown region" in e for e in manifest.validate([self.base(track="a", edges={"z": ["xmin"]})])))
+        self.assertTrue(any("edges names a region that is not tracked" in e for e in manifest.validate([self.base(track="a", edges={"b": ["xmin"]})])))
+        self.assertTrue(any("unknown edge left" in e for e in manifest.validate([self.base(track="a", edges={"a": ["left"]})])))
+        self.assertTrue(any("edges must map a region to a non-empty list" in e for e in manifest.validate([self.base(track="a", edges={"a": []})])))
+        errors = manifest.validate([self.base(track="a", motion=["xmin.peak_ms"])])
+        self.assertTrue(any("edge measures need edges" in e for e in errors))
+        errors = manifest.validate([self.base(track="a", edges={"a": ["xmax"]}, motion=["xmin.peak_ms"])])
+        self.assertTrue(any("xmin.peak_ms needs a region with the edge xmin" in e for e in errors))
+        self.assertEqual(manifest.validate([self.base(track="a", edges={"a": ["xmin"]}, motion=["xmin.peak_ms"])]), [])
+
+    def test_the_gap_and_edge_measures_are_known_motion_measures(self):
+        for name in ("topology.gap_rms", "xmin.peak_ms", "xmax.settle_ms", "ymin.response_pct", "ymax.damping", "xmin.overshoot_pct"):
+            self.assertIn(name, manifest.MOTION_MEASURES)
 
     def test_tracked_regions_are_not_rim_elements_and_the_union_is_the_region(self):
         scene = manifest.parse([self.base(track=["a"])])[0]

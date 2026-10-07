@@ -660,21 +660,35 @@
       "pair"
     ],
     "motion": [
-      "width.peak_ms",
-      "width.settle_ms",
-      "width.overshoot_pct",
-      "width.response_pct",
-      "width.damping",
       "cx.peak_ms",
       "cx.settle_ms",
       "cx.overshoot_pct",
       "cx.response_pct",
       "cx.damping",
+      "xmin.peak_ms",
+      "xmin.settle_ms",
+      "xmin.overshoot_pct",
+      "xmin.response_pct",
+      "xmin.damping",
+      "xmax.peak_ms",
+      "xmax.settle_ms",
+      "xmax.overshoot_pct",
+      "xmax.response_pct",
+      "xmax.damping",
       "topology.count",
       "topology.join_ms",
       "topology.split_ms",
-      "topology.neck_rms"
-    ]
+      "topology.neck_rms",
+      "topology.gap_rms"
+    ],
+    "edges": {
+      "left": [
+        "xmin"
+      ],
+      "right": [
+        "xmax"
+      ]
+    }
   },
   {
     "id": "material.union",
@@ -806,11 +820,28 @@
       "width.overshoot_pct",
       "width.response_pct",
       "width.damping",
+      "ymin.peak_ms",
+      "ymin.settle_ms",
+      "ymin.overshoot_pct",
+      "ymin.response_pct",
+      "ymin.damping",
+      "ymax.peak_ms",
+      "ymax.settle_ms",
+      "ymax.overshoot_pct",
+      "ymax.response_pct",
+      "ymax.damping",
       "topology.count",
       "topology.join_ms",
       "topology.split_ms",
-      "topology.neck_rms"
-    ]
+      "topology.neck_rms",
+      "topology.gap_rms"
+    ],
+    "edges": {
+      "stack": [
+        "ymin",
+        "ymax"
+      ]
+    }
   },
   {
     "id": "material.morph.plain",
@@ -902,11 +933,28 @@
       "width.overshoot_pct",
       "width.response_pct",
       "width.damping",
+      "ymin.peak_ms",
+      "ymin.settle_ms",
+      "ymin.overshoot_pct",
+      "ymin.response_pct",
+      "ymin.damping",
+      "ymax.peak_ms",
+      "ymax.settle_ms",
+      "ymax.overshoot_pct",
+      "ymax.response_pct",
+      "ymax.damping",
       "topology.count",
       "topology.join_ms",
       "topology.split_ms",
-      "topology.neck_rms"
-    ]
+      "topology.neck_rms",
+      "topology.gap_rms"
+    ],
+    "edges": {
+      "stack": [
+        "ymin",
+        "ymax"
+      ]
+    }
   },
   {
     "id": "material.tap",

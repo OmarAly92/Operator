@@ -88,10 +88,22 @@ def shape_row(frame, bare, edge_map, origin, scale=metrics.SCALE):
     found = box_pixels(frame, bare, edge_map)
     luma = float(metrics.luma(frame).mean())
     if found is None:
-        return {"width": 0.0, "height": 0.0, "cx": float("nan"), "cy": float("nan"), "luma": luma, "band": 0.0}
+        nan = float("nan")
+        return {"width": 0.0, "height": 0.0, "cx": nan, "cy": nan, "xmin": nan, "xmax": nan, "ymin": nan, "ymax": nan, "luma": luma, "band": 0.0}
     left, top, right, bottom = found
     x, y, w, h = left / scale, top / scale, (right - left + 1) / scale, (bottom - top + 1) / scale
-    return {"width": float(w), "height": float(h), "cx": float(origin[0] + x + w / 2), "cy": float(origin[1] + y + h / 2), "luma": luma, "band": float(in_band(edge_map, found))}
+    return {
+        "width": float(w),
+        "height": float(h),
+        "cx": float(origin[0] + x + w / 2),
+        "cy": float(origin[1] + y + h / 2),
+        "xmin": float(origin[0] + x),
+        "xmax": float(origin[0] + x + w),
+        "ymin": float(origin[1] + y),
+        "ymax": float(origin[1] + y + h),
+        "luma": luma,
+        "band": float(in_band(edge_map, found)),
+    }
 
 
 def laplacian(image):
@@ -327,4 +339,5 @@ def gap(mask, scale=metrics.SCALE):
 
 
 def topology_row(frame, bare):
-    return topology(topology_mask(frame, bare))
+    mask = topology_mask(frame, bare)
+    return dict(topology(mask), gap=gap(mask))

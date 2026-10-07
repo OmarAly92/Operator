@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import analyze
 import manifest
+import metrics
 import shapes
 import springfit
 from synthetic import capture_of, glass_pair, spring_series
@@ -18,11 +19,12 @@ from synthetic import capture_of, glass_pair, spring_series
 
 class ShapeTopologyTests(unittest.TestCase):
     @staticmethod
-    def series(join, split, length=80, neck=10.0):
+    def series(join, split, length=80, neck=10.0, gap=6.0):
         nan = float("nan")
         count = [2.0] * join + [1.0] * (split - join) + [2.0] * (length - split)
         necks = [nan] * join + [neck] * (split - join) + [nan] * (length - split)
-        return {"count": count, "neck": necks}
+        gaps = [gap] * join + [nan] * (split - join) + [gap] * (length - split)
+        return {"count": count, "neck": necks, "gap": gaps}
 
     def test_join_and_split_times_and_count_mismatches_are_compared(self):
         late = shapes.compare_topology(self.series(20, 60), self.series(23, 60))
@@ -39,6 +41,29 @@ class ShapeTopologyTests(unittest.TestCase):
         self.assertAlmostEqual(wider["neck_rms"], 3.0, places=6)
         late = shapes.compare_topology(self.series(20, 60), self.series(23, 60, neck=13.0))
         self.assertAlmostEqual(late["neck_rms"], 3.0, places=6)
+
+    def test_the_gap_is_compared_only_where_both_apps_have_one(self):
+        same = shapes.compare_topology(self.series(20, 60), self.series(20, 60))
+        self.assertEqual(same["gap_rms"], 0.0)
+        wider = shapes.compare_topology(self.series(20, 60), self.series(20, 60, gap=9.0))
+        self.assertAlmostEqual(wider["gap_rms"], 3.0, places=6)
+        late = shapes.compare_topology(self.series(20, 60), self.series(23, 60, gap=9.0))
+        self.assertAlmostEqual(late["gap_rms"], 3.0, places=6)
+
+    def test_a_gap_in_one_app_against_none_in_the_other_fails_and_agreeing_apps_read_zero(self):
+        nan = float("nan")
+        one = {"count": [1.0] * 5, "neck": [5.0] * 5, "gap": [nan] * 5}
+        self.assertEqual(shapes.compare_topology(one, one)["gap_rms"], 0.0)
+        found = shapes.compare_topology(one, {"count": [1.0] * 5, "neck": [5.0] * 5, "gap": [4.0] * 5})
+        self.assertEqual(found["gap_rms"], float("inf"))
+
+    def test_a_series_without_a_gap_has_no_gap_measure(self):
+        plain = {"count": [1.0] * 5, "neck": [5.0] * 5}
+        self.assertNotIn("gap_rms", shapes.compare_topology(plain, plain))
+
+    def test_gap_rms_has_the_gap_threshold(self):
+        self.assertEqual(shapes.LIMITS["gap_rms"], "gap_pt")
+        self.assertEqual(metrics.THRESHOLDS["gap_pt"], 1.0)
 
     def test_apps_that_agree_on_no_transition_read_zero_not_absent(self):
         one = {"count": [1.0] * 5, "neck": [5.0] * 5}
@@ -109,11 +134,13 @@ class ShapeTopologyTests(unittest.TestCase):
     def test_the_neck_series_holds_each_frame_like_the_count(self):
         nan = float("nan")
         rows = [{"count": 2.0, "neck": nan}, {"count": 1.0, "neck": 6.0}, {"count": 1.0, "neck": 8.0}, {"count": 2.0, "neck": nan}]
-        rows = [dict(row, width=80.0, height=80.0, cx=1.0, cy=1.0, luma=1.0, progress=1.0, sharpness=0.0, residual=0.0) for row in rows]
+        rows = [dict(row, gap=[3.0, nan, nan, 3.0][i], width=80.0, height=80.0, cx=1.0, cy=1.0, xmin=0.0, xmax=1.0, ymin=0.0, ymax=1.0, luma=1.0, progress=1.0, sharpness=0.0, residual=0.0) for i, row in enumerate(rows)]
         series = shapes.event_series([0.0, 0.05, 0.1, 0.15], rows, 0, 3)
-        count, neck = np.array(series["count"]), np.array(series["neck"])
+        count, neck, gap = np.array(series["count"]), np.array(series["neck"]), np.array(series["gap"])
         self.assertTrue(np.isnan(neck[count == 2]).all())
         self.assertTrue(np.isfinite(neck[count == 1]).all())
+        self.assertTrue(np.isnan(gap[count == 1]).all())
+        self.assertTrue(np.isfinite(gap[count == 2]).all())
 
 
 class ProgressMeasureTests(unittest.TestCase):
@@ -126,7 +153,7 @@ class ProgressMeasureTests(unittest.TestCase):
     def test_a_variable_rate_capture_reads_the_same_ten_to_ninety_time_within_a_frame(self):
         rng = np.random.default_rng(7)
         times = np.cumsum(np.concatenate([[0.0], rng.choice([1 / 120, 1 / 60, 0.033, 0.053], 40)]))
-        rows = [{"width": 250.0, "height": 88.0, "cx": 201.0, "cy": 451.0, "luma": 100.0, "progress": float(p), "sharpness": 0.0, "residual": 0.0}
+        rows = [{"width": 250.0, "height": 88.0, "cx": 201.0, "cy": 451.0, "xmin": 76.0, "xmax": 326.0, "ymin": 407.0, "ymax": 495.0, "luma": 100.0, "progress": float(p), "sharpness": 0.0, "residual": 0.0}
                 for p in springfit.step_response(times, 0.55, 1.0)]
         series = shapes.event_series(list(times), rows, 0, len(times) - 1)
         exact = shapes.progress_features(spring_series(0.55, 1.0))["t10_90_ms"]
@@ -265,6 +292,49 @@ class NothingPassesByBeingAbsentTests(unittest.TestCase):
         result = shapes.compare(scene, native, flutter)
         self.assertEqual(result["stalls"], {"native": [], "flutter": [41.0]})
         self.assertEqual(result["pairs"]["step0e0"]["shapes"]["block"]["first_frame"]["flutter"], {"gap_ms": 33.0, "progress": 0.73})
+
+
+class OuterEdgeTests(unittest.TestCase):
+    def scene(self, edges, motion):
+        return manifest.parse([{
+            "id": "x", "group": "material", "title": "t", "inventory": "2.14", "app": "lab",
+            "backdrops": ["stripes"], "appearances": ["dark"], "steps": [{"tap": "a"}],
+            "regions": {"left": [0, 0, 10, 10], "right": [10, 0, 10, 10]}, "track": ["left", "right"], "edges": edges, "motion": motion,
+        }])[0]
+
+    @staticmethod
+    def capture(travel):
+        flat = np.zeros(len(spring_series(0.4, 1.0)["cx"]))
+        base = spring_series(0.4, 1.0)
+        series = {"xmin": base["progress"] * travel + 100, "xmax": flat + 300, "ymin": flat + 10, "ymax": flat + 50}
+        return {"events": [{"onset": 1.0, "series": {"left": {**base, **series}, "right": {**base, **series}}, "step": 0}], "touches": []}
+
+    def test_an_edge_is_compared_only_for_the_regions_that_list_it(self):
+        scene = self.scene({"left": ["xmin"], "right": ["xmax"]}, ["xmin.peak_ms", "xmax.peak_ms"])
+        self.assertEqual(shapes.expected({"pairs": {"step0e0": {}}}, scene), ["left.step0e0.xmin.peak_ms", "right.step0e0.xmax.peak_ms"])
+
+    def test_a_moving_edge_is_measured_and_a_still_one_is_absent(self):
+        scene = self.scene({"left": ["xmin"], "right": ["xmax"]}, ["xmin.settle_ms", "xmax.settle_ms"])
+        result = shapes.compare(scene, self.capture(80.0), self.capture(80.0))
+        found = shapes.measures(result)
+        self.assertEqual(found["left.step0e0.xmin.settle_ms"], 0.0)
+        self.assertNotIn("right.step0e0.xmax.settle_ms", found)
+        limits = shapes.limits(result, scene)
+        self.assertEqual(limits["right.step0e0.xmax.settle_ms"][0], float("inf"))
+        self.assertEqual(limits["left.step0e0.xmin.settle_ms"][0], 0.0)
+
+    def test_a_slower_edge_fails_its_time_limit(self):
+        scene = self.scene({"left": ["xmin"]}, ["xmin.settle_ms"])
+        slow = self.capture(80.0)
+        slow["events"][0]["series"]["left"]["xmin"] = np.interp(np.arange(len(slow["events"][0]["series"]["left"]["xmin"])) * 0.5, np.arange(len(slow["events"][0]["series"]["left"]["xmin"])), slow["events"][0]["series"]["left"]["xmin"])
+        result = shapes.compare(scene, self.capture(80.0), slow)
+        value, limit, bound = shapes.limits(result, scene)["left.step0e0.xmin.settle_ms"]
+        self.assertGreater(value, limit)
+
+    def test_edges_do_not_make_a_still_event_significant(self):
+        series = {key: np.zeros(10) for key in ("width", "height", "cx", "cy", "luma", "progress")}
+        series.update({key: np.arange(10) * 10.0 for key in ("xmin", "xmax", "ymin", "ymax")})
+        self.assertFalse(shapes.significant(series))
 
 
 class MotionMeasureNameTests(unittest.TestCase):
