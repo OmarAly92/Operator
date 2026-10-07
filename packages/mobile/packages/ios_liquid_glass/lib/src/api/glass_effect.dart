@@ -234,7 +234,7 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
         member
           ..shape = shape
           ..material = material
-          ..sharedSettings = grouped ? container.settings : null
+          ..sharedMaterial = grouped ? container.material : null
           ..reduceMotion = GlassAccessibility.of(context).reduceMotion
           ..dark = GlassTheme.brightnessOf(context) == Brightness.dark
           ..unite(widget.union, glass: widget.glass, grouped: grouped && !member.ownsLayer);
@@ -243,8 +243,8 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
           glass = LiquidGlass.grouped(shape: shape, shadows: material.shadows, shadowSource: material, motion: member, child: content);
         } else {
           glass = LiquidGlass.withOwnLayer(
-            settings: grouped ? container.settings : material.settings,
-            settingsSource: grouped ? null : material,
+            settings: grouped ? container.material.settings : material.settings,
+            settingsSource: grouped ? container.material : material,
             shape: shape,
             shadows: material.shadows,
             shadowSource: material,

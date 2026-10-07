@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
+import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:ios_liquid_glass/src/motion/glass_materialize.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_coordinator.dart';
 import 'package:ios_liquid_glass/src/motion/ios27_motion.dart';
@@ -100,7 +101,7 @@ void main() {
     final member = coordinator.join()
       ..attachBox(space.box)
       ..shape = const LiquidRoundedRectangle(borderRadius: 20)
-      ..sharedSettings = const LiquidGlassSettings();
+      ..sharedMaterial = GlassMaterialSource(resolve: (_) => const GlassMaterial({}), side: 88);
     member.sized(space.box.size);
     expect(member.drawn, const Rect.fromLTWH(0, 0, 100, 40));
     expect(coordinator.leave(member, animate: true), isTrue);
@@ -128,7 +129,7 @@ void main() {
     final member = coordinator.join()
       ..attachBox(space.box)
       ..shape = const LiquidRoundedRectangle(borderRadius: 20)
-      ..sharedSettings = const LiquidGlassSettings();
+      ..sharedMaterial = GlassMaterialSource(resolve: (_) => const GlassMaterial({}), side: 88);
     member.sized(space.box.size);
     expect(member.drawn, const Rect.fromLTWH(150, 180, 100, 40));
     space.tripwire.armed = true;
@@ -148,7 +149,7 @@ void main() {
     final member = coordinator.join()
       ..attachBox(space.box)
       ..shape = const LiquidRoundedRectangle(borderRadius: 20)
-      ..sharedSettings = const LiquidGlassSettings();
+      ..sharedMaterial = GlassMaterialSource(resolve: (_) => const GlassMaterial({}), side: 88);
     member.sized(space.box.size);
     member.drawn;
     expect(coordinator.leave(member, animate: true), isTrue);
@@ -168,7 +169,7 @@ void main() {
     final member = coordinator.join()
       ..attachBox(space.box)
       ..shape = const LiquidRoundedRectangle(borderRadius: 20)
-      ..sharedSettings = const LiquidGlassSettings();
+      ..sharedMaterial = GlassMaterialSource(resolve: (_) => const GlassMaterial({}), side: 88);
     member.sized(space.box.size);
     expect(coordinator.leave(member, animate: false), isFalse);
     expect(coordinator.takeGhosts(), isEmpty);
@@ -209,7 +210,7 @@ void main() {
     final member = coordinator.join(inserted: true)
       ..attachBox(space.box)
       ..shape = const LiquidRoundedRectangle(borderRadius: 20)
-      ..sharedSettings = const LiquidGlassSettings();
+      ..sharedMaterial = GlassMaterialSource(resolve: (_) => const GlassMaterial({}), side: 88);
     member.sized(space.box.size);
     expect(member.drawn, const Rect.fromLTWH(0, 0, 100, 40));
     await tester.pump();

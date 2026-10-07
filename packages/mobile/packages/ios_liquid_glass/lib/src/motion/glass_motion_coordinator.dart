@@ -58,7 +58,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
   GlassAnimation? scopeAnimation;
   bool animatesTransitions = true;
   LiquidShape? shape;
-  LiquidGlassSettings? sharedSettings;
+  GlassMaterialSource? sharedMaterial;
   GlassMaterialSource? material;
   List<ScrollableState> scrollables = const [];
   VoidCallback? onSettled;
@@ -81,7 +81,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
   GlassMotionCoordinator? _ghostOwner;
   (GlassEffectUnion, LiquidShape, Glass?)? _union;
 
-  LiquidGlassSettings? get settings => sharedSettings ?? material?.settings;
+  LiquidGlassSettings? get settings => sharedMaterial?.settings ?? material?.settings;
 
   bool get isMoving => _presence.isMoving || _morph.isMoving || _offset.any((spring) => spring.isMoving);
 
@@ -232,6 +232,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
   void sized(Size size) {
     final previous = _size;
     _size = size;
+    coordinator._followSides();
     if (previous != null && previous != size) {
       final animation = _changed();
       if (animation != null) {
@@ -623,6 +624,24 @@ class GlassMotionCoordinator {
   bool _ghostsChanged = false;
   final _Notifier _ghostMotion = _Notifier();
 
+  GlassMaterialSource? _followMaterial;
+
+  set followMaterial(GlassMaterialSource? value) {
+    if (identical(_followMaterial, value)) return;
+    _followMaterial = value;
+    _followSides();
+  }
+
+  void _followSides() {
+    final source = _followMaterial;
+    if (source == null) return;
+    final sides = [
+      for (final member in _members)
+        if (member._size != null && member.presence != GlassPresence.disappearing) member._size!.shortestSide,
+    ]..sort();
+    if (sides.isNotEmpty) source.resize(sides[sides.length ~/ 2]);
+  }
+
   Listenable get ghostMotion => _ghostMotion;
 
   Iterable<GlassMember> get members => _members;
@@ -847,6 +866,7 @@ class GlassMotionCoordinator {
     _blurred.remove(member);
     _links.remove(member);
     _unionChanged(member._union);
+    _followSides();
     final ghostOwner = owner ?? this;
     final animation = resolveGlassAnimation(member.scopeAnimation);
     final settings = member.settings, shape = member.shape;
@@ -895,6 +915,7 @@ class GlassMotionCoordinator {
     if (member._ghostOwner != null) return;
     _members.add(member);
     _unionChanged(member._union);
+    _followSides();
   }
 
   void _adopt(GlassMember member, _Leaving leaving) {
@@ -915,6 +936,7 @@ class GlassMotionCoordinator {
     leaving?.release();
     if (_members.remove(member) || leaving != null) {
       _unionChanged(member._union);
+      _followSides();
       member.dispose();
     }
   }
@@ -926,6 +948,7 @@ class GlassMotionCoordinator {
     member._ghostOwner = null;
     _members.add(member);
     _unionChanged(member._union);
+    _followSides();
   }
 
   List<GlassGhost> takeGhosts() {

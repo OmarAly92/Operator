@@ -1,21 +1,22 @@
 import 'package:flutter/widgets.dart';
 import 'package:ios_liquid_glass/src/accessibility/glass_accessibility.dart';
 import 'package:ios_liquid_glass/src/api/glass.dart';
+import 'package:ios_liquid_glass/src/api/glass_effect.dart';
 import 'package:ios_liquid_glass/src/api/glass_material_context.dart';
 import 'package:ios_liquid_glass/src/liquid_glass_blend_group.dart';
-import 'package:ios_liquid_glass/src/liquid_glass_settings.dart';
 import 'package:ios_liquid_glass/src/motion/glass_animation.dart';
+import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_coordinator.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_widgets.dart';
 import 'package:ios_liquid_glass/src/rendering/liquid_glass_layer.dart';
 import 'package:meta/meta.dart';
 
 class GlassEffectContainer extends StatefulWidget {
-  const GlassEffectContainer({super.key, this.spacing = 8, this.glass = Glass.regular, this.side = 88, required this.child});
+  const GlassEffectContainer({super.key, this.spacing = 8, this.glass = Glass.regular, this.side, required this.child});
 
   final double spacing;
   final Glass glass;
-  final double side;
+  final double? side;
   final Widget child;
 
   static Glass? glassOf(BuildContext context) => scopeOf(context)?.glass;
@@ -29,6 +30,7 @@ class GlassEffectContainer extends StatefulWidget {
 
 class _GlassEffectContainerState extends State<GlassEffectContainer> with SingleTickerProviderStateMixin {
   late final GlassMotionCoordinator _coordinator = GlassMotionCoordinator(vsync: this);
+  GlassMaterialSource? _material;
   GlassOverlayGhosts? _overlay;
 
   @override
@@ -55,6 +57,7 @@ class _GlassEffectContainerState extends State<GlassEffectContainer> with Single
   @override
   void dispose() {
     _coordinator.dispose();
+    _material?.dispose();
     _overlay?.release();
     _overlay = null;
     super.dispose();
@@ -66,18 +69,24 @@ class _GlassEffectContainerState extends State<GlassEffectContainer> with Single
     return ListenableBuilder(
       listenable: GlassAccessibility.platform,
       builder: (context, _) {
-        final material = resolveGlassMaterial(context, glass: widget.glass, shorterSide: widget.side);
-        final settings = material.toSettings(tint: widget.glass.tintColor);
+        final resolve = glassMaterialResolver(context, glass: widget.glass);
+        final tint = widget.glass.tintColor;
+        final fixed = widget.side;
+        final material = _material ??= GlassMaterialSource(resolve: resolve, tint: tint, side: fixed ?? GlassEffect.fallbackSide);
+        material.configure(resolve: resolve, tint: tint);
+        if (fixed != null) material.resize(fixed, exact: true);
+        _coordinator.followMaterial = fixed == null ? material : null;
         return GlassCoordinatorSpace(
           coordinator: _coordinator,
           child: LiquidGlassLayer(
-            settings: settings,
+            settings: material.settings,
+            settingsSource: material,
             child: LiquidGlassBlendGroup(
               blend: widget.spacing,
               blendMotion: _coordinator.spacing,
               child: GlassContainerScope(
                 glass: widget.glass,
-                settings: settings,
+                material: material,
                 coordinator: _coordinator,
                 child: Stack(
                   alignment: Alignment.topLeft,
@@ -96,13 +105,13 @@ class _GlassEffectContainerState extends State<GlassEffectContainer> with Single
 
 @internal
 class GlassContainerScope extends InheritedWidget {
-  const GlassContainerScope({super.key, required this.glass, required this.settings, required this.coordinator, required super.child});
+  const GlassContainerScope({super.key, required this.glass, required this.material, required this.coordinator, required super.child});
 
   final Glass glass;
-  final LiquidGlassSettings settings;
+  final GlassMaterialSource material;
   final GlassMotionCoordinator coordinator;
 
   @override
   bool updateShouldNotify(GlassContainerScope oldWidget) =>
-      oldWidget.glass != glass || oldWidget.settings != settings || oldWidget.coordinator != coordinator;
+      oldWidget.glass != glass || oldWidget.material != material || oldWidget.coordinator != coordinator;
 }
