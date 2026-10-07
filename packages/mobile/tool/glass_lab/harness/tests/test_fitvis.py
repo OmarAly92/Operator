@@ -359,6 +359,24 @@ class WriteGuardTests(unittest.TestCase):
             fitvis.write_table(found, [], target)
             self.assertIn("ios27VisibilityAboveFull = [1.1, 1.2];", target.read_text())
 
+    def test_a_write_keeps_the_morph_content_blur_line_the_target_already_holds(self):
+        found = summary(complete_mapping())
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "ios27_motion.dart"
+            target.write_text("const double ios27BlurRampExponent = 1.0;\n\nconst double ios27MorphContentBlur = 1.5;\n\nconst double ios27DefaultDisappearExponent = 3.1;\n")
+            fitvis.write_table(found, [], target)
+            written = target.read_text()
+            self.assertEqual(written.count("const double ios27MorphContentBlur = 1.5;"), 1)
+            self.assertLess(written.index("ios27BlurRampExponent"), written.index("ios27MorphContentBlur"))
+            self.assertLess(written.index("ios27MorphContentBlur"), written.index("ios27DefaultDisappearExponent"))
+
+    def test_a_write_to_a_target_without_the_morph_content_blur_line_adds_none(self):
+        found = summary(complete_mapping())
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "ios27_motion.dart"
+            fitvis.write_table(found, [], target)
+            self.assertNotIn("ios27MorphContentBlur", target.read_text())
+
     def test_every_unfitted_or_edge_value_is_named_and_the_write_refused(self):
         mapping = complete_mapping(**{
             "material.materialize.bouncy:exponent": None,

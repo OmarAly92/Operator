@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -696,9 +697,14 @@ def legacy_gains(entry):
     return found
 
 
-def table_source(mapping, ramp, table, above=(), mode="pooled"):
+MORPH_BLUR_LINE = re.compile(r"^const double ios27MorphContentBlur = [0-9.]+;$", re.M)
+
+
+def table_source(mapping, ramp, table, above=(), mode="pooled", morph_blur=None):
     values = table_values(mapping, mode)
     lines = [f"const double ios27BlurRampExponent = {float(ramp)};", ""]
+    if morph_blur:
+        lines += [morph_blur, ""]
     lines += [f"const double {name} = {value};" for name, value in values.items()]
     rows = ", ".join(f"{v}" for v in table)
     lines += ["", f"const List<double> ios27VisibilityForProgress = [\n  {rows},\n];"]
@@ -839,4 +845,5 @@ def write_table(summary, problems, target=None):
     target = Path(target or TABLE)
     if problems:
         raise SystemExit(f"fitvis --write refused, nothing written to {target}:\n" + "\n".join(f"  - {problem}" for problem in problems))
-    target.write_text(table_source(summary["mapping"], summary["blur_ramp"]["value"], summary["visibility_for_progress"], summary["visibility_above_full"], summary["gain_mode"]))
+    kept = MORPH_BLUR_LINE.search(target.read_text()) if target.exists() else None
+    target.write_text(table_source(summary["mapping"], summary["blur_ramp"]["value"], summary["visibility_for_progress"], summary["visibility_above_full"], summary["gain_mode"], kept.group(0) if kept else None))
