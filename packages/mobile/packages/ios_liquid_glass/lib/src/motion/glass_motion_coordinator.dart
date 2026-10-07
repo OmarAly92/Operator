@@ -494,9 +494,11 @@ class GlassGhost extends ChangeNotifier implements GlassShapeMotion {
       if (partner == null) return false;
       final drawn = partner.coordinator._globalRect(partner);
       if (drawn != null) current = drawn;
-      opacity.value = 1 - partner.contentOpacity.value;
+      final live = partner.coordinator._members.contains(partner);
+      final moving = live ? partner._morph.isMoving : partner._morph.sample(now);
+      opacity.value = 1 - (live ? partner.contentOpacity.value : partner._morph.value.clamp(0.0, 1.0));
       notifyListeners();
-      return partner._morph.isMoving;
+      return moving;
     }
     final moving = member._sample(now);
     final goal = _goal;

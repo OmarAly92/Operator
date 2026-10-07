@@ -110,6 +110,54 @@ class _SwapState extends State<_Swap> {
   }
 }
 
+class _Chain extends StatefulWidget {
+  const _Chain();
+
+  @override
+  State<_Chain> createState() => _ChainState();
+}
+
+class _ChainState extends State<_Chain> {
+  static const List<Offset> spots = [Offset(20, 20), Offset(300, 200), Offset(100, 300)];
+
+  final GlassNamespace namespace = GlassNamespace();
+  int index = 0;
+
+  void go(int next) => setState(() => index = next);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: GlassTheme(
+        data: const GlassThemeData(brightness: Brightness.dark),
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: GlassEffectContainer(
+            child: SizedBox(
+              width: 600,
+              height: 500,
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: spots[index].dx,
+                    top: spots[index].dy,
+                    child: GlassEffect(
+                      key: ValueKey('k$index'),
+                      id: GlassEffectID('x', namespace),
+                      child: const SizedBox(width: 100, height: 40),
+                    ),
+                  ),
+                  const Positioned(left: 500, top: 450, child: GlassEffect(child: SizedBox(width: 40, height: 40))),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Row extends StatefulWidget {
   const _Row();
 
@@ -421,4 +469,23 @@ void main() {
     expect(member.contentOpacity.value, 1);
     expect(coordinator.ghosts, isEmpty);
   });
+
+  for (final gap in [60, 300]) {
+    testWidgets('a second swap $gap ms into the first settles: no ghost is left and no frame stays scheduled', (tester) async {
+      await tester.pumpWidget(const _Chain());
+      await tester.pump(const Duration(seconds: 1));
+      final state = tester.state<_ChainState>(find.byType(_Chain));
+      final coordinator = tester.renderObject<RenderGlassMemberBox>(find.byType(GlassMemberBox).first).member.coordinator;
+      state.go(1);
+      await tester.pump();
+      await tester.pump(Duration(milliseconds: gap));
+      state.go(2);
+      await tester.pump();
+      expect(coordinator.ghosts.where((ghost) => ghost.kind == GlassGhostKind.content), isNotEmpty);
+      await tester.pump(const Duration(seconds: 5));
+      expect(coordinator.ghosts, isEmpty);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+      _expectRect(_onScreen(_member(tester, 'k2')), _layout(tester, 'k2'));
+    });
+  }
 }
