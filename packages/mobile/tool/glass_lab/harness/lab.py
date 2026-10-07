@@ -198,6 +198,8 @@ def case_noise(scene, takes, case_root):
             case.mkdir(parents=True, exist_ok=True)
             for name, source in (("native", takes[i]), ("flutter", takes[j])):
                 link = case / name
+                if link.is_symlink() and (not link.exists() or link.resolve() != source.resolve()):
+                    link.unlink()
                 if not link.exists():
                     link.symlink_to(source.resolve())
             result = analyze.analyze(scene, case, cache=cache)

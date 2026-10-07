@@ -171,6 +171,32 @@ class NoiseTests(unittest.TestCase):
         self.assertEqual(len(calls), 12)
         self.assertEqual(worst, {"ready.mad": 1.5, "block.step1e0.progress.rms": 0.01})
 
+    def test_a_pair_folder_left_from_a_removed_take_is_pointed_at_the_take_of_that_number_now(self):
+        import manifest
+        scene = {s.id: s for s in manifest.load()}["material.materialize"]
+        seen = []
+
+        def analyze_pair(scene, case, cache=None):
+            seen.append({side: (case / side).resolve() for side in ("native", "flutter")})
+            return {"static": {}, "measures": {}, "shapes": {"pairs": {}}}
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            takes = []
+            for number in (4, 5):
+                (root / "takes" / str(number)).mkdir(parents=True)
+                takes.append(root / "takes" / str(number))
+            stale = root / "pairs" / "pair-4-5"
+            stale.mkdir(parents=True)
+            (root / "old").mkdir()
+            (stale / "native").symlink_to(root / "old")
+            (stale / "flutter").symlink_to(root / "gone" / "5")
+            with mock.patch.object(lab.analyze, "analyze", side_effect=analyze_pair):
+                lab.case_noise(scene, takes, root / "pairs")
+        self.assertEqual(len(seen), 1)
+        self.assertEqual({seen[0]["native"].name, seen[0]["flutter"].name}, {"4", "5"})
+        self.assertTrue(all(path.parent == (root / "takes").resolve() for path in seen[0].values()))
+
     def test_takes_are_numbered_after_the_ones_already_there(self):
         with tempfile.TemporaryDirectory() as temp:
             for name in ("0", "1", "2", "pair-01"):
