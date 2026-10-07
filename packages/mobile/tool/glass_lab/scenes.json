@@ -608,7 +608,8 @@
     "inventory": "2.14",
     "app": "lab",
     "backdrops": [
-      "stripes"
+      "stripes",
+      "photo"
     ],
     "appearances": [
       "light",
@@ -630,6 +631,49 @@
       {
         "wait": 1.5
       }
+    ],
+    "regions": {
+      "left": [
+        69,
+        399,
+        132,
+        104
+      ],
+      "right": [
+        201,
+        399,
+        132,
+        104
+      ],
+      "pair": [
+        61,
+        399,
+        280,
+        104
+      ]
+    },
+    "track": [
+      "left",
+      "right"
+    ],
+    "topology": [
+      "pair"
+    ],
+    "motion": [
+      "width.peak_ms",
+      "width.settle_ms",
+      "width.overshoot_pct",
+      "width.response_pct",
+      "width.damping",
+      "cx.peak_ms",
+      "cx.settle_ms",
+      "cx.overshoot_pct",
+      "cx.response_pct",
+      "cx.damping",
+      "topology.count",
+      "topology.join_ms",
+      "topology.split_ms",
+      "topology.neck_rms"
     ]
   },
   {
