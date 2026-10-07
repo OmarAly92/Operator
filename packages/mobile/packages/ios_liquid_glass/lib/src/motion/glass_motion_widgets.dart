@@ -1,11 +1,12 @@
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:ios_liquid_glass/src/liquid_glass.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_coordinator.dart';
-import 'package:meta/meta.dart';
+import 'package:ios_liquid_glass/src/motion/ios27_motion.dart';
 
 @internal
 class GlassCoordinatorSpace extends SingleChildRenderObjectWidget {
@@ -162,6 +163,7 @@ class GlassGhostHost extends StatelessWidget {
         return IgnorePointer(
           child: ExcludeSemantics(
             child: _GhostStack(
+              coordinator: coordinator,
               children: [for (final ghost in ghosts) _GhostSlot(key: ObjectKey(ghost), ghost: ghost, child: _Ghost(ghost: ghost))],
             ),
           ),
@@ -268,14 +270,44 @@ class _GhostSlot extends ParentDataWidget<_GhostParentData> {
 }
 
 class _GhostStack extends MultiChildRenderObjectWidget {
-  const _GhostStack({super.children});
+  const _GhostStack({required this.coordinator, super.children});
+
+  final GlassMotionCoordinator coordinator;
 
   @override
-  RenderObject createRenderObject(BuildContext context) => _RenderGhostStack();
+  RenderObject createRenderObject(BuildContext context) => _RenderGhostStack(coordinator);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderGhostStack renderObject) {
+    renderObject.coordinator = coordinator;
+  }
 }
 
 class _RenderGhostStack extends RenderBox
     with ContainerRenderObjectMixin<RenderBox, _GhostParentData>, RenderBoxContainerDefaultsMixin<RenderBox, _GhostParentData> {
+  _RenderGhostStack(this._coordinator);
+
+  GlassMotionCoordinator _coordinator;
+  set coordinator(GlassMotionCoordinator value) {
+    if (identical(value, _coordinator)) return;
+    if (attached) _coordinator.ghostMotion.removeListener(markNeedsPaint);
+    _coordinator = value;
+    if (attached) value.ghostMotion.addListener(markNeedsPaint);
+    markNeedsPaint();
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _coordinator.ghostMotion.addListener(markNeedsPaint);
+  }
+
+  @override
+  void detach() {
+    _coordinator.ghostMotion.removeListener(markNeedsPaint);
+    super.detach();
+  }
+
   @override
   void setupParentData(RenderBox child) {
     if (child.parentData is! _GhostParentData) child.parentData = _GhostParentData();
@@ -294,11 +326,12 @@ class _RenderGhostStack extends RenderBox
 
   Offset _placement(RenderBox child) {
     final ghost = (child.parentData! as _GhostParentData).ghost;
-    return ghost == null ? Offset.zero : globalToLocal(ghost.rect.topLeft);
+    return ghost == null ? Offset.zero : globalToLocal(ghost.placement.topLeft);
   }
 
   @override
   void paint(PaintingContext context, Offset offset) {
+    _coordinator.resolveGhosts();
     var child = firstChild;
     while (child != null) {
       context.paintChild(child, offset + _placement(child));
@@ -324,21 +357,127 @@ class _Ghost extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final snapshot = ghost.snapshot;
-    return LiquidGlass.withOwnLayer(
-      settings: ghost.settings,
-      shape: ghost.shape,
-      shadows: ghost.shadows,
-      visibility: ghost.member.visibility,
-      child: SizedBox.fromSize(
-        size: ghost.rect.size,
-        child: snapshot == null
-            ? null
-            : OverflowBox(
-                maxWidth: double.infinity,
-                maxHeight: double.infinity,
-                child: RawImage(image: snapshot, scale: ghost.pixelRatio),
-              ),
+    final Widget? image = snapshot == null
+        ? null
+        : OverflowBox(
+            maxWidth: double.infinity,
+            maxHeight: double.infinity,
+            child: GlassContentBlur(blurred: ghost.blurred, child: RawImage(image: snapshot, scale: ghost.pixelRatio)),
+          );
+    final content = SizedBox.fromSize(size: ghost.rect.size, child: image);
+    return switch (ghost.kind) {
+      GlassGhostKind.content => FadeTransition(opacity: ghost.opacity, child: content),
+      GlassGhostKind.pending || GlassGhostKind.sink => LiquidGlass.grouped(
+        shape: ghost.shape,
+        shadows: ghost.shadows,
+        motion: ghost,
+        child: FadeTransition(opacity: ghost.opacity, child: content),
       ),
+      GlassGhostKind.dematerialize => LiquidGlass.withOwnLayer(
+        settings: ghost.settings,
+        shape: ghost.shape,
+        shadows: ghost.shadows,
+        visibility: ghost.member.visibility,
+        child: content,
+      ),
+    };
+  }
+}
+
+@internal
+class GlassContentBlur extends SingleChildRenderObjectWidget {
+  const GlassContentBlur({super.key, this.blurred = false, this.listenable, super.child});
+
+  final bool blurred;
+  final ValueListenable<bool>? listenable;
+
+  @override
+  RenderGlassContentBlur createRenderObject(BuildContext context) => RenderGlassContentBlur(blurred: blurred, listenable: listenable);
+
+  @override
+  void updateRenderObject(BuildContext context, RenderGlassContentBlur renderObject) {
+    renderObject
+      ..blurred = blurred
+      ..listenable = listenable;
+  }
+}
+
+@internal
+class RenderGlassContentBlur extends RenderProxyBox {
+  RenderGlassContentBlur({required bool blurred, ValueListenable<bool>? listenable}) : _blurred = blurred, _listenable = listenable;
+
+  static final ui.ImageFilter filter = ui.ImageFilter.blur(sigmaX: ios27MorphContentBlur, sigmaY: ios27MorphContentBlur, tileMode: TileMode.decal);
+
+  final LayerHandle<ImageFilterLayer> _filter = LayerHandle();
+
+  bool _blurred;
+  set blurred(bool value) {
+    if (value == _blurred) return;
+    _blurred = value;
+    markNeedsPaint();
+  }
+
+  ValueListenable<bool>? _listenable;
+  set listenable(ValueListenable<bool>? value) {
+    if (identical(value, _listenable)) return;
+    if (attached) _listenable?.removeListener(_changed);
+    _listenable = value;
+    if (attached) value?.addListener(_changed);
+    markNeedsPaint();
+  }
+
+  bool get isBlurred => _listenable?.value ?? _blurred;
+
+  void _changed() {
+    if (SchedulerBinding.instance.schedulerPhase != SchedulerPhase.persistentCallbacks) markNeedsPaint();
+  }
+
+  @override
+  bool get alwaysNeedsCompositing => true;
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _listenable?.addListener(_changed);
+  }
+
+  @override
+  void detach() {
+    _listenable?.removeListener(_changed);
+    super.detach();
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (!isBlurred) {
+      _filter.layer = null;
+      super.paint(context, offset);
+      return;
+    }
+    final layer = _filter.layer ??= ImageFilterLayer();
+    layer.imageFilter = filter;
+    context.pushLayer(layer, super.paint, offset);
+  }
+
+  @override
+  void dispose() {
+    _filter.layer = null;
+    super.dispose();
+  }
+}
+
+@internal
+class GlassMorphContent extends StatelessWidget {
+  const GlassMorphContent({super.key, required this.member, required this.child});
+
+  final GlassMember member;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: member.contentOpacity,
+      child: GlassContentBlur(listenable: member.contentBlurred, child: child),
     );
   }
 }

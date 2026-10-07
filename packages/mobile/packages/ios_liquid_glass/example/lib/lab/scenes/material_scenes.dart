@@ -5,6 +5,7 @@ import '../glass_lab_backdrop.dart';
 import '../glass_lab_launch.dart';
 import '../glass_lab_marker.dart';
 import 'lab_parts.dart';
+import 'morph_scenes.dart';
 
 const Color labAccent = Color(0xFF1ACB64);
 
@@ -72,19 +73,9 @@ sealed class MaterialScenes {
       ],
     ),
     'material.union': (launch) => UnionScene(backdrop: launch.backdrop),
-    'material.morph': (launch) => LabCentered(
-      backdrop: launch.backdrop,
-      children: [
-        GlassLabMarker(
-          'morph',
-          child: GlassEffect(
-            glass: Glass.regular.interactive(),
-            shape: const GlassShape.circle(),
-            child: const SizedBox.square(dimension: 56, child: GlassForeground(child: Icon(Icons.add, size: 22))),
-          ),
-        ),
-      ],
-    ),
+    'material.morph': (launch) => MorphScene(backdrop: launch.backdrop),
+    'material.morph.plain': (launch) => MorphScene(backdrop: launch.backdrop, interactive: false),
+    'material.tap': (launch) => TapScene(backdrop: launch.backdrop),
     'material.flip': (launch) => const Stack(
       children: [
         Positioned.fill(child: GlassLabScrollBackdrop()),

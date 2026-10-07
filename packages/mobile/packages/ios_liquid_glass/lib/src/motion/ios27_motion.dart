@@ -1,5 +1,7 @@
 const double ios27BlurRampExponent = 1.0;
 
+const double ios27MorphContentBlur = 1.5;
+
 const double ios27DefaultDisappearExponent = 3.1;
 const double ios27DefaultAppearExponent = 1.85;
 const double ios27DefaultDarkAppearGain = 0.0;

@@ -11,12 +11,25 @@ import 'package:ios_liquid_glass/src/motion/glass_animation.dart';
 import 'package:ios_liquid_glass/src/motion/glass_frame.dart';
 import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:ios_liquid_glass/src/motion/glass_materialize.dart';
+import 'package:ios_liquid_glass/src/motion/glass_morph_geometry.dart';
 import 'package:ios_liquid_glass/src/motion/glass_shape_motion.dart';
 import 'package:ios_liquid_glass/src/motion/glass_spring.dart';
 import 'package:meta/meta.dart';
 
 @internal
 enum GlassPresence { appearing, present, disappearing }
+
+@internal
+enum GlassGhostKind { dematerialize, pending, sink, content }
+
+class _Arrival {
+  _Arrival(this.animation, {required this.reduceMotion});
+
+  final GlassAnimation animation;
+  final bool reduceMotion;
+  bool fades = false;
+  Rect? partner;
+}
 
 @internal
 class GlassMember extends ChangeNotifier implements GlassShapeMotion {
@@ -26,6 +39,14 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
   final GlassMotionValue visibility = GlassMotionValue();
   final GlassSpring _presence = GlassSpring(1);
   final List<GlassSpring> _offset = [for (var i = 0; i < 4; i++) GlassSpring(0)];
+  final GlassSpring _morph = GlassSpring(1);
+  final GlassMotionValue contentOpacity = GlassMotionValue();
+  final ValueNotifier<bool> contentBlurred = ValueNotifier(false);
+  GlassEffectID? id;
+  bool morphs = false;
+  _Arrival? _arrival;
+  bool _contentFades = false;
+  bool _sinking = false;
   GlassPresence presence = GlassPresence.present;
   GlassMaterializeMapping _mapping = GlassMaterializeMapping.defaultSpring;
   bool reduceMotion = false;
@@ -61,11 +82,11 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
 
   LiquidGlassSettings? get settings => sharedSettings ?? material?.settings;
 
-  bool get isMoving => _presence.isMoving || _offset.any((spring) => spring.isMoving);
+  bool get isMoving => _presence.isMoving || _morph.isMoving || _offset.any((spring) => spring.isMoving);
 
   bool get ownsLayer => presence != GlassPresence.present;
 
-  double get progress => GlassMaterialize.progress(
+  double get progress => _sinking ? 1 : GlassMaterialize.progress(
     _presence.value,
     appearing: presence != GlassPresence.disappearing,
     mapping: _mapping,
@@ -236,6 +257,13 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
       _originFrame = frame;
       _readSpace(space, inner);
     }
+    final arrival = _arrival, size = _size;
+    if (arrival != null && size != null) {
+      _arrival = null;
+      _anchor = anchor;
+      _arrive(arrival, live & size);
+      return;
+    }
     final previous = _anchor;
     _anchor = anchor;
     if (previous == null || previous == anchor) return;
@@ -283,6 +311,31 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
       if (identical(node, space)) return true;
     }
     return false;
+  }
+
+  void _arrive(_Arrival arrival, Rect layout) {
+    final partner = arrival.partner;
+    Rect start;
+    if (partner != null) {
+      start = partner;
+    } else {
+      final source = coordinator._nearestSource(this, layout);
+      final drawn = source?.drawn;
+      if (source == null || drawn == null) {
+        start = Rect.fromCenter(center: layout.center, width: 0, height: 0);
+      } else {
+        start = arrival.reduceMotion ? Rect.fromCenter(center: drawn.center, width: layout.width, height: layout.height) : drawn;
+        coordinator._link(this, source);
+      }
+    }
+    final now = coordinator._now, animation = arrival.animation;
+    _offset[0].restart(start.left - layout.left, 0, 0, animation, now);
+    _offset[1].restart(start.top - layout.top, 0, 0, animation, now);
+    _offset[2].restart(start.width - layout.width, 0, 0, animation, now);
+    _offset[3].restart(start.height - layout.height, 0, 0, animation, now);
+    _morph.restart(0, 0, 1, animation, now);
+    _contentFades = arrival.fades || arrival.reduceMotion;
+    coordinator._start();
   }
 
   @override
@@ -345,8 +398,14 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
 
   bool get _due => isMoving || presence == GlassPresence.appearing;
 
+  void _begin(GlassAnimation animation, {required bool reduceMotion}) {
+    _arrival = _Arrival(animation, reduceMotion: reduceMotion);
+    contentOpacity.value = reduceMotion ? 0 : 1;
+  }
+
   bool _sample(Duration now) {
     var moving = _presence.sample(now);
+    moving = _morph.sample(now) || moving;
     for (final spring in _offset) {
       moving = spring.sample(now) || moving;
     }
@@ -360,6 +419,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
 
   void _publish() {
     visibility.value = GlassMaterialize.visibility(progress);
+    if (_contentFades) contentOpacity.value = _morph.value.clamp(0.0, 1.0);
     _resizeMaterial();
     notifyListeners();
     if (coordinator._members.contains(this)) coordinator._unionChanged(_union, except: this);
@@ -373,12 +433,14 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
   @override
   void dispose() {
     visibility.dispose();
+    contentOpacity.dispose();
+    contentBlurred.dispose();
     super.dispose();
   }
 }
 
 @internal
-class GlassGhost {
+class GlassGhost extends ChangeNotifier implements GlassShapeMotion {
   GlassGhost({
     required this.member,
     required this.rect,
@@ -387,7 +449,11 @@ class GlassGhost {
     required this.settings,
     required this.shape,
     required this.shadows,
-  });
+    this.kind = GlassGhostKind.dematerialize,
+    this.partner,
+    this.blurred = false,
+    this.reduceMotion = false,
+  }) : current = rect;
 
   final GlassMember member;
   final Rect rect;
@@ -396,11 +462,76 @@ class GlassGhost {
   final LiquidGlassSettings settings;
   final LiquidShape shape;
   final List<BoxShadow> shadows;
+  final GlassMember? partner;
+  final bool blurred;
+  final bool reduceMotion;
+  final GlassMotionValue opacity = GlassMotionValue();
+  GlassGhostKind kind;
+  GlassMember? target;
+  Offset? _goal;
+  Rect current;
 
+  bool get draws => kind != GlassGhostKind.content;
+
+  Rect get placement => kind == GlassGhostKind.content ? Rect.fromCenter(center: current.center, width: rect.width, height: rect.height) : rect;
+
+  void _sink(GlassMember into, Rect goal) {
+    kind = GlassGhostKind.sink;
+    target = into;
+    _goal = goal.center;
+    member._sinking = true;
+  }
+
+  void _aim() {
+    final box = target?._box;
+    if (box == null || !box.attached || !box.hasSize) return;
+    _goal = MatrixUtils.transformRect(box.getTransformTo(null), Offset.zero & box.size).center;
+  }
+
+  bool _step(Duration now) {
+    final partner = this.partner;
+    if (kind == GlassGhostKind.content) {
+      if (partner == null) return false;
+      final drawn = partner.coordinator._globalRect(partner);
+      if (drawn != null) current = drawn;
+      opacity.value = 1 - partner.contentOpacity.value;
+      notifyListeners();
+      return partner._morph.isMoving;
+    }
+    final moving = member._sample(now);
+    final goal = _goal;
+    if (kind == GlassGhostKind.sink && goal != null) {
+      final remaining = member._presence.value.clamp(0.0, 1.0);
+      final travel = reduceMotion ? 1 - remaining : 1 - GlassMaterialize.progress(member._presence.value, appearing: false, mapping: member._mapping);
+      final centre = Offset.lerp(rect.center, goal, travel.clamp(0.0, 1.0))!;
+      final scale = reduceMotion ? 1.0 : remaining;
+      current = Rect.fromCenter(center: centre, width: rect.width * scale, height: rect.height * scale);
+      opacity.value = remaining;
+      notifyListeners();
+    }
+    return moving;
+  }
+
+  @override
+  Rect resolve(RenderBox shape) {
+    if (!shape.attached) return Offset.zero & shape.size;
+    return current.shift(-MatrixUtils.transformPoint(shape.getTransformTo(null), Offset.zero));
+  }
+
+  @override
+  GlassUnionOutline? union(RenderBox shape) => null;
+
+  @override
   void dispose() {
     snapshot?.dispose();
+    opacity.dispose();
     member.dispose();
+    super.dispose();
   }
+}
+
+class _Notifier extends ChangeNotifier {
+  void notify() => notifyListeners();
 }
 
 class _Leaving {
@@ -413,9 +544,16 @@ class _Leaving {
     required this.content,
     required this.contentSize,
     required this.pixelRatio,
+    this.morphs = false,
+    this.reduceMotion = false,
+    this.local,
   });
 
   final GlassAnimation animation;
+  final bool morphs;
+  final bool reduceMotion;
+  final Rect? local;
+  GlassMember? partner;
   final Rect rect;
   final LiquidGlassSettings settings;
   final LiquidShape shape;
@@ -456,6 +594,14 @@ class GlassMotionCoordinator {
   GlassSpring? _spacing;
   int _spacingFrame = -2;
   Duration? _spacingTime;
+  final Set<GlassMember> _arrivals = {};
+  int _arrivalFrame = -1;
+  final Set<GlassMember> _blurred = {};
+  final Map<GlassMember, Set<Object>> _links = {};
+  bool _ghostsChanged = false;
+  final _Notifier _ghostMotion = _Notifier();
+
+  Listenable get ghostMotion => _ghostMotion;
 
   Iterable<GlassMember> get members => _members;
 
@@ -507,12 +653,34 @@ class GlassMotionCoordinator {
     return binding.schedulerPhase == SchedulerPhase.idle ? null : binding.currentFrameTimeStamp;
   }
 
-  GlassMember join({GlassAnimation? scope, bool animate = true, bool inserted = false, GlassMember? from, bool reduceMotion = false, bool dark = true}) {
+  Set<GlassMember> get _arrivedNow {
+    final frame = GlassFrame.current;
+    if (_arrivalFrame != frame) {
+      _arrivalFrame = frame;
+      _arrivals.clear();
+    }
+    return _arrivals;
+  }
+
+  GlassMember join({
+    GlassAnimation? scope,
+    bool animate = true,
+    bool inserted = false,
+    GlassMember? from,
+    bool reduceMotion = false,
+    bool dark = true,
+    GlassEffectID? id,
+    bool morphs = false,
+  }) {
+    final arrivals = _arrivedNow;
     final member = GlassMember(this)
       ..scopeAnimation = scope
       ..animatesTransitions = animate
       ..reduceMotion = reduceMotion
-      ..dark = dark;
+      ..dark = dark
+      ..id = id
+      ..morphs = morphs;
+    final others = _members.any((other) => !arrivals.contains(other)) || _leaving.keys.any((other) => other.morphs);
     _members.add(member);
     if (from != null) {
       member._adopt(from);
@@ -520,11 +688,123 @@ class GlassMotionCoordinator {
     }
     final animation = resolveGlassAnimation(scope);
     if (inserted && animate && !animation.isNone) {
-      member._appear(animation, _now);
+      if (morphs && others) {
+        member._begin(animation, reduceMotion: reduceMotion);
+        arrivals.add(member);
+        if (id != null) {
+          for (final MapEntry(key: leaver, value: leaving) in _leaving.entries) {
+            if (leaving.partner == null && leaving.morphs && leaver.id == id) {
+              _pair(member, leaver, leaving);
+              break;
+            }
+          }
+        }
+      } else {
+        member._appear(animation, _now);
+      }
       _structureChanged(animation);
       _start();
     }
     return member;
+  }
+
+  void _pair(GlassMember arrival, GlassMember leaver, _Leaving leaving) {
+    leaving.partner = arrival;
+    arrival._arrival
+      ?..partner = leaving.local
+      ..fades = true;
+    arrival.contentOpacity.value = 0;
+  }
+
+  GlassMember? _nearestSource(GlassMember arrival, Rect layout) {
+    GlassMember? best;
+    var bestGap = double.infinity, bestDistance = double.infinity;
+    for (final member in _members) {
+      if (identical(member, arrival) || _arrivals.contains(member) || member.presence == GlassPresence.disappearing) continue;
+      final drawn = member.drawn, shape = member.shape;
+      if (drawn == null) continue;
+      final gap = shape == null || arrival.shape == null ? (drawn.center - layout.center).distance : GlassMorphGeometry.gap(layout, arrival.shape!, drawn, shape);
+      final distance = (drawn.center - layout.center).distance;
+      if (gap < bestGap - 1e-9 || (gap < bestGap + 1e-9 && distance < bestDistance)) {
+        best = member;
+        bestGap = gap;
+        bestDistance = distance;
+      }
+    }
+    return best;
+  }
+
+  void _link(GlassMember arrival, GlassMember source) {
+    if (arrival.reduceMotion) return;
+    _links.putIfAbsent(arrival, () => {}).add(source);
+    _links.putIfAbsent(source, () => {}).add(arrival);
+    _blur(arrival);
+    _blur(source);
+  }
+
+  void _blur(GlassMember member) {
+    if (member.reduceMotion) return;
+    _blurred.add(member);
+    member.contentBlurred.value = true;
+  }
+
+  Iterable<(Rect, LiquidShape)> _morphShapes(Object except) sync* {
+    for (final member in _blurred) {
+      if (identical(member, except)) continue;
+      final rect = _globalRect(member), shape = member.shape;
+      if (rect != null && shape != null) yield (rect, shape);
+    }
+    for (final ghost in ghosts) {
+      if (!identical(ghost, except) && ghost.blurred && ghost.draws) yield (ghost.current, ghost.shape);
+    }
+  }
+
+  void _sharpen() {
+    if (_blurred.isEmpty) return;
+    final reach = spacing.value / 2;
+    for (final member in _blurred.toList()) {
+      final rect = _globalRect(member), shape = member.shape;
+      if (rect == null || shape == null) continue;
+      final sinking = _links[member]?.any((link) => link is GlassGhost && ghosts.contains(link)) ?? false;
+      final joined = _morphShapes(member).any((other) => GlassMorphGeometry.gap(rect, shape, other.$1, other.$2) < reach);
+      final settled = !_blurred.any((other) => other.isMoving) && !ghosts.any((ghost) => ghost.blurred);
+      if ((sinking || joined) && !settled) continue;
+      _blurred.remove(member);
+      _links.remove(member);
+      member.contentBlurred.value = false;
+    }
+  }
+
+  void resolveGhosts() {
+    for (final ghost in ghosts) {
+      if (ghost.kind == GlassGhostKind.sink) ghost._aim();
+      if (ghost.kind != GlassGhostKind.pending) continue;
+      GlassMember? best;
+      Rect? bestRect;
+      var bestGap = double.infinity;
+      for (final member in _members) {
+        final box = member._box, shape = member.shape;
+        if (box == null || shape == null || !box.attached || !box.hasSize || member.presence == GlassPresence.disappearing) continue;
+        final rect = MatrixUtils.transformRect(box.getTransformTo(null), Offset.zero & box.size);
+        final gap = GlassMorphGeometry.gap(ghost.rect, ghost.shape, rect, shape);
+        if (gap < bestGap) {
+          best = member;
+          bestRect = rect;
+          bestGap = gap;
+        }
+      }
+      if (best != null && bestRect != null && bestGap < spacing.value) {
+        ghost._sink(best, bestRect);
+        if (ghost.blurred) {
+          _links.putIfAbsent(best, () => {}).add(ghost);
+          _blur(best);
+        }
+      } else {
+        ghost.kind = GlassGhostKind.dematerialize;
+        _ghostsChanged = true;
+      }
+      _start();
+    }
   }
 
   bool leave(
@@ -540,7 +820,10 @@ class GlassMotionCoordinator {
       return false;
     }
     final rect = _globalRect(member);
+    final local = member._lastDrawn;
     _members.remove(member);
+    _blurred.remove(member);
+    _links.remove(member);
     _unionChanged(member._union);
     final ghostOwner = owner ?? this;
     final animation = resolveGlassAnimation(member.scopeAnimation);
@@ -567,10 +850,22 @@ class GlassMotionCoordinator {
       content: content,
       contentSize: contentSize,
       pixelRatio: pixelRatio,
+      morphs: member.morphs,
+      reduceMotion: member.reduceMotion,
+      local: local,
     );
     _structureChanged(animation);
     member._ghostOwner = ghostOwner;
     ghostOwner._adopt(member, leaving);
+    final id = member.id;
+    if (member.morphs && id != null && identical(ghostOwner, this)) {
+      for (final arrival in _arrivedNow) {
+        if (arrival.morphs && arrival.id == id && arrival._arrival?.partner == null && !_leaving.values.any((other) => identical(other.partner, arrival))) {
+          _pair(arrival, member, leaving);
+          break;
+        }
+      }
+    }
     return true;
   }
 
@@ -616,12 +911,19 @@ class GlassMotionCoordinator {
       _dropLeaving();
       dropGhosts();
     }
+    final morphing = _leaving.entries.any((entry) => entry.value.morphs && entry.value.partner == null);
+    final others = _members.any((member) => member.presence != GlassPresence.disappearing);
     for (final MapEntry(key: member, value: leaving) in _leaving.entries) {
       final snapshot = leaving.snapshot();
       leaving.release();
-      member
-        ..material = null
-        .._disappear(leaving.animation, _now);
+      member.material = null;
+      final partner = leaving.partner;
+      final kind = partner != null
+          ? GlassGhostKind.content
+          : leaving.morphs && others && marker != null
+          ? GlassGhostKind.pending
+          : GlassGhostKind.dematerialize;
+      if (partner == null) member._disappear(leaving.animation, _now);
       ghosts.add(GlassGhost(
         member: member,
         rect: leaving.rect,
@@ -630,6 +932,10 @@ class GlassMotionCoordinator {
         settings: leaving.settings,
         shape: leaving.shape,
         shadows: leaving.shadows,
+        kind: kind,
+        partner: partner,
+        blurred: morphing && leaving.morphs && partner == null && !leaving.reduceMotion,
+        reduceMotion: leaving.reduceMotion,
       ));
     }
     _leaving.clear();
@@ -673,9 +979,10 @@ class GlassMotionCoordinator {
     for (final member in _members.toList()) {
       if (member._due) moving = member._sample(now) || moving;
     }
-    var finished = false;
+    var finished = _ghostsChanged;
+    _ghostsChanged = false;
     for (final ghost in ghosts.toList()) {
-      if (ghost.member._sample(now)) {
+      if (ghost._step(now) || ghost.kind == GlassGhostKind.pending) {
         moving = true;
       } else {
         ghosts.remove(ghost);
@@ -683,6 +990,9 @@ class GlassMotionCoordinator {
         finished = true;
       }
     }
+    _sharpen();
+    if (_blurred.isNotEmpty) moving = true;
+    if (ghosts.isNotEmpty) _ghostMotion.notify();
     if (finished) _ghostHost?.markNeedsBuild();
     if (!moving && _leaving.isEmpty) {
       _ticker.stop();
@@ -694,6 +1004,9 @@ class GlassMotionCoordinator {
     _disposed = true;
     _ticker.dispose();
     spacing.dispose();
+    _ghostMotion.dispose();
+    _blurred.clear();
+    _links.clear();
     dropGhosts();
     _dropLeaving();
     for (final member in _members) {

@@ -746,6 +746,70 @@
       {
         "wait": 1.5
       }
+    ],
+    "regions": {
+      "star": [
+        157,
+        311,
+        88,
+        64
+      ],
+      "heart": [
+        157,
+        383,
+        88,
+        64
+      ],
+      "bolt": [
+        157,
+        455,
+        88,
+        64
+      ],
+      "toggle": [
+        157,
+        527,
+        88,
+        64
+      ],
+      "collapsed": [
+        157,
+        419,
+        88,
+        64
+      ],
+      "stack": [
+        157,
+        299,
+        88,
+        304
+      ]
+    },
+    "track": [
+      "star",
+      "heart",
+      "bolt",
+      "toggle",
+      "collapsed"
+    ],
+    "topology": [
+      "stack"
+    ],
+    "motion": [
+      "cy.peak_ms",
+      "cy.settle_ms",
+      "cy.overshoot_pct",
+      "cy.response_pct",
+      "cy.damping",
+      "width.peak_ms",
+      "width.settle_ms",
+      "width.overshoot_pct",
+      "width.response_pct",
+      "width.damping",
+      "topology.count",
+      "topology.join_ms",
+      "topology.split_ms",
+      "topology.neck_rms"
     ]
   },
   {
@@ -778,6 +842,70 @@
       {
         "wait": 1.5
       }
+    ],
+    "regions": {
+      "star": [
+        157,
+        311,
+        88,
+        64
+      ],
+      "heart": [
+        157,
+        383,
+        88,
+        64
+      ],
+      "bolt": [
+        157,
+        455,
+        88,
+        64
+      ],
+      "toggle": [
+        157,
+        527,
+        88,
+        64
+      ],
+      "collapsed": [
+        157,
+        419,
+        88,
+        64
+      ],
+      "stack": [
+        157,
+        299,
+        88,
+        304
+      ]
+    },
+    "track": [
+      "star",
+      "heart",
+      "bolt",
+      "toggle",
+      "collapsed"
+    ],
+    "topology": [
+      "stack"
+    ],
+    "motion": [
+      "cy.peak_ms",
+      "cy.settle_ms",
+      "cy.overshoot_pct",
+      "cy.response_pct",
+      "cy.damping",
+      "width.peak_ms",
+      "width.settle_ms",
+      "width.overshoot_pct",
+      "width.response_pct",
+      "width.damping",
+      "topology.count",
+      "topology.join_ms",
+      "topology.split_ms",
+      "topology.neck_rms"
     ]
   },
   {

@@ -97,6 +97,11 @@ The package was renamed from `liquid_glass_renderer` to `ios_liquid_glass`, with
 - `GlassShapeMotion` gains `union(shape)`, a `GlassUnionOutline` (rect, shape and whether this glass leads its union). `RenderLiquidGlassBlendGroup.gatherShapeData` gathers one shape per union, at the union's rect and shape, from the member that leads it and skips the members it leads, and compares the gathered shapes with the cached ones by their gathered index (upstream compared the cached list with every registered shape, by registration index). `RenderLiquidGlass.getPath` returns the union's path for a leader and an empty path for a member it leads; content is still painted per member at its own drawn rect. The glass shadow draws one shadow on the union's rect and shape from the leader and none from the members it leads.
 - New, not from upstream: `lib/src/api/glass_namespace.dart` (`GlassNamespace`, `GlassEffectUnion`); `GlassEffect(union:)`; `GlassMember.unite`, `unionOutline` and `union` in the coordinator, which notifies a union's members when one of them moves, joins or leaves.
 
+## ios_liquid_glass 0.1.0, project 2B.2 (morph)
+
+- New, not from upstream: `GlassEffectID` (`lib/src/api/glass_namespace.dart`); `GlassEffectTransition.matchedGeometry`; `GlassEffect(id:)`, whose `transition` is now nullable and resolves through `effectiveTransition` (matched geometry with an id, materialize without); the coordinator's arrivals, partners, sink and content ghosts, nearest-source choice and morph content blur (`glass_motion_coordinator.dart`), `GlassMorphGeometry` (`glass_morph_geometry.dart`, the shape gap on the line between centres), `GlassContentBlur` and `GlassMorphContent` (`glass_motion_widgets.dart`), and `ios27MorphContentBlur` in `ios27_motion.dart`.
+- `GlassGhost` is a `GlassShapeMotion`: a sinking ghost draws through `LiquidGlass.grouped` in its container's blend group at a rect it moves every frame, and the ghost stack places each ghost at `placement` and repaints on the coordinator's `ghostMotion`.
+
 Record every later change to `lib/` in this file.
 
 Upstream: https://github.com/whynotmake-it/flutter_liquid_glass/tree/main/packages/liquid_glass_renderer
