@@ -68,7 +68,9 @@ class _MergeState extends State<_Merge> {
 }
 
 class _Grow extends StatefulWidget {
-  const _Grow();
+  const _Grow({this.inside = true});
+
+  final bool inside;
 
   @override
   State<_Grow> createState() => _GrowState();
@@ -89,15 +91,21 @@ class _GrowState extends State<_Grow> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              GlassEffectContainer(
-                spacing: 20,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (grown) const SizedBox(height: 100, width: 56),
-                    const GlassEffect(key: ValueKey('g'), child: SizedBox.square(dimension: 56)),
-                  ],
-                ),
+              if (grown && !widget.inside) const SizedBox(height: 100, width: 56),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GlassEffectContainer(
+                    spacing: 20,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (grown && widget.inside) const SizedBox(height: 100, width: 56),
+                        const GlassEffect(key: ValueKey('g'), child: SizedBox.square(dimension: 56)),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -189,6 +197,18 @@ void main() {
     expect(target.top - old.top, closeTo(-50, 1e-6));
     expect(_onScreen(member).top, closeTo(old.top, 1e-6));
     await tester.pumpAndSettle();
+    expect(_onScreen(member).top, closeTo(target.top, 1e-6));
+  });
+
+  testWidgets('glass whose container only moves with its parent follows at once and springs nothing', (tester) async {
+    await tester.pumpWidget(const _Grow(inside: false));
+    await tester.pump(const Duration(seconds: 1));
+    final member = _member(tester, 'g');
+    tester.state<_GrowState>(find.byType(_Grow)).toggle();
+    await tester.pump();
+    final target = _layout(tester, 'g');
+    expect(_onScreen(member).top, closeTo(target.top, 1e-6));
+    await tester.pump(const Duration(milliseconds: 50));
     expect(_onScreen(member).top, closeTo(target.top, 1e-6));
   });
 }

@@ -65,6 +65,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
   RenderBox? _box;
   Size? _size;
   Offset? _anchor;
+  Offset? _anchorOrigin;
   Offset? _live;
   RenderObject? _liveSpace;
   Offset? _spaceOrigin;
@@ -269,24 +270,28 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
       _originFrame = frame;
       _readSpace(space, inner);
     }
-    final anchor = live - inner + _spaceOrigin! - _outerAtOrigin;
+    final anchor = live - inner;
+    final origin = _spaceOrigin! - _outerAtOrigin;
     final arrival = _arrival, size = _size;
     if (arrival != null && size != null) {
       _arrival = null;
       _anchor = anchor;
+      _anchorOrigin = origin;
       _moved = true;
       _arrive(arrival, live & size);
       return;
     }
-    final previous = _anchor;
+    final previous = _anchor, previousOrigin = _anchorOrigin;
     _anchor = anchor;
+    _anchorOrigin = origin;
     if (previous == null || previous == anchor) return;
     _moved = true;
     final animation = _changed();
     if (animation == null) return;
     final now = coordinator._now;
-    _offset[0].offsetBy(previous.dx - anchor.dx, animation, now);
-    _offset[1].offsetBy(previous.dy - anchor.dy, animation, now);
+    final shift = (previous - anchor) + ((previousOrigin ?? origin) - origin);
+    _offset[0].offsetBy(shift.dx, animation, now);
+    _offset[1].offsetBy(shift.dy, animation, now);
     coordinator._start();
   }
 
