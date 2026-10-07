@@ -224,7 +224,7 @@ def still_mask(frame, bare):
 def topology(mask):
     parts = components(point_mask(mask))
     if len(parts) != 1:
-        return {"count": float(len(parts)), "neck": 0.0}
+        return {"count": float(len(parts)), "neck": float("nan")}
     width = neck(mask)
     return {"count": 1.0, "neck": width if width > 0 else float("nan")}
 

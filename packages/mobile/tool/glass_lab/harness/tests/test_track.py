@@ -97,8 +97,15 @@ class TopologyTests(unittest.TestCase):
         self.bare = np.full((360, 720, 3), 40, dtype=np.float32)
         self.edges = track.edges(self.bare)
 
-    def test_separate_glass_counts_two_with_no_neck(self):
-        self.assertEqual(track.topology_row(disks(20), self.bare, self.edges), {"count": 2.0, "neck": 0.0})
+    def test_separate_glass_counts_two_and_has_no_neck(self):
+        found = track.topology_row(disks(20), self.bare, self.edges)
+        self.assertEqual(found["count"], 2.0)
+        self.assertTrue(np.isnan(found["neck"]))
+
+    def test_a_frame_with_no_glass_has_no_neck(self):
+        found = track.topology_row(self.bare.copy(), self.bare, self.edges)
+        self.assertEqual(found["count"], 0.0)
+        self.assertTrue(np.isnan(found["neck"]))
 
     def test_merged_glass_counts_one_and_measures_its_narrowest_neck(self):
         row = track.topology_row(disks(0, bridge=20), self.bare, self.edges)

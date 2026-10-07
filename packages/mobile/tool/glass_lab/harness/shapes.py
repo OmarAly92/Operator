@@ -153,7 +153,8 @@ def event_series(times, rows, first, last):
     if "count" in picked[0]:
         counts = np.array([row["count"] for row in picked])
         series["count"] = counts[np.clip(np.searchsorted(stamps, grid, side="right") - 1, 0, len(counts) - 1)].tolist()
-        series["neck"] = np.interp(grid, stamps, [row["neck"] for row in picked]).tolist()
+        necks = np.array([row["neck"] for row in picked], dtype=np.float64)
+        series["neck"] = necks[np.clip(np.searchsorted(stamps, grid, side="right") - 1, 0, len(necks) - 1)].tolist()
     for key in (*KEYS, "sharpness", "residual"):
         values = np.array([row[key] for row in picked], dtype=np.float64)
         valid = np.isfinite(values)
@@ -321,23 +322,45 @@ def transitions(counts):
     return joins, splits
 
 
+def neck_difference(a, b):
+    a_neck, b_neck = a["neck"], b["neck"]
+    if np.isfinite(a_neck) and np.isfinite(b_neck):
+        return float(abs(a_neck - b_neck))
+    if not np.isfinite(a_neck) and not np.isfinite(b_neck):
+        return 0.0
+    return float("inf")
+
+
+def transition_gap(a, b):
+    if a and b:
+        return abs(a[0] - b[0]) * 1000 / align.GRID_HZ
+    return 0.0 if not a and not b else float("inf")
+
+
+def neck_rms(a_count, b_count, a_neck, b_neck):
+    squares = []
+    for ca, cb, na, nb in zip(a_count, b_count, a_neck, b_neck):
+        difference = neck_difference({"neck": na}, {"neck": nb})
+        if np.isinf(difference) and ca != cb:
+            continue
+        if np.isfinite(na) or np.isfinite(nb):
+            squares.append(difference ** 2)
+    return float(np.sqrt(np.mean(squares))) if squares else 0.0
+
+
 def compare_topology(a_series, b_series):
     a_count, b_count = np.array(a_series["count"]), np.array(b_series["count"])
-    if a_count.max() < 2 and b_count.max() < 2:
-        return None
     entry = {}
     a_joins, a_splits = transitions(a_count)
     b_joins, b_splits = transitions(b_count)
-    for key, a, b in (("join_ms", a_joins, b_joins), ("split_ms", a_splits, b_splits)):
-        if a and b:
-            entry[key] = abs(a[0] - b[0]) * 1000 / align.GRID_HZ
+    entry["join_ms"] = transition_gap(a_joins, b_joins)
+    entry["split_ms"] = transition_gap(a_splits, b_splits)
     count = min(len(a_count), len(b_count))
     excluded = np.zeros(count, dtype=bool)
     for index in a_joins + a_splits + b_joins + b_splits:
         excluded[max(0, index - TRANSITION_SAMPLES) : index + TRANSITION_SAMPLES + 1] = True
     entry["count"] = float(((a_count[:count] != b_count[:count]) & ~excluded).sum())
-    a_neck, b_neck = np.array(a_series["neck"][:count]), np.array(b_series["neck"][:count])
-    entry["neck_rms"] = float(np.sqrt(np.mean((a_neck - b_neck) ** 2)))
+    entry["neck_rms"] = neck_rms(a_count[:count], b_count[:count], a_series["neck"][:count], b_series["neck"][:count])
     entry["native"] = {"joins_ms": [i * 1000 / align.GRID_HZ for i in a_joins], "splits_ms": [i * 1000 / align.GRID_HZ for i in a_splits]}
     entry["flutter"] = {"joins_ms": [i * 1000 / align.GRID_HZ for i in b_joins], "splits_ms": [i * 1000 / align.GRID_HZ for i in b_splits]}
     return entry
@@ -363,9 +386,7 @@ def compare(scene, native, flutter):
             sa, sb = a["series"][name], b["series"][name]
             shape = {}
             if name in scene.topology:
-                topology = compare_topology(sa, sb)
-                if topology:
-                    shape["topology"] = topology
+                shape["topology"] = compare_topology(sa, sb)
             for key in align.KEYS:
                 entry = compare_key(key, sa[key], sb[key])
                 if entry:
@@ -467,6 +488,6 @@ def static_topology(scene, native_dir, flutter_dir):
             "native": rows["native"],
             "flutter": rows["flutter"],
             "count": abs(rows["native"]["count"] - rows["flutter"]["count"]),
-            "neck_pt": abs(rows["native"]["neck"] - rows["flutter"]["neck"]),
+            "neck_pt": neck_difference(rows["native"], rows["flutter"]),
         }
     return found

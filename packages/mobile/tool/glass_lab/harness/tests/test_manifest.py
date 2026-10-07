@@ -102,12 +102,17 @@ class TrackTests(unittest.TestCase):
         self.assertTrue(any("topology names an unknown region" in e for e in manifest.validate([self.base(topology=["z"])])))
         self.assertEqual(manifest.validate([self.base(topology=["a", "b"])]), [])
 
+    def test_topology_motion_measures_need_topology_regions(self):
+        errors = manifest.validate([self.base(track="a", motion=["topology.join_ms", "progress.rms"])])
+        self.assertTrue(any("topology measures need topology regions" in e for e in errors))
+        self.assertEqual(manifest.validate([self.base(track="a", topology="a", motion=["topology.join_ms"])]), [])
+
     def test_tracks_and_motion_measures_are_validated(self):
         self.assertTrue(any("unknown region" in e for e in manifest.validate([self.base(track=["a", "c"])])))
         self.assertTrue(any("non-empty list" in e for e in manifest.validate([self.base(track=[])])))
         self.assertTrue(any("unknown motion measure progress.wobble" in e for e in manifest.validate([self.base(track="a", motion=["progress.wobble"])])))
         self.assertTrue(any("need a track" in e for e in manifest.validate([self.base(motion=["progress.rms"])])))
-        self.assertEqual(manifest.validate([self.base(track="a", motion=list(manifest.MOTION_MEASURES))]), [])
+        self.assertEqual(manifest.validate([self.base(track="a", topology="a", motion=list(manifest.MOTION_MEASURES))]), [])
 
     def test_tracked_regions_are_not_rim_elements_and_the_union_is_the_region(self):
         scene = manifest.parse([self.base(track=["a"])])[0]

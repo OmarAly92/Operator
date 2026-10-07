@@ -15,20 +15,72 @@ from synthetic import capture_of, spring_series
 
 
 class ShapeTopologyTests(unittest.TestCase):
-    def test_join_and_split_times_count_mismatches_and_neck_are_compared(self):
-        def series(join, split):
-            count = [2.0] * join + [1.0] * (split - join) + [2.0] * (80 - split)
-            neck = [0.0] * join + [10.0] * (split - join) + [0.0] * (80 - split)
-            return {"count": count, "neck": neck}
-        late = shapes.compare_topology(series(20, 60), series(23, 60))
+    @staticmethod
+    def series(join, split, length=80, neck=10.0):
+        nan = float("nan")
+        count = [2.0] * join + [1.0] * (split - join) + [2.0] * (length - split)
+        necks = [nan] * join + [neck] * (split - join) + [nan] * (length - split)
+        return {"count": count, "neck": necks}
+
+    def test_join_and_split_times_and_count_mismatches_are_compared(self):
+        late = shapes.compare_topology(self.series(20, 60), self.series(23, 60))
         self.assertAlmostEqual(late["join_ms"], 25, places=6)
         self.assertEqual(late["split_ms"], 0)
         self.assertEqual(late["count"], 0.0)
-        self.assertAlmostEqual(late["neck_rms"], (3 * 100 / 80) ** 0.5, places=6)
-        stuck = shapes.compare_topology(series(20, 60), series(23, 80))
-        self.assertNotIn("split_ms", stuck)
+        self.assertEqual(late["neck_rms"], 0.0)
+        stuck = shapes.compare_topology(self.series(20, 60), self.series(23, 80))
+        self.assertEqual(stuck["split_ms"], float("inf"))
         self.assertEqual(stuck["count"], 17.0)
-        self.assertIsNone(shapes.compare_topology({"count": [1.0] * 5, "neck": [5.0] * 5}, {"count": [1.0] * 5, "neck": [5.0] * 5}))
+
+    def test_the_neck_is_compared_only_where_both_apps_have_one(self):
+        wider = shapes.compare_topology(self.series(20, 60), self.series(20, 60, neck=13.0))
+        self.assertAlmostEqual(wider["neck_rms"], 3.0, places=6)
+        late = shapes.compare_topology(self.series(20, 60), self.series(23, 60, neck=13.0))
+        self.assertAlmostEqual(late["neck_rms"], 3.0, places=6)
+
+    def test_apps_that_agree_on_no_transition_read_zero_not_absent(self):
+        one = {"count": [1.0] * 5, "neck": [5.0] * 5}
+        agreed = shapes.compare_topology(one, one)
+        self.assertEqual((agreed["join_ms"], agreed["split_ms"], agreed["count"], agreed["neck_rms"]), (0.0, 0.0, 0.0, 0.0))
+        apart = {"count": [2.0] * 5, "neck": [float("nan")] * 5}
+        both_apart = shapes.compare_topology(apart, apart)
+        self.assertEqual((both_apart["join_ms"], both_apart["split_ms"], both_apart["count"], both_apart["neck_rms"]), (0.0, 0.0, 0.0, 0.0))
+        empty = {"count": [0.0] * 5, "neck": [float("nan")] * 5}
+        self.assertEqual(shapes.compare_topology(empty, empty)["neck_rms"], 0.0)
+
+    def test_a_transition_in_one_app_only_fails(self):
+        joined = shapes.compare_topology(self.series(20, 80), {"count": [2.0] * 80, "neck": [float("nan")] * 80})
+        self.assertEqual(joined["join_ms"], float("inf"))
+        self.assertEqual(joined["split_ms"], 0.0)
+
+    def test_one_component_without_a_neck_against_one_with_a_neck_fails(self):
+        nan = float("nan")
+        found = shapes.compare_topology({"count": [1.0] * 5, "neck": [nan] * 5}, {"count": [1.0] * 5, "neck": [4.0] * 5})
+        self.assertEqual(found["neck_rms"], float("inf"))
+
+    def test_a_listed_topology_measure_is_present_when_both_apps_agree(self):
+        scene = manifest.parse([{"id": "x", "group": "material", "title": "t", "inventory": "2.14", "app": "lab", "backdrops": ["stripes"], "appearances": ["dark"], "steps": [{"tap": "merge"}], "regions": {"pair": [0, 0, 10, 10]}, "track": "pair", "topology": "pair", "motion": ["topology.join_ms", "topology.neck_rms"]}])[0]
+        one = {"count": [1.0] * 5, "neck": [5.0] * 5}
+        result = {"pairs": {"step0e0": {"shapes": {"pair": {"topology": shapes.compare_topology(one, one)}}}}, "event_count": [1, 1], "steps": [[0], [0]], "touches": [0, 0], "expected_touches": 0}
+        found = shapes.limits(result, scene)
+        self.assertEqual(found["pair.step0e0.topology.join_ms"][0], 0.0)
+        self.assertEqual(found["pair.step0e0.topology.neck_rms"][0], 0.0)
+
+    def test_still_necks_agree_when_neither_app_has_one(self):
+        nan = float("nan")
+        self.assertEqual(shapes.neck_difference({"count": 2.0, "neck": nan}, {"count": 2.0, "neck": nan}), 0.0)
+        self.assertAlmostEqual(shapes.neck_difference({"count": 1.0, "neck": 25.33}, {"count": 1.0, "neck": 24.0}), 1.33, places=6)
+        self.assertEqual(shapes.neck_difference({"count": 1.0, "neck": 2.0}, {"count": 2.0, "neck": nan}), float("inf"))
+        self.assertEqual(shapes.neck_difference({"count": 1.0, "neck": nan}, {"count": 1.0, "neck": 4.0}), float("inf"))
+
+    def test_the_neck_series_holds_each_frame_like_the_count(self):
+        nan = float("nan")
+        rows = [{"count": 2.0, "neck": nan}, {"count": 1.0, "neck": 6.0}, {"count": 1.0, "neck": 8.0}, {"count": 2.0, "neck": nan}]
+        rows = [dict(row, width=80.0, height=80.0, cx=1.0, cy=1.0, luma=1.0, progress=1.0, sharpness=0.0, residual=0.0) for row in rows]
+        series = shapes.event_series([0.0, 0.05, 0.1, 0.15], rows, 0, 3)
+        count, neck = np.array(series["count"]), np.array(series["neck"])
+        self.assertTrue(np.isnan(neck[count == 2]).all())
+        self.assertTrue(np.isfinite(neck[count == 1]).all())
 
 
 class ProgressMeasureTests(unittest.TestCase):

@@ -138,6 +138,8 @@ def validate(raw):
             errors += [f"{where}: unknown motion measure {m}" for m in motion if m not in MOTION_MEASURES]
             if motion and track is None:
                 errors.append(f"{where}: motion measures need a track")
+            if any(m.startswith("topology.") for m in motion) and topology is None:
+                errors.append(f"{where}: topology measures need topology regions")
         measures = entry.get("measures", list(STATIC_MEASURES))
         if not isinstance(measures, list) or not measures:
             errors.append(f"{where}: measures must be a non-empty list")
