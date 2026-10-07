@@ -199,7 +199,7 @@ class UnionScene extends StatefulWidget {
   const UnionScene({super.key, required this.backdrop});
 
   static const List<IconData> symbols = [Icons.star, Icons.favorite, Icons.bolt, Icons.eco];
-  static const List<double> glyphSizes = [24, 24, 24, 24];
+  static const List<double> glyphSizes = [33, 28, 34.5, 32.5];
 
   final String backdrop;
 

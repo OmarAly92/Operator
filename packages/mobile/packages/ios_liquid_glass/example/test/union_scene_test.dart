@@ -51,6 +51,15 @@ void main() {
     expect(tester.widget<GlassEffect>(find.byType(GlassEffect).first).union!.namespace, same(namespace));
   });
 
+  test('each glyph is sized so its ink is as tall as native\'s SF Symbol at size 24, from the ink measured at size 24 in both apps', () {
+    final ink = (jsonDecode(File('../../../../../docs/liquid_glass/02b-motion/research/proto-2b2/verify/union-tone-light-stripes.json').readAsStringSync()) as Map<String, dynamic>)['glyph_ink'] as Map<String, dynamic>;
+    final sizes = [
+      for (final name in ['star', 'heart', 'bolt', 'leaf'])
+        (24 * (ink[name]['native']['h_pt'] as num) / (ink[name]['flutter']['h_pt'] as num) * 2).round() / 2,
+    ];
+    expect(UnionScene.glyphSizes, sizes);
+  });
+
   test('the union manifest pins each union and the pair padded by 12 pt, and judges their topology on its stills', () {
     final entry = _entry();
     expect(_region(entry, 'first'), const Rect.fromLTRB(49, 419, 193, 483).inflate(12));
