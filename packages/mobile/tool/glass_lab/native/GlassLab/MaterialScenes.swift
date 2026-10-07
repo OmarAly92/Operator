@@ -41,6 +41,8 @@ enum MaterialScenes {
         "material.merge": { AnyView(MergeScene()) },
         "material.union": { AnyView(UnionScene()) },
         "material.morph": { AnyView(MorphScene()) },
+        "material.morph.plain": { AnyView(MorphScene(interactive: false)) },
+        "material.tap": { AnyView(TapScene()) },
         "material.shapes": { AnyView(ShapesScene()) },
         "material.edge.soft": { AnyView(EdgeScene(style: .soft)) },
         "material.edge.hard": { AnyView(EdgeScene(style: .hard)) },
@@ -247,6 +249,7 @@ struct UnionScene: View {
 }
 
 struct MorphScene: View {
+    var interactive = true
     @Namespace private var namespace
     @State private var expanded = false
     private let badges = ["star.fill", "heart.fill", "bolt.fill"]
@@ -273,10 +276,28 @@ struct MorphScene: View {
                             .frame(width: 56, height: 56)
                     }
                     .buttonStyle(.plain)
-                    .glassEffect(.regular.interactive())
+                    .glassEffect(interactive ? .regular.interactive() : .regular)
                     .glassEffectID("toggle", in: namespace)
                     .accessibilityIdentifier("morph")
                 }
+            }
+        }
+    }
+}
+
+struct TapScene: View {
+    var body: some View {
+        ZStack {
+            Backdrop()
+            GlassEffectContainer(spacing: 20) {
+                Button {} label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 22, weight: .semibold))
+                        .frame(width: 56, height: 56)
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular.interactive())
+                .accessibilityIdentifier("glass")
             }
         }
     }

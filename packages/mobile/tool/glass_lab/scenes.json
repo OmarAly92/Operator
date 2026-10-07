@@ -724,6 +724,64 @@
     ]
   },
   {
+    "id": "material.morph.plain",
+    "group": "material",
+    "title": "Morph scene with a non-interactive toggle (control for the toggle's swelling)",
+    "inventory": "2.16",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "morph"
+      },
+      {
+        "wait": 1.5
+      },
+      {
+        "tap": "morph"
+      },
+      {
+        "wait": 1.5
+      }
+    ]
+  },
+  {
+    "id": "material.tap",
+    "group": "material",
+    "title": "A 56 pt interactive glass button tapped with no state change (control for the morph toggle's swelling)",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "glass"
+      },
+      {
+        "wait": 1.5
+      }
+    ]
+  },
+  {
     "id": "material.spacing.default.a",
     "group": "material",
     "title": "Two 80 pt circles at gaps 0, 4, 8, 12 pt in the default GlassEffectContainer()",
