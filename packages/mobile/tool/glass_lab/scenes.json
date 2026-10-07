@@ -948,6 +948,798 @@
     ]
   },
   {
+    "id": "material.spacing.4.a",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 0, 4, 8, 12 pt in GlassEffectContainer(spacing: 4)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g0": [
+        109,
+        129,
+        184,
+        104
+      ],
+      "g4": [
+        107,
+        309,
+        188,
+        104
+      ],
+      "g8": [
+        105,
+        489,
+        192,
+        104
+      ],
+      "g12": [
+        103,
+        669,
+        196,
+        104
+      ]
+    },
+    "topology": [
+      "g0",
+      "g4",
+      "g8",
+      "g12"
+    ]
+  },
+  {
+    "id": "material.spacing.6.a",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 0, 4, 8, 12 pt in GlassEffectContainer(spacing: 6)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g0": [
+        109,
+        129,
+        184,
+        104
+      ],
+      "g4": [
+        107,
+        309,
+        188,
+        104
+      ],
+      "g8": [
+        105,
+        489,
+        192,
+        104
+      ],
+      "g12": [
+        103,
+        669,
+        196,
+        104
+      ]
+    },
+    "topology": [
+      "g0",
+      "g4",
+      "g8",
+      "g12"
+    ]
+  },
+  {
+    "id": "material.spacing.8.a",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 0, 4, 8, 12 pt in GlassEffectContainer(spacing: 8)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g0": [
+        109,
+        129,
+        184,
+        104
+      ],
+      "g4": [
+        107,
+        309,
+        188,
+        104
+      ],
+      "g8": [
+        105,
+        489,
+        192,
+        104
+      ],
+      "g12": [
+        103,
+        669,
+        196,
+        104
+      ]
+    },
+    "topology": [
+      "g0",
+      "g4",
+      "g8",
+      "g12"
+    ]
+  },
+  {
+    "id": "material.spacing.10.a",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 0, 4, 8, 12 pt in GlassEffectContainer(spacing: 10)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g0": [
+        109,
+        129,
+        184,
+        104
+      ],
+      "g4": [
+        107,
+        309,
+        188,
+        104
+      ],
+      "g8": [
+        105,
+        489,
+        192,
+        104
+      ],
+      "g12": [
+        103,
+        669,
+        196,
+        104
+      ]
+    },
+    "topology": [
+      "g0",
+      "g4",
+      "g8",
+      "g12"
+    ]
+  },
+  {
+    "id": "material.spacing.12.a",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 0, 4, 8, 12 pt in GlassEffectContainer(spacing: 12)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g0": [
+        109,
+        129,
+        184,
+        104
+      ],
+      "g4": [
+        107,
+        309,
+        188,
+        104
+      ],
+      "g8": [
+        105,
+        489,
+        192,
+        104
+      ],
+      "g12": [
+        103,
+        669,
+        196,
+        104
+      ]
+    },
+    "topology": [
+      "g0",
+      "g4",
+      "g8",
+      "g12"
+    ]
+  },
+  {
+    "id": "material.spacing.16.a",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 0, 4, 8, 12 pt in GlassEffectContainer(spacing: 16)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g0": [
+        109,
+        129,
+        184,
+        104
+      ],
+      "g4": [
+        107,
+        309,
+        188,
+        104
+      ],
+      "g8": [
+        105,
+        489,
+        192,
+        104
+      ],
+      "g12": [
+        103,
+        669,
+        196,
+        104
+      ]
+    },
+    "topology": [
+      "g0",
+      "g4",
+      "g8",
+      "g12"
+    ]
+  },
+  {
+    "id": "material.spacing.20.a",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 0, 4, 8, 12 pt in GlassEffectContainer(spacing: 20)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g0": [
+        109,
+        129,
+        184,
+        104
+      ],
+      "g4": [
+        107,
+        309,
+        188,
+        104
+      ],
+      "g8": [
+        105,
+        489,
+        192,
+        104
+      ],
+      "g12": [
+        103,
+        669,
+        196,
+        104
+      ]
+    },
+    "topology": [
+      "g0",
+      "g4",
+      "g8",
+      "g12"
+    ]
+  },
+  {
+    "id": "material.spacing.80.a",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 0, 4, 8, 12 pt in GlassEffectContainer(spacing: 80)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g0": [
+        109,
+        129,
+        184,
+        104
+      ],
+      "g4": [
+        107,
+        309,
+        188,
+        104
+      ],
+      "g8": [
+        105,
+        489,
+        192,
+        104
+      ],
+      "g12": [
+        103,
+        669,
+        196,
+        104
+      ]
+    },
+    "topology": [
+      "g0",
+      "g4",
+      "g8",
+      "g12"
+    ]
+  },
+  {
+    "id": "material.spacing.default.d",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 2, 5, 6, 7 pt in the default GlassEffectContainer()",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g2": [
+        108,
+        129,
+        186,
+        104
+      ],
+      "g5": [
+        106.5,
+        309,
+        189,
+        104
+      ],
+      "g6": [
+        106,
+        489,
+        190,
+        104
+      ],
+      "g7": [
+        105.5,
+        669,
+        191,
+        104
+      ]
+    },
+    "topology": [
+      "g2",
+      "g5",
+      "g6",
+      "g7"
+    ]
+  },
+  {
+    "id": "material.spacing.20.b",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 9, 10, 11, 14 pt in GlassEffectContainer(spacing: 20)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g9": [
+        104.5,
+        129,
+        193,
+        104
+      ],
+      "g10": [
+        104,
+        309,
+        194,
+        104
+      ],
+      "g11": [
+        103.5,
+        489,
+        195,
+        104
+      ],
+      "g14": [
+        102,
+        669,
+        198,
+        104
+      ]
+    },
+    "topology": [
+      "g9",
+      "g10",
+      "g11",
+      "g14"
+    ]
+  },
+  {
+    "id": "material.spacing.20.c",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 16, 18, 24, 32 pt in GlassEffectContainer(spacing: 20)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g16": [
+        101,
+        129,
+        200,
+        104
+      ],
+      "g18": [
+        100,
+        309,
+        202,
+        104
+      ],
+      "g24": [
+        97,
+        489,
+        208,
+        104
+      ],
+      "g32": [
+        93,
+        669,
+        216,
+        104
+      ]
+    },
+    "topology": [
+      "g16",
+      "g18",
+      "g24",
+      "g32"
+    ]
+  },
+  {
+    "id": "material.spacing.40.d",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 18, 19, 21, 22 pt in GlassEffectContainer(spacing: 40)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g18": [
+        100,
+        129,
+        202,
+        104
+      ],
+      "g19": [
+        99.5,
+        309,
+        203,
+        104
+      ],
+      "g21": [
+        98.5,
+        489,
+        205,
+        104
+      ],
+      "g22": [
+        98,
+        669,
+        206,
+        104
+      ]
+    },
+    "topology": [
+      "g18",
+      "g19",
+      "g21",
+      "g22"
+    ]
+  },
+  {
+    "id": "material.spacing.40.e",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 28, 36, 44, 52 pt in GlassEffectContainer(spacing: 40)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g28": [
+        95,
+        129,
+        212,
+        104
+      ],
+      "g36": [
+        91,
+        309,
+        220,
+        104
+      ],
+      "g44": [
+        87,
+        489,
+        228,
+        104
+      ],
+      "g52": [
+        83,
+        669,
+        236,
+        104
+      ]
+    },
+    "topology": [
+      "g28",
+      "g36",
+      "g44",
+      "g52"
+    ]
+  },
+  {
+    "id": "material.spacing.80.b",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 16, 24, 32, 36 pt in GlassEffectContainer(spacing: 80)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g16": [
+        101,
+        129,
+        200,
+        104
+      ],
+      "g24": [
+        97,
+        309,
+        208,
+        104
+      ],
+      "g32": [
+        93,
+        489,
+        216,
+        104
+      ],
+      "g36": [
+        91,
+        669,
+        220,
+        104
+      ]
+    },
+    "topology": [
+      "g16",
+      "g24",
+      "g32",
+      "g36"
+    ]
+  },
+  {
+    "id": "material.spacing.80.c",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 38, 40, 42, 44 pt in GlassEffectContainer(spacing: 80)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g38": [
+        90,
+        129,
+        222,
+        104
+      ],
+      "g40": [
+        89,
+        309,
+        224,
+        104
+      ],
+      "g42": [
+        88,
+        489,
+        226,
+        104
+      ],
+      "g44": [
+        87,
+        669,
+        228,
+        104
+      ]
+    },
+    "topology": [
+      "g38",
+      "g40",
+      "g42",
+      "g44"
+    ]
+  },
+  {
+    "id": "material.spacing.80.d",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 48, 56, 64, 72 pt in GlassEffectContainer(spacing: 80)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g48": [
+        85,
+        129,
+        232,
+        104
+      ],
+      "g56": [
+        81,
+        309,
+        240,
+        104
+      ],
+      "g64": [
+        77,
+        489,
+        248,
+        104
+      ],
+      "g72": [
+        73,
+        669,
+        256,
+        104
+      ]
+    },
+    "topology": [
+      "g48",
+      "g56",
+      "g64",
+      "g72"
+    ]
+  },
+  {
+    "id": "material.spacing.80.e",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 80, 88, 96 pt in GlassEffectContainer(spacing: 80)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g80": [
+        69,
+        219,
+        264,
+        104
+      ],
+      "g88": [
+        65,
+        399,
+        272,
+        104
+      ],
+      "g96": [
+        61,
+        579,
+        280,
+        104
+      ]
+    },
+    "topology": [
+      "g80",
+      "g88",
+      "g96"
+    ]
+  },
+  {
     "id": "material.shapes",
     "group": "material",
     "title": "Capsule, fixed radius and concentric shapes",
