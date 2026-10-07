@@ -39,6 +39,7 @@ enum MaterialScenes {
         "material.spacing.80.d": { AnyView(SpacingScene(gaps: [48, 56, 64, 72], spacing: 80)) },
         "material.spacing.80.e": { AnyView(SpacingScene(gaps: [80, 88, 96], spacing: 80)) },
         "material.merge": { AnyView(MergeScene()) },
+        "material.respace": { AnyView(RespaceScene()) },
         "material.union": { AnyView(UnionScene()) },
         "material.morph": { AnyView(MorphScene()) },
         "material.morph.plain": { AnyView(MorphScene(interactive: false)) },
@@ -219,6 +220,30 @@ struct MergeScene: View {
                 HStack(spacing: 24) {
                     LabButton(title: "Merge", id: "merge") { withAnimation { merged = true } }
                     LabButton(title: "Split", id: "split") { withAnimation { merged = false } }
+                }
+                .padding(.bottom, 120)
+            }
+        }
+    }
+}
+
+struct RespaceScene: View {
+    @State private var wide = false
+
+    var body: some View {
+        ZStack {
+            Backdrop()
+            GlassEffectContainer(spacing: wide ? 40 : 8) {
+                HStack(spacing: 12) {
+                    Color.clear.frame(width: 80, height: 80).glassEffect(.regular, in: .circle)
+                    Color.clear.frame(width: 80, height: 80).glassEffect(.regular, in: .circle)
+                }
+            }
+            VStack {
+                Spacer()
+                HStack(spacing: 24) {
+                    LabButton(title: "Widen", id: "widen") { withAnimation { wide = true } }
+                    LabButton(title: "Narrow", id: "narrow") { withAnimation { wide = false } }
                 }
                 .padding(.bottom, 120)
             }

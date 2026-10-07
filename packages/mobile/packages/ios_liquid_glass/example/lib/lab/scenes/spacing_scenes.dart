@@ -43,6 +43,7 @@ sealed class SpacingScenes {
     for (final MapEntry(key: id, value: gaps) in gaps.entries)
       id: (launch) => SpacingScene(backdrop: launch.backdrop, gaps: gaps, spacing: spacing[id]),
     'material.merge': (launch) => MergeScene(backdrop: launch.backdrop),
+    'material.respace': (launch) => RespaceScene(backdrop: launch.backdrop),
   };
 }
 
@@ -170,6 +171,67 @@ class _MergeSceneState extends State<MergeScene> {
                       LabButton(title: 'Merge', id: 'merge', onTap: () => _set(true)),
                       const SizedBox(width: 24),
                       LabButton(title: 'Split', id: 'split', onTap: () => _set(false)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class RespaceScene extends StatefulWidget {
+  const RespaceScene({super.key, required this.backdrop});
+
+  final String backdrop;
+
+  @override
+  State<RespaceScene> createState() => _RespaceSceneState();
+}
+
+class _RespaceSceneState extends State<RespaceScene> {
+  bool _wide = false;
+
+  void _set(bool wide) => withGlassAnimation(GlassAnimation.defaultSpring, () => setState(() => _wide = wide));
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(child: GlassLabBackdrop(id: widget.backdrop)),
+        SafeArea(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: CustomSingleChildLayout(
+                  delegate: const WholePointCenter(),
+                  child: GlassEffectContainer(
+                    spacing: _wide ? 40 : 8,
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        LabBlock(width: 80, height: 80, shape: GlassShape.circle()),
+                        SizedBox(width: 12),
+                        LabBlock(width: 80, height: 80, shape: GlassShape.circle()),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 120,
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      LabButton(title: 'Widen', id: 'widen', onTap: () => _set(true)),
+                      const SizedBox(width: 24),
+                      LabButton(title: 'Narrow', id: 'narrow', onTap: () => _set(false)),
                     ],
                   ),
                 ),

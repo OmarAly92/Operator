@@ -691,6 +691,58 @@
     }
   },
   {
+    "id": "material.respace",
+    "group": "material",
+    "title": "Two 80 pt circles 12 pt apart in a container whose spacing animates between 8 and 40 pt",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "widen"
+      },
+      {
+        "wait": 1.5
+      },
+      {
+        "tap": "narrow"
+      },
+      {
+        "wait": 1.5
+      }
+    ],
+    "regions": {
+      "pair": [
+        103,
+        399,
+        196,
+        104
+      ]
+    },
+    "track": [
+      "pair"
+    ],
+    "topology": [
+      "pair"
+    ],
+    "motion": [
+      "topology.count",
+      "topology.join_ms",
+      "topology.split_ms",
+      "topology.neck_rms",
+      "topology.gap_rms"
+    ]
+  },
+  {
     "id": "material.union",
     "group": "material",
     "title": "Glass union of four items in two groups",

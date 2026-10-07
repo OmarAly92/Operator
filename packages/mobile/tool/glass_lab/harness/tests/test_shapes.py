@@ -331,6 +331,12 @@ class OuterEdgeTests(unittest.TestCase):
         value, limit, bound = shapes.limits(result, scene)["left.step0e0.xmin.settle_ms"]
         self.assertGreater(value, limit)
 
+    def test_a_topology_change_alone_makes_an_event_significant(self):
+        flat = {key: np.zeros(10) for key in ("width", "height", "cx", "cy", "luma", "progress")}
+        self.assertFalse(shapes.significant(flat))
+        self.assertTrue(shapes.significant({**flat, "count": np.array([2.0] * 5 + [1.0] * 5)}))
+        self.assertFalse(shapes.significant({**flat, "count": np.array([2.0] * 10)}))
+
     def test_edges_do_not_make_a_still_event_significant(self):
         series = {key: np.zeros(10) for key in ("width", "height", "cx", "cy", "luma", "progress")}
         series.update({key: np.arange(10) * 10.0 for key in ("xmin", "xmax", "ymin", "ymax")})

@@ -172,6 +172,8 @@ def event_series(times, rows, first, last):
 
 
 def significant(series):
+    if "count" in series and np.ptp(np.array(series["count"], dtype=np.float64)) >= 1:
+        return True
     return any(np.isfinite(series[key]).all() and np.ptp(series[key]) >= MIN_EVENT_CHANGE[key] for key in SIGNIFICANT_KEYS)
 
 

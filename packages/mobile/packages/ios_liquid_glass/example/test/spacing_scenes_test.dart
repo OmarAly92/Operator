@@ -108,4 +108,28 @@ void main() {
     expect(_glass(tester), [const Rect.fromLTWH(81, top, 80, 80), const Rect.fromLTWH(241, top, 80, 80)]);
     semantics.dispose();
   });
+
+  testWidgets('material.respace is two 80 pt circles 12 pt apart in a container whose spacing is 8, 40 after Widen and 8 after Narrow, the circles never moving', (tester) async {
+    _iPhone17Pro(tester);
+    await tester.pumpWidget(MaterialApp(home: GlassLabScreen(launch: GlassLabLaunch(scene: 'material.respace'))));
+    await tester.pump(const Duration(seconds: 1));
+    final rects = _glass(tester);
+    expect(rects, hasLength(2));
+    expect(rects.map((rect) => rect.size).toSet(), {const Size(80, 80)});
+    expect(rects[1].left - rects[0].right, 12);
+    expect(rects[0].center.dy, 451);
+    double spacing() => tester.widget<GlassEffectContainer>(find.byType(GlassEffectContainer)).spacing;
+    expect(spacing(), 8);
+    await tester.tap(find.bySemanticsIdentifier('widen'));
+    await tester.pump();
+    expect(spacing(), 40);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(_glass(tester), rects);
+    await tester.pumpAndSettle();
+    expect(_glass(tester), rects);
+    await tester.tap(find.bySemanticsIdentifier('narrow'));
+    await tester.pumpAndSettle();
+    expect(spacing(), 8);
+    expect(_glass(tester), rects);
+  });
 }

@@ -106,6 +106,18 @@ class RealMotionManifestTests(unittest.TestCase):
                 self.assertIn(name, entry["motion"])
 
 
+class RespaceManifestTests(unittest.TestCase):
+    def test_the_respace_scene_judges_the_pair_of_a_container_whose_spacing_animates(self):
+        entry = next(entry for entry in json.loads(manifest.MANIFEST.read_text()) if entry["id"] == "material.respace")
+        self.assertEqual(entry["steps"], [{"wait": 0.5}, {"tap": "widen"}, {"wait": 1.5}, {"tap": "narrow"}, {"wait": 1.5}])
+        self.assertEqual(entry["topology"], ["pair"])
+        self.assertEqual(entry["backdrops"], ["photo"])
+        self.assertEqual(entry["appearances"], ["light", "dark"])
+        self.assertEqual(entry["motion"], ["topology.count", "topology.join_ms", "topology.split_ms", "topology.neck_rms", "topology.gap_rms"])
+        self.assertFalse(entry["id"].startswith("material.spacing."))
+        self.assertEqual([scene.id for scene in manifest.select(manifest.load(), "material.spacing")], [scene.id for scene in manifest.load() if scene.id.startswith("material.spacing.")])
+
+
 class TrackTests(unittest.TestCase):
     def base(self, **changes):
         entry = {"id": "x", "group": "material", "title": "t", "inventory": "2.13", "app": "lab", "backdrops": ["stripes"], "appearances": ["dark"], "steps": [], "regions": {"a": [0, 0, 1, 1], "b": [1, 1, 1, 1]}}
