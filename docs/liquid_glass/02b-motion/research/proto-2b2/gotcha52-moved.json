@@ -1,0 +1,272 @@
+[
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.cx.peak_ms",
+  "noise_before": 8.333333333333314,
+  "noise_after": 16.666666666666657,
+  "limit_before": 17.0,
+  "limit_after": 24.999999999999986,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.cx.settle_ms",
+  "noise_before": 0.0,
+  "noise_after": 8.333333333333343,
+  "limit_before": 17.0,
+  "limit_after": 17.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.cy.peak_ms",
+  "noise_before": 100.00000000000006,
+  "noise_after": 16.666666666666686,
+  "limit_before": 150.00000000000009,
+  "limit_after": 25.00000000000003,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.cy.settle_ms",
+  "noise_before": 100.00000000000006,
+  "noise_after": 16.666666666666686,
+  "limit_before": 150.00000000000009,
+  "limit_after": 25.00000000000003,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.height.peak_ms",
+  "noise_before": 83.33333333333331,
+  "noise_after": 8.333333333333314,
+  "limit_before": 124.99999999999997,
+  "limit_after": 17.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.height.settle_ms",
+  "noise_before": 100.0,
+  "noise_after": 25.00000000000003,
+  "limit_before": 150.0,
+  "limit_after": 37.50000000000004,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.luma.damping",
+  "noise_before": 0.3800000000000001,
+  "noise_after": 0.17000000000000015,
+  "limit_before": 0.5700000000000002,
+  "limit_after": 0.2550000000000002,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.luma.overshoot_pct",
+  "noise_before": 0.0067178059088846,
+  "noise_after": 0.025617279439371643,
+  "limit_before": 2.0,
+  "limit_after": 2.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.luma.peak_ms",
+  "noise_before": 41.66666666666663,
+  "noise_after": 25.0,
+  "limit_before": 62.49999999999994,
+  "limit_after": 37.5,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.luma.response_pct",
+  "noise_before": 223.80952380952382,
+  "noise_after": 21.739130434782606,
+  "limit_before": 335.7142857142857,
+  "limit_after": 32.60869565217391,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.luma.settle_ms",
+  "noise_before": 100.00000000000003,
+  "noise_after": 8.333333333333343,
+  "limit_before": 150.00000000000006,
+  "limit_after": 17.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.progress.damping",
+  "noise_before": 0.3800000000000001,
+  "noise_after": 0.19000000000000017,
+  "limit_before": 0.5700000000000002,
+  "limit_after": 0.28500000000000025,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.progress.overshoot_pct",
+  "noise_before": 0.004978935524313499,
+  "noise_after": 0.02282726112938782,
+  "limit_before": 2.0,
+  "limit_after": 2.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.progress.response_pct",
+  "noise_before": 223.80952380952382,
+  "noise_after": 21.739130434782606,
+  "limit_before": 335.7142857142857,
+  "limit_after": 32.60869565217391,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.progress.rms",
+  "noise_before": 0.014979763488270681,
+  "noise_after": 0.015158472943085066,
+  "limit_before": 0.05,
+  "limit_after": 0.05,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.progress.settle_ms",
+  "noise_before": 100.00000000000003,
+  "noise_after": 0.0,
+  "limit_before": 150.00000000000006,
+  "limit_after": 17.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.progress.sharpness",
+  "noise_before": 0.229417801958836,
+  "noise_after": 0.21174924982452392,
+  "limit_before": 1.0,
+  "limit_after": 1.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.width.peak_ms",
+  "noise_before": 83.33333333333331,
+  "noise_after": 8.333333333333314,
+  "limit_before": 124.99999999999997,
+  "limit_after": 17.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.width.response_pct",
+  "noise_before": 3.0769230769230793,
+  "noise_after": 6.153846153846142,
+  "limit_before": 5.0,
+  "limit_after": 9.230769230769212,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step1e0.width.settle_ms",
+  "noise_before": 100.0,
+  "noise_after": 25.00000000000003,
+  "limit_before": 150.0,
+  "limit_after": 37.50000000000004,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step3e0.luma.overshoot_pct",
+  "noise_before": 0.014776581222553098,
+  "noise_after": 0.02219135610248557,
+  "limit_before": 2.0,
+  "limit_after": 2.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step3e0.luma.peak_ms",
+  "noise_before": 16.66666666666663,
+  "noise_after": 41.66666666666663,
+  "limit_before": 24.999999999999943,
+  "limit_after": 62.49999999999994,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step3e0.progress.damping",
+  "noise_before": 0.10000000000000009,
+  "noise_after": 0.08000000000000007,
+  "limit_before": 0.15000000000000013,
+  "limit_after": 0.1200000000000001,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step3e0.progress.overshoot_pct",
+  "noise_before": 0.03631325115123207,
+  "noise_after": 0.04983722054860973,
+  "limit_before": 2.0,
+  "limit_after": 2.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step3e0.progress.rms",
+  "noise_before": 0.016867946441873415,
+  "noise_after": 0.016220729196660025,
+  "limit_before": 0.05,
+  "limit_after": 0.05,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "block.step3e0.progress.sharpness",
+  "noise_before": 0.07639818167021017,
+  "noise_after": 0.07149492865526863,
+  "limit_before": 1.0,
+  "limit_after": 1.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.materialize",
+  "case": "light-photo-reduce-motion",
+  "measure": "step1e0.delay_ms",
+  "noise_before": 100.0000000000032,
+  "noise_after": 19.999999999999574,
+  "limit_before": 150.0000000000048,
+  "limit_after": 29.99999999999936,
+  "limit_moved": true
+ }
+]

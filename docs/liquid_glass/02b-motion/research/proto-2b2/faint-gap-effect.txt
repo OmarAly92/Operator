@@ -1,0 +1,11 @@
+Native N7 stills, run 20261007-000000 (photo), pairs compared pixel for pixel at the same gap and position, different spacing S.
+Differences above 2 levels exist only in an 8 x 10 pt patch at the gap centre (x 92-104, y 47-57 pt of the region), never on the silhouette:
+  S4 or S6 against S8 at gap 8:   max 8 (dark) / 6 (light) levels, 58 / 78 pixels > 2
+  S12 against S8 at gap 12:       max 6 / 4 levels, 53 / 61 pixels > 2
+  S10 against S8 at gap 12:       max 1 / 1, none > 2
+  S40 against S8 at gaps 40, 48, 60; S20 against S8 at gaps 24, 32: max 1-2, none > 2
+Silhouette bulge is 0.00 pt in every one of these pairs (n7-series-light-photo-silhouette.json: S8 g8, S12 g12, S4/S6 g8).
+The angle-weighted union evaluated at the gap centre (a = b = gap / 2, n_a . n_b = -1, h = 1): f = gap / 2 - k / 4.
+  S4 g8 3.0 pt, S8 g8 2.0, S12 g12 3.0, S8 g12 4.0, S10 g12 3.5, S40 g40 10.0, S8 g40 18.0, S20 g24 7.0, S8 g24 10.0
+The patch differs exactly where both compared fields lie within about 3.5 pt of the silhouette and differ (2.0 against 3.0; 3.0 against 4.0) and is absent where they differ only above 3.5 pt (3.5 against 4.0; 10 against 18).
+Reading: the darkening just outside native glass (outline and shadow band) follows the blended field outside the silhouette; the union is applied to the whole field, not only to the shape, so it is a real native effect that the angle-weighted union already predicts, provided the package draws its outline band from the blended field.

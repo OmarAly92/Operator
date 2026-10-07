@@ -1,0 +1,163 @@
+== dark-photo-reduce-motion
+  left step1e0 width.peak_ms: native none (travel 0.00) | flutter none (travel 0.00) | |diff| absent limit 17.0
+  right step1e0 width.peak_ms: native 225 | flutter none (travel 0.00) | |diff| absent limit 17.0
+  left step1e0 width.settle_ms: native none (travel 0.00) | flutter none (travel 0.00) | |diff| absent limit 17.0
+  right step1e0 width.settle_ms: native 508.3 | flutter none (travel 0.00) | |diff| absent limit 17.0
+  left step1e0 width.overshoot_pct: native none (travel 0.00) | flutter none (travel 0.00) | |diff| absent limit 2.0
+  right step1e0 width.overshoot_pct: native 2364 | flutter none (travel 0.00) | |diff| absent limit 2.0
+  left step1e0 width.response_pct: native - | flutter - | |diff| absent limit 5.0
+  right step1e0 width.response_pct: native 1.50/2.00 rms 43.058 | flutter - | |diff| absent limit 5.0
+  left step1e0 width.damping: native - | flutter - | |diff| absent limit 0.05
+  right step1e0 width.damping: native 1.50/2.00 rms 43.058 | flutter - | |diff| absent limit 0.05
+  left step1e0 cx.peak_ms: native 558.3 | flutter 8.333 | |diff| 550 limit 17.0
+  right step1e0 cx.peak_ms: native 508.3 | flutter 583.3 | |diff| 75 limit 17.0
+  left step1e0 cx.settle_ms: native 400 | flutter 450 | |diff| 50 limit 17.0
+  right step1e0 cx.settle_ms: native 383.3 | flutter 441.7 | |diff| 58.3 limit 17.0
+  left step1e0 cx.response_pct: native 0.48/0.90 rms 0.014 | flutter 0.60/0.84 rms 0.122 | |diff| 25 limit 5.0
+  right step1e0 cx.response_pct: native 0.75/0.73 rms 0.156 | flutter 0.60/0.83 rms 0.071 | |diff| absent limit 5.0
+  left step1e0 cx.damping: native 0.48/0.90 rms 0.014 | flutter 0.60/0.84 rms 0.122 | |diff| 0.06 limit 0.05
+  right step1e0 cx.damping: native 0.75/0.73 rms 0.156 | flutter 0.60/0.83 rms 0.071 | |diff| absent limit 0.05
+  pair step1e0 topology.join_ms: |diff| 33.3 limit 17.0; native joins [208.33333333333334] splits []; flutter joins [241.66666666666666] splits []
+  pair step1e0 topology.neck_rms: |diff| 5.29 limit 1.0; native joins [208.33333333333334] splits []; flutter joins [241.66666666666666] splits []
+  left step3e0 width.peak_ms: native 175 | flutter 8.333 | |diff| absent limit 17.0
+  right step3e0 width.peak_ms: native 58.33 | flutter 8.333 | |diff| absent limit 17.0
+  left step3e0 width.settle_ms: native 533.3 | flutter 633.3 | |diff| absent limit 17.0
+  right step3e0 width.settle_ms: native 600 | flutter 716.7 | |diff| absent limit 17.0
+  left step3e0 width.overshoot_pct: native 100 | flutter 5900 | |diff| absent limit 2.0
+  right step3e0 width.overshoot_pct: native 6950 | flutter 1.21e+04 | |diff| absent limit 2.0
+  left step3e0 width.response_pct: native 0.74/0.36 rms 3.088 | flutter 0.05/0.10 rms 7.448 | |diff| absent limit 5.0
+  right step3e0 width.response_pct: native 0.14/0.10 rms 14.592 | flutter 1.50/1.76 rms 15.314 | |diff| absent limit 5.0
+  left step3e0 width.damping: native 0.74/0.36 rms 3.088 | flutter 0.05/0.10 rms 7.448 | |diff| absent limit 0.05
+  right step3e0 width.damping: native 0.14/0.10 rms 14.592 | flutter 1.50/1.76 rms 15.314 | |diff| absent limit 0.05
+  left step3e0 cx.peak_ms: native 600 | flutter 633.3 | |diff| 33.3 limit 17.0
+  right step3e0 cx.peak_ms: native 600 | flutter 716.7 | |diff| 117 limit 17.0
+  left step3e0 cx.settle_ms: native 450 | flutter 500 | |diff| 50 limit 17.0
+  right step3e0 cx.settle_ms: native 450 | flutter 516.7 | |diff| 66.7 limit 17.0
+  left step3e0 cx.response_pct: native 0.36/1.24 rms 0.005 | flutter 0.64/0.89 rms 0.063 | |diff| 77.8 limit 5.0
+  right step3e0 cx.response_pct: native 0.19/2.00 rms 0.111 | flutter 0.65/0.88 rms 0.066 | |diff| absent limit 5.0
+  left step3e0 cx.damping: native 0.36/1.24 rms 0.005 | flutter 0.64/0.89 rms 0.063 | |diff| 0.35 limit 0.05
+  right step3e0 cx.damping: native 0.19/2.00 rms 0.111 | flutter 0.65/0.88 rms 0.066 | |diff| absent limit 0.05
+  pair step3e0 topology.count: |diff| 1 limit 0.0; native joins [] splits [58.333333333333336]; flutter joins [33.333333333333336] splits [8.333333333333334, 108.33333333333333]
+  pair step3e0 topology.join_ms: |diff| absent limit 17.0; native joins [] splits [58.333333333333336]; flutter joins [33.333333333333336] splits [8.333333333333334, 108.33333333333333]
+  pair step3e0 topology.split_ms: |diff| 50 limit 17.0; native joins [] splits [58.333333333333336]; flutter joins [33.333333333333336] splits [8.333333333333334, 108.33333333333333]
+  pair step3e0 topology.neck_rms: |diff| 18.9 limit 1.0; native joins [] splits [58.333333333333336]; flutter joins [33.333333333333336] splits [8.333333333333334, 108.33333333333333]
+== dark-stripes-reduce-motion
+  left step1e0 width.peak_ms: native 583.3 | flutter 683.3 | |diff| absent limit 17.0
+  right step1e0 width.peak_ms: native 516.7 | flutter 583.3 | |diff| absent limit 17.0
+  left step1e0 width.settle_ms: native 583.3 | flutter 683.3 | |diff| absent limit 17.0
+  right step1e0 width.settle_ms: native 516.7 | flutter 575 | |diff| absent limit 17.0
+  left step1e0 width.overshoot_pct: native 0 | flutter 0 | |diff| absent limit 2.0
+  right step1e0 width.overshoot_pct: native 0 | flutter 0 | |diff| absent limit 2.0
+  left step1e0 width.response_pct: native 1.50/2.00 rms 1.486 | flutter 1.50/2.00 rms 1.274 | |diff| absent limit 5.0
+  right step1e0 width.response_pct: native 1.50/2.00 rms 1.430 | flutter 1.50/2.00 rms 3.224 | |diff| absent limit 5.0
+  left step1e0 width.damping: native 1.50/2.00 rms 1.486 | flutter 1.50/2.00 rms 1.274 | |diff| absent limit 0.05
+  right step1e0 width.damping: native 1.50/2.00 rms 1.430 | flutter 1.50/2.00 rms 3.224 | |diff| absent limit 0.05
+  left step1e0 cx.peak_ms: native 583.3 | flutter 683.3 | |diff| 100 limit 17.0
+  right step1e0 cx.peak_ms: native 516.7 | flutter 583.3 | |diff| 66.7 limit 17.0
+  left step1e0 cx.settle_ms: native 408.3 | flutter 450 | |diff| 41.7 limit 17.0
+  right step1e0 cx.settle_ms: native 383.3 | flutter 441.7 | |diff| 58.3 limit 17.0
+  left step1e0 cx.response_pct: native 0.44/0.94 rms 0.017 | flutter 0.60/0.84 rms 0.123 | |diff| 36.4 limit 5.0
+  right step1e0 cx.response_pct: native 0.45/0.91 rms 0.017 | flutter 0.60/0.83 rms 0.046 | |diff| 33.3 limit 5.0
+  left step1e0 cx.damping: native 0.44/0.94 rms 0.017 | flutter 0.60/0.84 rms 0.123 | |diff| 0.1 limit 0.05
+  right step1e0 cx.damping: native 0.45/0.91 rms 0.017 | flutter 0.60/0.83 rms 0.046 | |diff| 0.08 limit 0.05
+  pair step1e0 topology.join_ms: |diff| 25 limit 17.0; native joins [216.66666666666666] splits []; flutter joins [241.66666666666666] splits []
+  pair step1e0 topology.neck_rms: |diff| 5.66 limit 1.0; native joins [216.66666666666666] splits []; flutter joins [241.66666666666666] splits []
+  left step3e0 width.peak_ms: native 41.67 | flutter 8.333 | |diff| absent limit 17.0
+  right step3e0 width.peak_ms: native 41.67 | flutter 91.67 | |diff| absent limit 17.0
+  left step3e0 width.settle_ms: native 583.3 | flutter 558.3 | |diff| absent limit 17.0
+  right step3e0 width.settle_ms: native 566.7 | flutter 691.7 | |diff| absent limit 17.0
+  left step3e0 width.overshoot_pct: native 1059 | flutter 2300 | |diff| absent limit 2.0
+  right step3e0 width.overshoot_pct: native 672.7 | flutter 480 | |diff| absent limit 2.0
+  left step3e0 width.response_pct: native 0.09/0.10 rms 2.209 | flutter 0.05/0.10 rms 3.007 | |diff| absent limit 5.0
+  right step3e0 width.response_pct: native 0.09/0.10 rms 1.339 | flutter 0.19/0.10 rms 3.062 | |diff| absent limit 5.0
+  left step3e0 width.damping: native 0.09/0.10 rms 2.209 | flutter 0.05/0.10 rms 3.007 | |diff| absent limit 0.05
+  right step3e0 width.damping: native 0.09/0.10 rms 1.339 | flutter 0.19/0.10 rms 3.062 | |diff| absent limit 0.05
+  right step3e0 cx.peak_ms: native 566.7 | flutter 691.7 | |diff| 125 limit 17.0
+  left step3e0 cx.settle_ms: native 433.3 | flutter 491.7 | |diff| 58.3 limit 17.0
+  right step3e0 cx.settle_ms: native 441.7 | flutter 525 | |diff| 83.3 limit 17.0
+  left step3e0 cx.response_pct: native 0.39/1.14 rms 0.008 | flutter 0.66/0.87 rms 0.067 | |diff| 69.2 limit 5.0
+  right step3e0 cx.response_pct: native 0.39/1.13 rms 0.008 | flutter 0.67/0.87 rms 0.069 | |diff| 71.8 limit 5.0
+  left step3e0 cx.damping: native 0.39/1.14 rms 0.008 | flutter 0.66/0.87 rms 0.067 | |diff| 0.27 limit 0.05
+  right step3e0 cx.damping: native 0.39/1.13 rms 0.008 | flutter 0.67/0.87 rms 0.069 | |diff| 0.26 limit 0.05
+  pair step3e0 topology.count: |diff| 1 limit 0.0; native joins [] splits [66.66666666666667]; flutter joins [] splits [116.66666666666667]
+  pair step3e0 topology.split_ms: |diff| 50 limit 17.0; native joins [] splits [66.66666666666667]; flutter joins [] splits [116.66666666666667]
+  pair step3e0 topology.neck_rms: |diff| 24.5 limit 1.0; native joins [] splits [66.66666666666667]; flutter joins [] splits [116.66666666666667]
+== light-photo-reduce-motion
+  left step1e0 width.peak_ms: native 75 | flutter none (travel 0.00) | |diff| absent limit 17.0
+  right step1e0 width.peak_ms: native none (travel 0.00) | flutter 225 | |diff| absent limit 17.0
+  left step1e0 width.settle_ms: native 625 | flutter none (travel 0.00) | |diff| absent limit 17.0
+  right step1e0 width.settle_ms: native none (travel 0.00) | flutter 550 | |diff| absent limit 17.0
+  left step1e0 width.overshoot_pct: native 0 | flutter none (travel 0.00) | |diff| absent limit 2.0
+  right step1e0 width.overshoot_pct: native none (travel 0.00) | flutter 900 | |diff| absent limit 2.0
+  left step1e0 width.response_pct: native 1.50/2.00 rms 8.576 | flutter - | |diff| absent limit 5.0
+  right step1e0 width.response_pct: native - | flutter 0.60/0.10 rms 2.550 | |diff| absent limit 5.0
+  left step1e0 width.damping: native 1.50/2.00 rms 8.576 | flutter - | |diff| absent limit 0.05
+  right step1e0 width.damping: native - | flutter 0.60/0.10 rms 2.550 | |diff| absent limit 0.05
+  right step1e0 cx.peak_ms: native 625 | flutter 550 | |diff| 75 limit 17.0
+  left step1e0 cx.settle_ms: native 391.7 | flutter 433.3 | |diff| 41.7 limit 17.0
+  right step1e0 cx.settle_ms: native 391.7 | flutter 416.7 | |diff| 25 limit 17.0
+  left step1e0 cx.response_pct: native 0.42/0.96 rms 0.019 | flutter 0.53/0.88 rms 0.018 | |diff| 26.2 limit 5.0
+  right step1e0 cx.response_pct: native 0.42/0.96 rms 0.019 | flutter 0.53/0.87 rms 0.018 | |diff| 26.2 limit 5.0
+  left step1e0 cx.damping: native 0.42/0.96 rms 0.019 | flutter 0.53/0.88 rms 0.018 | |diff| 0.08 limit 0.05
+  right step1e0 cx.damping: native 0.42/0.96 rms 0.019 | flutter 0.53/0.87 rms 0.018 | |diff| 0.09 limit 0.05
+  pair step1e0 topology.join_ms: |diff| 25 limit 17.0; native joins [208.33333333333334] splits []; flutter joins [233.33333333333334] splits []
+  pair step1e0 topology.neck_rms: |diff| 3.81 limit 1.0; native joins [208.33333333333334] splits []; flutter joins [233.33333333333334] splits []
+  left step3e0 width.peak_ms: native 58.33 | flutter none (travel 0.00) | |diff| absent limit 17.0
+  right step3e0 width.peak_ms: native none (travel 0.00) | flutter 8.333 | |diff| absent limit 17.0
+  left step3e0 width.settle_ms: native 566.7 | flutter none (travel 0.00) | |diff| absent limit 17.0
+  right step3e0 width.settle_ms: native none (travel 0.00) | flutter 741.7 | |diff| absent limit 17.0
+  left step3e0 width.overshoot_pct: native 2360 | flutter none (travel 0.00) | |diff| absent limit 2.0
+  right step3e0 width.overshoot_pct: native none (travel 0.00) | flutter 6000 | |diff| absent limit 2.0
+  left step3e0 width.response_pct: native 0.11/0.10 rms 4.878 | flutter - | |diff| absent limit 5.0
+  right step3e0 width.response_pct: native - | flutter 1.22/0.32 rms 7.410 | |diff| absent limit 5.0
+  left step3e0 width.damping: native 0.11/0.10 rms 4.878 | flutter - | |diff| absent limit 0.05
+  right step3e0 width.damping: native - | flutter 1.22/0.32 rms 7.410 | |diff| absent limit 0.05
+  left step3e0 cx.peak_ms: native 625 | flutter 708.3 | |diff| 83.3 limit 17.0
+  right step3e0 cx.peak_ms: native 641.7 | flutter 741.7 | |diff| 100 limit 17.0
+  left step3e0 cx.settle_ms: native 483.3 | flutter 516.7 | |diff| 33.3 limit 17.0
+  right step3e0 cx.settle_ms: native 475 | flutter 516.7 | |diff| 41.7 limit 17.0
+  left step3e0 cx.response_pct: native 0.44/1.11 rms 0.015 | flutter 0.65/0.88 rms 0.061 | |diff| 47.7 limit 5.0
+  right step3e0 cx.response_pct: native 0.45/1.08 rms 0.014 | flutter 0.65/0.89 rms 0.063 | |diff| 44.4 limit 5.0
+  left step3e0 cx.damping: native 0.44/1.11 rms 0.015 | flutter 0.65/0.88 rms 0.061 | |diff| 0.23 limit 0.05
+  right step3e0 cx.damping: native 0.45/1.08 rms 0.014 | flutter 0.65/0.89 rms 0.063 | |diff| 0.19 limit 0.05
+  pair step3e0 topology.split_ms: |diff| 33.3 limit 17.0; native joins [] splits [75.0]; flutter joins [] splits [108.33333333333333]
+  pair step3e0 topology.neck_rms: |diff| 10.6 limit 1.0; native joins [] splits [75.0]; flutter joins [] splits [108.33333333333333]
+== light-stripes-reduce-motion
+  left step1e0 width.peak_ms: native 575 | flutter 8.333 | |diff| absent limit 17.0
+  right step1e0 width.peak_ms: native 600 | flutter 8.333 | |diff| absent limit 17.0
+  left step1e0 width.settle_ms: native 575 | flutter 625 | |diff| absent limit 17.0
+  right step1e0 width.settle_ms: native 591.7 | flutter 683.3 | |diff| absent limit 17.0
+  left step1e0 width.overshoot_pct: native 0 | flutter 25 | |diff| absent limit 2.0
+  right step1e0 width.overshoot_pct: native 0 | flutter 1620 | |diff| absent limit 2.0
+  left step1e0 width.response_pct: native 1.50/2.00 rms 1.603 | flutter 1.50/2.00 rms 1.976 | |diff| absent limit 5.0
+  right step1e0 width.response_pct: native 1.50/2.00 rms 1.290 | flutter 1.50/2.00 rms 2.587 | |diff| absent limit 5.0
+  left step1e0 width.damping: native 1.50/2.00 rms 1.603 | flutter 1.50/2.00 rms 1.976 | |diff| absent limit 0.05
+  right step1e0 width.damping: native 1.50/2.00 rms 1.290 | flutter 1.50/2.00 rms 2.587 | |diff| absent limit 0.05
+  left step1e0 cx.peak_ms: native 575 | flutter 8.333 | |diff| 567 limit 17.0
+  right step1e0 cx.peak_ms: native 600 | flutter 683.3 | |diff| 83.3 limit 17.0
+  left step1e0 cx.settle_ms: native 416.7 | flutter 450 | |diff| 33.3 limit 17.0
+  right step1e0 cx.settle_ms: native 416.7 | flutter 450 | |diff| 33.3 limit 17.0
+  left step1e0 cx.response_pct: native 0.45/0.92 rms 0.018 | flutter 0.60/0.83 rms 0.122 | |diff| 33.3 limit 5.0
+  right step1e0 cx.response_pct: native 0.44/0.94 rms 0.018 | flutter 0.60/0.83 rms 0.082 | |diff| 36.4 limit 5.0
+  left step1e0 cx.damping: native 0.45/0.92 rms 0.018 | flutter 0.60/0.83 rms 0.122 | |diff| 0.09 limit 0.05
+  right step1e0 cx.damping: native 0.44/0.94 rms 0.018 | flutter 0.60/0.83 rms 0.082 | |diff| 0.11 limit 0.05
+  pair step1e0 topology.join_ms: |diff| 33.3 limit 17.0; native joins [208.33333333333334] splits []; flutter joins [241.66666666666666] splits []
+  pair step1e0 topology.neck_rms: |diff| 5 limit 1.0; native joins [208.33333333333334] splits []; flutter joins [241.66666666666666] splits []
+  left step3e0 width.peak_ms: native 58.33 | flutter 8.333 | |diff| absent limit 17.0
+  right step3e0 width.peak_ms: native 58.33 | flutter 91.67 | |diff| absent limit 17.0
+  left step3e0 width.settle_ms: native 625 | flutter 641.7 | |diff| absent limit 17.0
+  right step3e0 width.settle_ms: native 625 | flutter 608.3 | |diff| absent limit 17.0
+  left step3e0 width.overshoot_pct: native 364 | flutter 2300 | |diff| absent limit 2.0
+  right step3e0 width.overshoot_pct: native 290 | flutter 480 | |diff| absent limit 2.0
+  left step3e0 width.response_pct: native 0.12/0.10 rms 0.694 | flutter 0.05/0.10 rms 2.965 | |diff| absent limit 5.0
+  right step3e0 width.response_pct: native 0.12/0.11 rms 0.534 | flutter 0.18/0.10 rms 3.004 | |diff| absent limit 5.0
+  left step3e0 width.damping: native 0.12/0.10 rms 0.694 | flutter 0.05/0.10 rms 2.965 | |diff| absent limit 0.05
+  right step3e0 width.damping: native 0.12/0.11 rms 0.534 | flutter 0.18/0.10 rms 3.004 | |diff| absent limit 0.05
+  left step3e0 cx.settle_ms: native 483.3 | flutter 508.3 | |diff| 25 limit 17.0
+  right step3e0 cx.settle_ms: native 466.7 | flutter 500 | |diff| 33.3 limit 17.0
+  left step3e0 cx.response_pct: native 0.49/0.99 rms 0.013 | flutter 0.65/0.89 rms 0.065 | |diff| 32.7 limit 5.0
+  right step3e0 cx.response_pct: native 0.49/0.99 rms 0.013 | flutter 0.66/0.87 rms 0.067 | |diff| 34.7 limit 5.0
+  left step3e0 cx.damping: native 0.49/0.99 rms 0.013 | flutter 0.65/0.89 rms 0.065 | |diff| 0.1 limit 0.05
+  right step3e0 cx.damping: native 0.49/0.99 rms 0.013 | flutter 0.66/0.87 rms 0.067 | |diff| 0.12 limit 0.05
+  pair step3e0 topology.split_ms: |diff| 41.7 limit 17.0; native joins [] splits [75.0]; flutter joins [] splits [116.66666666666667]
+  pair step3e0 topology.neck_rms: |diff| 8.88 limit 1.0; native joins [] splits [75.0]; flutter joins [] splits [116.66666666666667]

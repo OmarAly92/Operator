@@ -1,0 +1,66 @@
+diff --git a/packages/mobile/packages/ios_liquid_glass/example/lib/lab/scenes/motion_scenes.dart b/packages/mobile/packages/ios_liquid_glass/example/lib/lab/scenes/motion_scenes.dart
+index c6e6b1dea..5abffd2ff 100644
+--- a/packages/mobile/packages/ios_liquid_glass/example/lib/lab/scenes/motion_scenes.dart
++++ b/packages/mobile/packages/ios_liquid_glass/example/lib/lab/scenes/motion_scenes.dart
+@@ -1,3 +1,4 @@
++import 'dart:ui' show FramePhase;
+ import 'package:flutter/material.dart';
+ import 'package:ios_liquid_glass/ios_liquid_glass.dart';
+ 
+@@ -41,6 +42,11 @@ class _MaterializeSceneState extends State<MaterializeScene> {
+   @override
+   void initState() {
+     super.initState();
++    WidgetsBinding.instance.addTimingsCallback((timings) {
++      for (final t in timings) {
++        debugPrint('GLASSH frame n=${t.frameNumber} vsync=${t.timestampInMicroseconds(FramePhase.vsyncStart)} build=${t.timestampInMicroseconds(FramePhase.buildStart)}-${t.timestampInMicroseconds(FramePhase.buildFinish)} raster=${t.timestampInMicroseconds(FramePhase.rasterStart)}-${t.timestampInMicroseconds(FramePhase.rasterFinish)}');
++      }
++    });
+     if (widget.warmUp) WidgetsBinding.instance.addPostFrameCallback((_) => _warmUp());
+   }
+ 
+@@ -53,6 +59,7 @@ class _MaterializeSceneState extends State<MaterializeScene> {
+   }
+ 
+   void _toggle() {
++    debugPrint('GLASSH toggle');
+     final animation = widget.animation;
+     if (animation == null) {
+       setState(() => _shown = !_shown);
+diff --git a/packages/mobile/packages/ios_liquid_glass/lib/src/motion/glass_motion_coordinator.dart b/packages/mobile/packages/ios_liquid_glass/lib/src/motion/glass_motion_coordinator.dart
+index f1974b331..38e18411a 100644
+--- a/packages/mobile/packages/ios_liquid_glass/lib/src/motion/glass_motion_coordinator.dart
++++ b/packages/mobile/packages/ios_liquid_glass/lib/src/motion/glass_motion_coordinator.dart
+@@ -265,6 +265,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
+     } else {
+       _presence.restart(0, 0, 1, animation, now);
+     }
++    debugPrint('GLASSH appear now=${now?.inMicroseconds} sys=${SchedulerBinding.instance.currentSystemFrameTimeStamp.inMicroseconds} phase=${SchedulerBinding.instance.schedulerPhase}');
+     _mapping = mapping;
+     _reduceMotionAtStart = reduceMotion;
+     _darkAtStart = dark;
+@@ -308,8 +309,16 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
+     return moving;
+   }
+ 
++  Duration? debugHoldStart;
++
+   void _publish() {
+     visibility.value = GlassMaterialize.visibility(progress);
++    final now = coordinator._now;
++    if (presence == GlassPresence.appearing && now != null && _presence.isMoving) {
++      final start = debugHoldStart ??= now;
++      if (now - start < const Duration(milliseconds: 400) && _presence.value > 0) visibility.value = 0.0147;
++    }
++    if (presence != GlassPresence.appearing) debugHoldStart = null;
+     _resizeMaterial();
+     notifyListeners();
+   }
+@@ -578,6 +587,7 @@ class GlassMotionCoordinator {
+     var moving = false;
+     for (final member in _members.toList()) {
+       if (member._due) moving = member._sample(now) || moving;
++      if (member.presence == GlassPresence.appearing) debugPrint('GLASSH tick now=${now.inMicroseconds} sys=${SchedulerBinding.instance.currentSystemFrameTimeStamp.inMicroseconds} vis=${member.visibility.value}');
+     }
+     var finished = false;
+     for (final ghost in ghosts.toList()) {

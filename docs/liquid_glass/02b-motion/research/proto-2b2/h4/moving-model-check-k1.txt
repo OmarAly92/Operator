@@ -1,0 +1,26 @@
+slopes {'dark-photo': 17.34, 'dark-stripes': 24.41, 'light-photo': 61.57, 'light-stripes': 34.24}
+material.materialize         dark-photo                   onset second (32 ms) recorded 0.36/1.24 t1090 267 fail 3 | kept 0.36/1.22 t1090 267 fail 3 | dropped 0.33/1.32 t1090 258 fail 4
+material.materialize         dark-stripes                 onset second (28 ms) recorded 0.43/1.17 t1090 292 fail 2 | kept 0.40/1.22 t1090 292 fail 3 | dropped 0.37/1.30 t1090 292 fail 3
+material.materialize         light-photo                  onset second (32 ms) recorded 0.41/1.24 t1090 300 fail 3 | kept 0.54/1.01 t1090 300 fail 3 | dropped 0.41/1.23 t1090 300 fail 3
+material.materialize         light-stripes                onset second (32 ms) recorded 0.38/1.30 t1090 300 fail 2 | kept 0.51/1.05 t1090 300 fail 0 | dropped 0.38/1.29 t1090 300 fail 2
+material.materialize.bouncy  dark-photo                   onset second (28 ms) recorded 0.32/0.90 t1090 158 fail 2 | kept 0.33/0.89 t1090 158 fail 2 | dropped 0.31/0.93 t1090 167 fail 2
+material.materialize.bouncy  dark-stripes                 onset second (28 ms) recorded 0.38/0.82 t1090 167 fail 2 | kept 0.38/0.81 t1090 167 fail 2 | dropped 0.36/0.85 t1090 175 fail 3
+material.materialize.bouncy  light-photo                  onset first (17 ms) recorded 0.47/0.74 t1090 175 fail 2 | kept 0.47/0.74 t1090 175 fail 1 | dropped 0.39/0.80 t1090 175 fail 2
+material.materialize.bouncy  light-stripes                onset first (13 ms) recorded 0.47/0.74 t1090 167 fail 1 | kept 0.46/0.75 t1090 175 fail 2 | dropped 0.37/0.84 t1090 175 fail 3
+material.materialize.snappy  dark-photo                   onset second (32 ms) recorded 0.32/1.07 t1090 192 fail 2 | kept 0.32/1.08 t1090 200 fail 2 | dropped 0.30/1.14 t1090 200 fail 2
+material.materialize.snappy  dark-stripes                 onset first (18 ms) recorded 0.47/0.88 t1090 217 fail 1 | kept 0.37/1.02 t1090 208 fail 2 | dropped 0.34/1.09 t1090 217 fail 2
+material.materialize.snappy  light-photo                  onset first (13 ms) recorded 0.49/0.87 t1090 217 fail 1 | kept 0.48/0.88 t1090 217 fail 1 | dropped 0.38/1.00 t1090 217 fail 2
+material.materialize.snappy  light-stripes                onset first (17 ms) recorded 0.47/0.89 t1090 217 fail 2 | kept 0.46/0.90 t1090 225 fail 2 | dropped 0.36/1.04 t1090 225 fail 2
+material.materialize         dark-photo-reduce-motion     onset second (32 ms) recorded 0.34/1.30 t1090 267 fail 2 | kept 0.36/1.22 t1090 267 fail 3 | dropped 0.33/1.32 t1090 258 fail 4
+material.materialize         dark-stripes-reduce-motion   onset second (30 ms) recorded 0.42/1.20 t1090 292 fail 2 | kept 0.40/1.22 t1090 292 fail 2 | dropped 0.37/1.30 t1090 292 fail 2
+material.materialize         light-photo-reduce-motion    onset first (15 ms) recorded 0.54/1.03 t1090 300 fail 0 | kept 0.54/1.01 t1090 300 fail 1 | dropped 0.41/1.23 t1090 300 fail 1
+material.materialize         light-stripes-reduce-motion  onset first (17 ms) recorded 0.53/1.03 t1090 300 fail 0 | kept 0.51/1.05 t1090 300 fail 2 | dropped 0.38/1.29 t1090 300 fail 2
+material.materialize.bouncy  dark-photo-reduce-motion     onset second (28 ms) recorded 0.33/0.88 t1090 167 fail 3 | kept 0.33/0.89 t1090 158 fail 3 | dropped 0.32/0.90 t1090 167 fail 3
+material.materialize.bouncy  dark-stripes-reduce-motion   onset first (17 ms) recorded 0.47/0.72 t1090 167 fail 3 | kept 0.39/0.79 t1090 167 fail 3 | dropped 0.38/0.80 t1090 175 fail 3
+material.materialize.bouncy  light-photo-reduce-motion    onset first (17 ms) recorded 0.48/0.71 t1090 175 fail 2 | kept 0.48/0.71 t1090 175 fail 2 | dropped 0.40/0.77 t1090 175 fail 3
+material.materialize.bouncy  light-stripes-reduce-motion  onset second (30 ms) recorded 0.39/0.79 t1090 167 fail 4 | kept 0.47/0.73 t1090 175 fail 3 | dropped 0.38/0.81 t1090 175 fail 4
+material.materialize.snappy  dark-photo-reduce-motion     onset second (33 ms) recorded 0.32/1.08 t1090 192 fail 1 | kept 0.32/1.08 t1090 200 fail 1 | dropped 0.30/1.14 t1090 208 fail 1
+material.materialize.snappy  dark-stripes-reduce-motion   onset second (30 ms) recorded 0.36/1.04 t1090 208 fail 2 | kept 0.37/1.02 t1090 208 fail 2 | dropped 0.34/1.09 t1090 217 fail 2
+material.materialize.snappy  light-photo-reduce-motion    onset first (17 ms) recorded 0.48/0.88 t1090 217 fail 2 | kept 0.48/0.88 t1090 217 fail 2 | dropped 0.38/1.00 t1090 217 fail 2
+material.materialize.snappy  light-stripes-reduce-motion  onset second (32 ms) recorded 0.35/1.07 t1090 208 fail 2 | kept 0.46/0.90 t1090 225 fail 1 | dropped 0.36/1.04 t1090 225 fail 2
+{'recorded': 46, 'matched_outcome': 55, 'pred_true': 48, 'pred_false': 59}

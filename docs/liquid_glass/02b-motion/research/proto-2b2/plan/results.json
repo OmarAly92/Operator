@@ -1,0 +1,1038 @@
+{
+ "t00-setup": {
+  "command": "cd packages/mobile && flutter pub get --offline",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "52 packages have newer versions incompatible with dependency constraints.",
+   "Try `flutter pub outdated` for more information."
+  ]
+ },
+ "t01-harness-red": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_shapes.py tool/glass_lab/harness/tests/test_track.py tool/glass_lab/harness/tests/test_manifest.py",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "FAILED (failures=6, errors=5)"
+  ]
+ },
+ "t01-harness-green": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_shapes.py tool/glass_lab/harness/tests/test_track.py tool/glass_lab/harness/tests/test_manifest.py",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 56 tests in <time>",
+   "OK"
+  ]
+ },
+ "t01-gate-harness": {
+  "command": "cd packages/mobile && python3 -m unittest discover tool/glass_lab/harness/tests",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 213 tests in <time>",
+   "OK"
+  ]
+ },
+ "t02-manifest": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_manifest.py",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 17 tests in <time>",
+   "OK"
+  ]
+ },
+ "t04-pkg-red": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/geometry/angle_union_test.dart test/motion/glass_spacing_test.dart",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "test/motion/glass_spacing_test.dart:48:16: Error: The getter 'blendMotion' isn't defined for the type 'LiquidGlassBlendGroup'."
+  ]
+ },
+ "t04-example-red": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub test/spacing_scenes_test.dart",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "test/spacing_scenes_test.dart:77:35: Error: Undefined name 'SpacingScenes'."
+  ]
+ },
+ "t04-app-red": {
+  "command": "cd packages/mobile && flutter test --no-pub test/core/widgets/glass/glass_scope_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+1: All tests passed!"
+  ]
+ },
+ "t04-pkg-green": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/geometry/angle_union_test.dart test/motion/glass_spacing_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+16: All tests passed!"
+  ]
+ },
+ "t04-example-green": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub test/spacing_scenes_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+4: All tests passed!"
+  ]
+ },
+ "t04-app-green": {
+  "command": "cd packages/mobile && flutter test --no-pub test/core/widgets/glass/glass_scope_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+1: All tests passed!"
+  ]
+ },
+ "t04-gate-pkg-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t04-gate-pkg-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+171: All tests passed!"
+  ]
+ },
+ "t04-gate-example-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t04-gate-example-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+17: All tests passed!"
+  ]
+ },
+ "t04-gate-app-analyze": {
+  "command": "cd packages/mobile && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t04-gate-app-test": {
+  "command": "cd packages/mobile && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+2188: All tests passed!"
+  ]
+ },
+ "t05-harness-red": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_track.py tool/glass_lab/harness/tests/test_shapes.py",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "FAILED (failures=3, errors=14)"
+  ]
+ },
+ "t05-harness-green": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_track.py tool/glass_lab/harness/tests/test_shapes.py",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 53 tests in <time>",
+   "OK"
+  ]
+ },
+ "t05-gate-harness": {
+  "command": "cd packages/mobile && python3 -m unittest discover tool/glass_lab/harness/tests",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 227 tests in <time>",
+   "OK"
+  ]
+ },
+ "t06-manifest": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_manifest.py",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 17 tests in <time>",
+   "OK"
+  ]
+ },
+ "t07-manifest": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_manifest.py",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 17 tests in <time>",
+   "OK"
+  ]
+ },
+ "t07-native-build": {
+  "command": "cd packages/mobile && python3 tool/glass_lab/harness/lab.py build native",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "built for 708879DD-8B2A-4547-863F-F49EE1474D8B"
+  ]
+ },
+ "t08-pkg-red": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_union_test.dart test/motion/render_hooks_test.dart",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "test/motion/render_hooks_test.dart:23:3: Error: Type 'GlassUnionOutline' not found."
+  ]
+ },
+ "t08-example-red": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub test/union_scene_test.dart",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "test/union_scene_test.dart:50:71: Error: The getter 'union' isn't defined for the type 'GlassEffect'."
+  ]
+ },
+ "t08-pkg-green": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_union_test.dart test/motion/render_hooks_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+20: All tests passed!"
+  ]
+ },
+ "t08-example-green": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub test/union_scene_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+2: All tests passed!"
+  ]
+ },
+ "t08-gate-pkg-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t08-gate-pkg-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+187: All tests passed!"
+  ]
+ },
+ "t08-gate-example-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t08-gate-example-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+19: All tests passed!"
+  ]
+ },
+ "t08-gate-app-analyze": {
+  "command": "cd packages/mobile && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t08-gate-app-test": {
+  "command": "cd packages/mobile && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+2188: All tests passed!"
+  ]
+ },
+ "t09-lab-red": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_lab.py",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "FAILED (errors=1)"
+  ]
+ },
+ "t09-lab-green": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_lab.py",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 17 tests in <time>",
+   "OK"
+  ]
+ },
+ "t09-gate-harness": {
+  "command": "cd packages/mobile && python3 -m unittest discover tool/glass_lab/harness/tests",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 228 tests in <time>",
+   "OK"
+  ]
+ },
+ "t10-pkg-red": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_materialize_test.dart",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "test/motion/glass_materialize_test.dart:30:43: Error: The getter 'appearExponent' isn't defined for the type 'GlassMaterializeMapping'."
+  ]
+ },
+ "t10-fitvis-red": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_fitvis.py",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "FAILED (failures=3, errors=7)"
+  ]
+ },
+ "t10-pkg-green": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_materialize_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+10: All tests passed!"
+  ]
+ },
+ "t10-fitvis-green": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_fitvis.py",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 38 tests in <time>",
+   "OK"
+  ]
+ },
+ "t10-table": {
+  "command": "python3 -c \"import json,re; m=json.load(open('docs/liquid_glass/02b-motion/research/proto-2b2/h4/fit-h4.json'))['mapping']; t=open('packages/mobile/packages/ios_liquid_glass/lib/src/motion/ios27_motion.dart').read(); w={'material.materialize':'Default','material.materialize.snappy':'Snappy','material.materialize.bouncy':'Bouncy'}; print([(n, m[k]['appear_exponent']['value'], float(re.search('ios27'+n+'AppearExponent = ([0-9.]+)',t).group(1))) for k,n in w.items()])\"",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "[('Default', 1.85, 1.85), ('Snappy', 1.95, 1.95), ('Bouncy', 2.45, 2.45)]"
+  ]
+ },
+ "t10-gate-pkg-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t10-gate-pkg-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+189: All tests passed!"
+  ]
+ },
+ "t10-gate-harness": {
+  "command": "cd packages/mobile && python3 -m unittest discover tool/glass_lab/harness/tests",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 235 tests in <time>",
+   "OK"
+  ]
+ },
+ "t11-pkg-red": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_morph_test.dart",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "test/motion/glass_morph_test.dart:421:19: Error: The getter 'contentOpacity' isn't defined for the type 'GlassMember'."
+  ]
+ },
+ "t11-example-red": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub test/morph_scene_test.dart",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "test/morph_scene_test.dart:51:43: Error: The getter 'id' isn't defined for the type 'GlassEffect'."
+  ]
+ },
+ "t11-pkg-green": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_morph_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+13: All tests passed!"
+  ]
+ },
+ "t11-example-green": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub test/morph_scene_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+4: All tests passed!"
+  ]
+ },
+ "t11-gate-pkg-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t11-gate-pkg-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+202: All tests passed!"
+  ]
+ },
+ "t11-gate-example-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t11-gate-example-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+23: All tests passed!"
+  ]
+ },
+ "t11-gate-app-analyze": {
+  "command": "cd packages/mobile && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t11-gate-app-test": {
+  "command": "cd packages/mobile && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+2188: All tests passed!"
+  ]
+ },
+ "t12-fitvis-red": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_fitvis.py",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "FAILED (failures=1)"
+  ]
+ },
+ "t12-fitvis-green": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_fitvis.py",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 40 tests in <time>",
+   "OK"
+  ]
+ },
+ "t12-gate-harness": {
+  "command": "cd packages/mobile && python3 -m unittest discover tool/glass_lab/harness/tests",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 237 tests in <time>",
+   "OK"
+  ]
+ },
+ "t13-pkg-red": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_morph_test.dart",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "+13 -2: Some tests failed."
+  ]
+ },
+ "t13-pkg-green": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_morph_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+15: All tests passed!"
+  ]
+ },
+ "t13-gate-pkg-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t13-gate-pkg-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+204: All tests passed!"
+  ]
+ },
+ "t14-gate-pkg-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t14-gate-pkg-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+204: All tests passed!"
+  ]
+ },
+ "t15-pkg-red": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_group_test.dart",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "+1 -3: Some tests failed."
+  ]
+ },
+ "t15-pkg-green": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_group_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+4: All tests passed!"
+  ]
+ },
+ "t15-gate-pkg-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t15-gate-pkg-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+208: All tests passed!"
+  ]
+ },
+ "t15-gate-example-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t15-gate-example-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+23: All tests passed!"
+  ]
+ },
+ "t16-gate-pkg-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t16-gate-pkg-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+208: All tests passed!"
+  ]
+ },
+ "t17-pkg-red": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_space_shift_test.dart test/motion/glass_group_test.dart",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "+6 -3: Some tests failed."
+  ]
+ },
+ "t17-pkg-green": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_space_shift_test.dart test/motion/glass_group_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+9: All tests passed!"
+  ]
+ },
+ "t17-gate-pkg-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t17-gate-pkg-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+213: All tests passed!"
+  ]
+ },
+ "t18-pkg-red": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_space_shift_test.dart",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "+3 -2: Some tests failed."
+  ]
+ },
+ "t18-pkg-green": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_space_shift_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+5: All tests passed!"
+  ]
+ },
+ "t18-gate-pkg-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t18-gate-pkg-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+215: All tests passed!"
+  ]
+ },
+ "t18-gate-example-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t18-gate-example-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+23: All tests passed!"
+  ]
+ },
+ "t19-harness-red": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_track.py tool/glass_lab/harness/tests/test_shapes.py tool/glass_lab/harness/tests/test_manifest.py",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "FAILED (failures=1, errors=13)"
+  ]
+ },
+ "t19-harness-green": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_track.py tool/glass_lab/harness/tests/test_shapes.py tool/glass_lab/harness/tests/test_manifest.py",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 84 tests in <time>",
+   "OK"
+  ]
+ },
+ "t19-gate-harness": {
+  "command": "cd packages/mobile && python3 -m unittest discover tool/glass_lab/harness/tests",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 251 tests in <time>",
+   "OK"
+  ]
+ },
+ "t20-pkg-red": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/glass_container_material_test.dart",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "+1 -5: Some tests failed."
+  ]
+ },
+ "t20-pkg-green": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/glass_container_material_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+6: All tests passed!"
+  ]
+ },
+ "t20-gate-pkg-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t20-gate-pkg-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+221: All tests passed!"
+  ]
+ },
+ "t20-gate-example-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t20-gate-example-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+23: All tests passed!"
+  ]
+ },
+ "t21-gate-example-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t21-gate-example-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+23: All tests passed!"
+  ]
+ },
+ "t22-example-red": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub test/union_scene_test.dart",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "+2 -1: Some tests failed."
+  ]
+ },
+ "t22-example-green": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub test/union_scene_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+3: All tests passed!"
+  ]
+ },
+ "t22-gate-example-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t22-gate-example-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+24: All tests passed!"
+  ]
+ },
+ "t23-harness-red": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_shapes.py tool/glass_lab/harness/tests/test_manifest.py",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "FAILED (failures=1, errors=1)"
+  ]
+ },
+ "t23-example-red": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub test/spacing_scenes_test.dart",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "+4 -1: Some tests failed."
+  ]
+ },
+ "t23-harness-green": {
+  "command": "cd packages/mobile && python3 -m unittest tool/glass_lab/harness/tests/test_shapes.py tool/glass_lab/harness/tests/test_manifest.py",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 57 tests in <time>",
+   "OK"
+  ]
+ },
+ "t23-example-green": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub test/spacing_scenes_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+5: All tests passed!"
+  ]
+ },
+ "t23-native-build": {
+  "command": "cd packages/mobile && python3 tool/glass_lab/harness/lab.py build native",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "built for 708879DD-8B2A-4547-863F-F49EE1474D8B"
+  ]
+ },
+ "t23-gate-harness": {
+  "command": "cd packages/mobile && python3 -m unittest discover tool/glass_lab/harness/tests",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 253 tests in <time>",
+   "OK"
+  ]
+ },
+ "t23-gate-example-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t23-gate-example-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+25: All tests passed!"
+  ]
+ },
+ "t24b-pkg-red": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_space_shift_test.dart",
+  "expect": "FAIL",
+  "outcome": "FAIL",
+  "exit": 1,
+  "tail": [
+   "+5 -1: Some tests failed."
+  ]
+ },
+ "t24b-pkg-green": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub test/motion/glass_space_shift_test.dart",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+6: All tests passed!"
+  ]
+ },
+ "t24b-gate-pkg-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t24b-gate-pkg-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+222: All tests passed!"
+  ]
+ },
+ "t24b-gate-example-analyze": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t24b-gate-example-test": {
+  "command": "cd packages/mobile/packages/ios_liquid_glass/example && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+25: All tests passed!"
+  ]
+ },
+ "t24b-gate-app-analyze": {
+  "command": "cd packages/mobile && flutter analyze --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "No issues found! in <time>"
+  ]
+ },
+ "t24b-gate-app-test": {
+  "command": "cd packages/mobile && flutter test --no-pub",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "+2188: All tests passed!"
+  ]
+ },
+ "t24b-gate-harness": {
+  "command": "cd packages/mobile && python3 -m unittest discover tool/glass_lab/harness/tests",
+  "expect": "PASS",
+  "outcome": "PASS",
+  "exit": 0,
+  "tail": [
+   "Ran 253 tests in <time>",
+   "OK"
+  ]
+ }
+}

@@ -1,0 +1,252 @@
+spacing gap | dark-photo native count/neck/gap ; flutter count/neck/gap ; checks c/n/g | light-photo same | dark-light gap: native, flutter
+S          4 g  0 | d: N 1.0/18.0/None F 1.0/22.67/None .X. | l: N 1.0/18.33/None F 1.0/21.33/None .X. | d-l gap N None F None
+S          4 g  4 | d: N 2.0/None/3.33 F 2.0/None/3.33 ... | l: N 2.0/None/3.0 F 2.0/None/3.33 ... | d-l gap N 0.33 F 0.0
+S          4 g  8 | d: N 2.0/None/6.33 F 2.0/None/6.33 ... | l: N 2.0/None/6.33 F 2.0/None/6.67 ... | d-l gap N 0.0 F -0.34
+S          4 g 12 | d: N 2.0/None/10.67 F 2.0/None/10.67 ... | l: N 2.0/None/10.33 F 2.0/None/11.33 ... | d-l gap N 0.34 F -0.66
+S          6 g  0 | d: N 1.0/21.33/None F 1.0/21.67/None ... | l: N 1.0/22.0/None F 1.0/22.0/None ... | d-l gap N None F None
+S          6 g  4 | d: N 2.0/None/3.33 F 2.0/None/2.33 ... | l: N 2.0/None/2.33 F 2.0/None/3.0 ... | d-l gap N 1.0 F -0.67
+S          6 g  8 | d: N 2.0/None/6.33 F 2.0/None/6.33 ... | l: N 2.0/None/6.33 F 2.0/None/6.67 ... | d-l gap N 0.0 F -0.34
+S          6 g 12 | d: N 2.0/None/10.67 F 2.0/None/10.67 ... | l: N 2.0/None/10.33 F 2.0/None/11.33 ... | d-l gap N 0.34 F -0.66
+S          8 g  0 | d: N 1.0/24.67/None F 1.0/24.67/None ... | l: N 1.0/25.67/None F 1.0/25.33/None ... | d-l gap N None F None
+S8 (default) g  0 | d: N 1.0/24.67/None F 1.0/24.67/None ... | l: N 1.0/25.67/None F 1.0/25.33/None ... | d-l gap N None F None
+S8 (default) g  2 | d: N 1.0/18.0/None F 1.0/22.0/None .X. | l: N 1.0/18.33/None F 1.0/20.67/None .X. | d-l gap N None F None
+S          8 g  4 | d: N 1.0/1.0/None F 1.0/None/None .X. | l: N 1.0/1.33/None F 1.0/5.33/None .X. | d-l gap N None F None
+S8 (default) g  4 | d: N 1.0/1.0/None F 1.0/None/None .X. | l: N 1.0/1.33/None F 1.0/5.33/None .X. | d-l gap N None F None
+S8 (default) g  5 | d: N 2.0/None/3.67 F 2.0/None/2.33 ..X | l: N 2.0/None/3.33 F 2.0/None/3.33 ... | d-l gap N 0.34 F -1.0
+S8 (default) g  6 | d: N 2.0/None/6.0 F 2.0/None/3.33 ..X | l: N 2.0/None/4.0 F 2.0/None/4.0 ... | d-l gap N 2.0 F -0.67
+S8 (default) g  7 | d: N 2.0/None/5.67 F 2.0/None/5.0 ... | l: N 2.0/None/5.33 F 2.0/None/5.67 ... | d-l gap N 0.34 F -0.67
+S          8 g  8 | d: N 2.0/None/6.33 F 2.0/None/6.67 ... | l: N 2.0/None/6.33 F 2.0/None/6.67 ... | d-l gap N 0.0 F 0.0
+S8 (default) g  8 | d: N 2.0/None/6.33 F 2.0/None/6.67 ... | l: N 2.0/None/6.33 F 2.0/None/6.67 ... | d-l gap N 0.0 F 0.0
+S          8 g 12 | d: N 2.0/None/10.67 F 2.0/None/10.67 ... | l: N 2.0/None/10.33 F 2.0/None/11.33 ... | d-l gap N 0.34 F -0.66
+S8 (default) g 12 | d: N 2.0/None/10.67 F 2.0/None/10.67 ... | l: N 2.0/None/10.33 F 2.0/None/11.33 ... | d-l gap N 0.34 F -0.66
+S8 (default) g 16 | d: N 2.0/None/14.67 F 2.0/None/14.67 ... | l: N 2.0/None/14.67 F 2.0/None/14.67 ... | d-l gap N 0.0 F 0.0
+S8 (default) g 20 | d: N 2.0/None/19.0 F 2.0/None/19.0 ... | l: N 2.0/None/19.0 F 2.0/None/19.67 ... | d-l gap N 0.0 F -0.67
+S8 (default) g 24 | d: N 2.0/None/22.67 F 2.0/None/22.67 ... | l: N 2.0/None/22.33 F 2.0/None/22.67 ... | d-l gap N 0.34 F 0.0
+S8 (default) g 32 | d: N 2.0/None/30.67 F 2.0/None/30.67 ... | l: N 2.0/None/30.67 F 2.0/None/31.33 ... | d-l gap N 0.0 F -0.66
+S8 (default) g 40 | d: N 2.0/None/38.67 F 2.0/None/38.67 ... | l: N 2.0/None/38.67 F 2.0/None/39.33 ... | d-l gap N 0.0 F -0.66
+S8 (default) g 48 | d: N 2.0/None/46.67 F 2.0/None/46.67 ... | l: N 2.0/None/46.67 F 2.0/None/47.33 ... | d-l gap N 0.0 F -0.66
+S8 (default) g 60 | d: N 2.0/None/58.67 F 2.0/None/58.67 ... | l: N 2.0/None/58.67 F 2.0/None/59.33 ... | d-l gap N 0.0 F -0.66
+S         10 g  0 | d: N 1.0/27.33/None F 1.0/30.0/None .X. | l: N 1.0/28.33/None F 1.0/29.33/None ... | d-l gap N None F None
+S         10 g  4 | d: N 1.0/12.67/None F 1.0/13.33/None ... | l: N 1.0/12.67/None F 1.0/13.67/None ... | d-l gap N None F None
+S         10 g  8 | d: N 2.0/None/6.67 F 2.0/None/6.0 ... | l: N 2.0/None/6.33 F 2.0/None/6.67 ... | d-l gap N 0.34 F -0.67
+S         10 g 12 | d: N 2.0/None/10.67 F 2.0/None/10.67 ... | l: N 2.0/None/10.33 F 2.0/None/11.33 ... | d-l gap N 0.34 F -0.66
+S         12 g  0 | d: N 1.0/29.33/None F 1.0/32.33/None .X. | l: N 1.0/30.33/None F 1.0/31.67/None .X. | d-l gap N None F None
+S         12 g  4 | d: N 1.0/17.33/None F 1.0/18.0/None ... | l: N 1.0/17.33/None F 1.0/18.33/None ... | d-l gap N None F None
+S         12 g  8 | d: N 2.0/None/7.67 F 2.0/None/4.67 ..X | l: N 2.0/None/5.33 F 2.0/None/5.33 ... | d-l gap N 2.34 F -0.66
+S         12 g 12 | d: N 2.0/None/10.67 F 2.0/None/10.67 ... | l: N 2.0/None/10.33 F 2.0/None/10.67 ... | d-l gap N 0.34 F 0.0
+S         16 g  0 | d: N 1.0/34.0/None F 1.0/34.0/None ... | l: N 1.0/34.67/None F 1.0/34.0/None ... | d-l gap N None F None
+S         16 g  4 | d: N 1.0/24.0/None F 1.0/24.0/None ... | l: N 1.0/24.0/None F 1.0/24.67/None ... | d-l gap N None F None
+S         16 g  8 | d: N 1.0/None/None F 1.0/7.0/None .X. | l: N 1.0/0.67/None F 1.0/2.33/None .X. | d-l gap N None F None
+S         16 g 12 | d: N 2.0/None/10.0 F 2.0/None/9.33 ... | l: N 2.0/None/10.0 F 2.0/None/10.0 ... | d-l gap N 0.0 F -0.67
+S         20 g  0 | d: N 1.0/37.33/None F 1.0/39.33/None .X. | l: N 1.0/38.0/None F 1.0/38.67/None ... | d-l gap N None F None
+S         20 g  4 | d: N 1.0/29.33/None F 1.0/30.67/None .X. | l: N 1.0/29.33/None F 1.0/29.67/None ... | d-l gap N None F None
+S         20 g  8 | d: N 1.0/17.0/None F 1.0/17.0/None ... | l: N 1.0/17.33/None F 1.0/17.67/None ... | d-l gap N None F None
+S         20 g  9 | d: N 1.0/12.0/None F 1.0/14.0/None .X. | l: N 1.0/12.0/None F 1.0/13.33/None .X. | d-l gap N None F None
+S         20 g 10 | d: N 1.0/0.67/None F 2.0/None/2.67 XXX | l: N 1.0/0.67/None F 1.0/6.0/None .X. | d-l gap N None F None
+S         20 g 11 | d: N 2.0/None/7.33 F 1.0/1.33/None XXX | l: N 2.0/None/6.33 F 2.0/None/2.33 ..X | d-l gap N 1.0 F None
+S         20 g 12 | d: N 2.0/None/9.33 F 2.0/None/5.33 ..X | l: N 2.0/None/6.67 F 2.0/None/6.67 ... | d-l gap N 2.66 F -1.34
+S         20 g 14 | d: N 2.0/None/11.33 F 2.0/None/10.67 ... | l: N 2.0/None/10.67 F 2.0/None/11.0 ... | d-l gap N 0.66 F -0.33
+S         20 g 16 | d: N 2.0/None/14.0 F 2.0/None/14.0 ... | l: N 2.0/None/14.0 F 2.0/None/14.0 ... | d-l gap N 0.0 F 0.0
+S         20 g 18 | d: N 2.0/None/17.33 F 2.0/None/17.33 ... | l: N 2.0/None/17.33 F 2.0/None/17.33 ... | d-l gap N 0.0 F 0.0
+S         20 g 24 | d: N 2.0/None/22.67 F 2.0/None/22.67 ... | l: N 2.0/None/22.33 F 2.0/None/22.67 ... | d-l gap N 0.34 F 0.0
+S         20 g 32 | d: N 2.0/None/30.67 F 2.0/None/30.67 ... | l: N 2.0/None/30.67 F 2.0/None/31.33 ... | d-l gap N 0.0 F -0.66
+S         40 g  0 | d: N 1.0/50.0/None F 1.0/50.67/None ... | l: N 1.0/50.0/None F 1.0/51.0/None ... | d-l gap N None F None
+S         40 g  4 | d: N 1.0/45.0/None F 1.0/45.67/None ... | l: N 1.0/45.33/None F 1.0/46.0/None ... | d-l gap N None F None
+S         40 g  8 | d: N 1.0/39.67/None F 1.0/40.0/None ... | l: N 1.0/40.0/None F 1.0/40.0/None ... | d-l gap N None F None
+S         40 g 12 | d: N 1.0/32.67/None F 1.0/33.33/None ... | l: N 1.0/33.33/None F 1.0/33.33/None ... | d-l gap N None F None
+S         40 g 16 | d: N 1.0/23.33/None F 1.0/24.0/None ... | l: N 1.0/25.0/None F 1.0/24.0/None ... | d-l gap N None F None
+S         40 g 18 | d: N 1.0/16.67/None F 1.0/17.0/None ... | l: N 1.0/16.67/None F 1.0/17.33/None ... | d-l gap N None F None
+S         40 g 19 | d: N 1.0/11.67/None F 1.0/13.0/None .X. | l: N 1.0/12.0/None F 1.0/13.33/None .X. | d-l gap N None F None
+S         40 g 20 | d: N 1.0/0.67/None F 2.0/None/3.0 XXX | l: N 1.0/0.67/None F 1.0/5.33/None .X. | d-l gap N None F None
+S         40 g 21 | d: N 2.0/None/10.0 F 1.0/0.67/None XXX | l: N 2.0/None/8.33 F 2.0/None/3.67 ..X | d-l gap N 1.67 F None
+S         40 g 22 | d: N 2.0/None/12.67 F 2.0/None/7.67 ..X | l: N 2.0/None/9.67 F 2.0/None/9.33 ... | d-l gap N 3.0 F -1.66
+S         40 g 24 | d: N 2.0/None/18.33 F 2.0/None/14.67 ..X | l: N 2.0/None/15.33 F 2.0/None/16.0 ... | d-l gap N 3.0 F -1.33
+S         40 g 28 | d: N 2.0/None/24.0 F 2.0/None/23.33 ... | l: N 2.0/None/23.33 F 2.0/None/23.33 ... | d-l gap N 0.67 F 0.0
+S         40 g 32 | d: N 2.0/None/29.67 F 2.0/None/29.33 ... | l: N 2.0/None/29.33 F 2.0/None/30.0 ... | d-l gap N 0.34 F -0.67
+S         40 g 36 | d: N 2.0/None/35.33 F 2.0/None/34.67 ... | l: N 2.0/None/34.67 F 2.0/None/35.0 ... | d-l gap N 0.66 F -0.33
+S         40 g 40 | d: N 2.0/None/38.67 F 2.0/None/38.67 ... | l: N 2.0/None/38.67 F 2.0/None/39.33 ... | d-l gap N 0.0 F -0.66
+S         40 g 44 | d: N 2.0/None/42.67 F 2.0/None/42.67 ... | l: N 2.0/None/42.67 F 2.0/None/43.0 ... | d-l gap N 0.0 F -0.33
+S         40 g 48 | d: N 2.0/None/46.67 F 2.0/None/46.67 ... | l: N 2.0/None/46.67 F 2.0/None/47.33 ... | d-l gap N 0.0 F -0.66
+S         40 g 52 | d: N 2.0/None/50.67 F 2.0/None/50.67 ... | l: N 2.0/None/50.67 F 2.0/None/51.33 ... | d-l gap N 0.0 F -0.66
+S         40 g 60 | d: N 2.0/None/58.67 F 2.0/None/58.67 ... | l: N 2.0/None/58.67 F 2.0/None/59.33 ... | d-l gap N 0.0 F -0.66
+S         80 g  0 | d: N 1.0/66.0/None F 1.0/66.0/None ... | l: N 1.0/66.0/None F 1.0/66.67/None ... | d-l gap N None F None
+S         80 g  4 | d: N 1.0/63.33/None F 1.0/64.0/None ... | l: N 1.0/64.0/None F 1.0/64.0/None ... | d-l gap N None F None
+S         80 g  8 | d: N 1.0/60.67/None F 1.0/61.33/None ... | l: N 1.0/61.0/None F 1.0/61.33/None ... | d-l gap N None F None
+S         80 g 12 | d: N 1.0/58.0/None F 1.0/58.0/None ... | l: N 1.0/58.0/None F 1.0/58.0/None ... | d-l gap N None F None
+S         80 g 16 | d: N 1.0/54.33/None F 1.0/54.67/None ... | l: N 1.0/54.67/None F 1.0/54.67/None ... | d-l gap N None F None
+S         80 g 24 | d: N 1.0/45.33/None F 1.0/45.67/None ... | l: N 1.0/45.67/None F 1.0/46.0/None ... | d-l gap N None F None
+S         80 g 32 | d: N 1.0/32.67/None F 1.0/33.33/None ... | l: N 1.0/33.33/None F 1.0/33.33/None ... | d-l gap N None F None
+S         80 g 36 | d: N 1.0/24.0/None F 1.0/24.0/None ... | l: N 1.0/24.0/None F 1.0/24.0/None ... | d-l gap N None F None
+S         80 g 38 | d: N 1.0/16.67/None F 1.0/17.0/None ... | l: N 1.0/17.33/None F 1.0/18.0/None ... | d-l gap N None F None
+S         80 g 40 | d: N 2.0/None/0.67 F 2.0/None/2.33 ..X | l: N 2.0/None/0.67 F 1.0/5.33/None XXX | d-l gap N 0.0 F None
+S         80 g 42 | d: N 2.0/None/19.0 F 2.0/None/11.33 ..X | l: N 2.0/None/17.67 F 2.0/None/14.0 ..X | d-l gap N 1.33 F -2.67
+S         80 g 44 | d: N 2.0/None/26.0 F 2.0/None/21.0 ..X | l: N 2.0/None/22.33 F 2.0/None/22.0 ... | d-l gap N 3.67 F -1.0
+S         80 g 48 | d: N 2.0/None/37.0 F 2.0/None/32.67 ..X | l: N 2.0/None/33.33 F 2.0/None/33.33 ... | d-l gap N 3.67 F -0.66
+S         80 g 56 | d: N 2.0/None/50.0 F 2.0/None/49.67 ... | l: N 2.0/None/49.67 F 2.0/None/50.0 ... | d-l gap N 0.33 F -0.33
+S         80 g 64 | d: N 2.0/None/60.67 F 2.0/None/60.67 ... | l: N 2.0/None/60.67 F 2.0/None/61.0 ... | d-l gap N 0.0 F -0.33
+S         80 g 72 | d: N 2.0/None/70.67 F 2.0/None/70.0 ... | l: N 2.0/None/70.0 F 2.0/None/70.67 ... | d-l gap N 0.67 F -0.67
+S         80 g 80 | d: N 2.0/None/78.67 F 2.0/None/78.67 ... | l: N 2.0/None/78.67 F 2.0/None/79.0 ... | d-l gap N 0.0 F -0.33
+S         80 g 88 | d: N 2.0/None/86.67 F 2.0/None/86.67 ... | l: N 2.0/None/86.67 F 2.0/None/87.33 ... | d-l gap N 0.0 F -0.66
+S         80 g 96 | d: N 2.0/None/94.67 F 2.0/None/94.67 ... | l: N 2.0/None/94.67 F 2.0/None/95.0 ... | d-l gap N 0.0 F -0.33
+
+material.spacing.10.a dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.10.a dark-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.10.a dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.10.a dark-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.10.a dark-photo FAIL ready.topology.g0.neck_pt 2.67 > 1.0
+material.spacing.12.a dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.12.a dark-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.12.a dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.12.a dark-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.12.a dark-photo FAIL ready.topology.g0.neck_pt 3.0 > 1.0
+material.spacing.12.a dark-photo FAIL ready.topology.g8.gap_pt 3.0 > 1.0
+material.spacing.12.a light-photo FAIL ready.topology.g0.neck_pt 1.33 > 1.0
+material.spacing.16.a dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.16.a dark-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.16.a dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.16.a dark-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.16.a dark-photo FAIL ready.topology.g8.neck_pt absent > 1.0
+material.spacing.16.a light-photo FAIL ready.topology.g8.neck_pt 1.67 > 1.0
+material.spacing.20.a dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.20.a dark-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.20.a dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.20.a dark-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.20.a dark-photo FAIL ready.topology.g0.neck_pt 2.0 > 1.0
+material.spacing.20.a dark-photo FAIL ready.topology.g4.neck_pt 1.33 > 1.0
+material.spacing.20.a dark-photo FAIL ready.topology.g12.gap_pt 4.0 > 1.0
+material.spacing.20.b dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.20.b dark-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.20.b dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.20.b dark-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.20.b dark-photo FAIL ready.topology.g9.neck_pt 2.0 > 1.0
+material.spacing.20.b dark-photo FAIL ready.topology.g10.count 1.0 > 0.0
+material.spacing.20.b dark-photo FAIL ready.topology.g10.neck_pt absent > 1.0
+material.spacing.20.b dark-photo FAIL ready.topology.g10.gap_pt absent > 1.0
+material.spacing.20.b dark-photo FAIL ready.topology.g11.count 1.0 > 0.0
+material.spacing.20.b dark-photo FAIL ready.topology.g11.neck_pt absent > 1.0
+material.spacing.20.b dark-photo FAIL ready.topology.g11.gap_pt absent > 1.0
+material.spacing.20.b light-photo FAIL ready.topology.g9.neck_pt 1.33 > 1.0
+material.spacing.20.b light-photo FAIL ready.topology.g10.neck_pt 5.33 > 1.0
+material.spacing.20.b light-photo FAIL ready.topology.g11.gap_pt 4.0 > 1.0
+material.spacing.20.c dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.20.c dark-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.20.c dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.20.c dark-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.20.c light-photo FAIL ready.rim_rms 6.9 > 6.0
+material.spacing.20.c light-photo FAIL settled.rim_rms 6.9 > 6.0
+material.spacing.4.a dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.4.a dark-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.4.a dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.4.a dark-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.4.a dark-photo FAIL ready.topology.g0.neck_pt 4.67 > 1.0
+material.spacing.4.a light-photo FAIL ready.topology.g0.neck_pt 3.0 > 1.0
+material.spacing.40.a dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.40.a dark-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.40.a dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.40.a dark-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.40.b dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.40.b dark-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.40.b dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.40.b dark-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.40.b dark-photo FAIL ready.topology.g20.count 1.0 > 0.0
+material.spacing.40.b dark-photo FAIL ready.topology.g20.neck_pt absent > 1.0
+material.spacing.40.b dark-photo FAIL ready.topology.g20.gap_pt absent > 1.0
+material.spacing.40.b dark-photo FAIL ready.topology.g24.gap_pt 3.67 > 1.0
+material.spacing.40.b light-photo FAIL ready.topology.g20.neck_pt 4.67 > 1.0
+material.spacing.40.c dark-photo FAIL ready.bbox_pt 2.0 > 1.0
+material.spacing.40.c dark-photo FAIL settled.bbox_pt 2.0 > 1.0
+material.spacing.40.c light-photo FAIL ready.bbox_pt 3.0 > 1.0
+material.spacing.40.c light-photo FAIL ready.centre_pt 1.5 > 1.0
+material.spacing.40.c light-photo FAIL settled.bbox_pt 3.0 > 1.0
+material.spacing.40.c light-photo FAIL settled.centre_pt 1.5 > 1.0
+material.spacing.40.d dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.40.d dark-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.40.d dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.40.d dark-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.40.d dark-photo FAIL ready.topology.g19.neck_pt 1.33 > 1.0
+material.spacing.40.d dark-photo FAIL ready.topology.g21.count 1.0 > 0.0
+material.spacing.40.d dark-photo FAIL ready.topology.g21.neck_pt absent > 1.0
+material.spacing.40.d dark-photo FAIL ready.topology.g21.gap_pt absent > 1.0
+material.spacing.40.d dark-photo FAIL ready.topology.g22.gap_pt 5.0 > 1.0
+material.spacing.40.d light-photo FAIL ready.topology.g19.neck_pt 1.33 > 1.0
+material.spacing.40.d light-photo FAIL ready.topology.g21.gap_pt 4.67 > 1.0
+material.spacing.40.e dark-photo FAIL ready.bbox_pt 3.0 > 1.0
+material.spacing.40.e dark-photo FAIL ready.centre_pt 1.5 > 1.0
+material.spacing.40.e dark-photo FAIL settled.bbox_pt 3.0 > 1.0
+material.spacing.40.e dark-photo FAIL settled.centre_pt 1.5 > 1.0
+material.spacing.40.e light-photo FAIL ready.bbox_pt 2.0 > 1.0
+material.spacing.40.e light-photo FAIL settled.bbox_pt 2.0 > 1.0
+material.spacing.6.a dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.6.a dark-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.6.a dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.6.a dark-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.8.a dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.8.a dark-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.8.a dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.8.a dark-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.8.a dark-photo FAIL ready.topology.g4.neck_pt absent > 1.0
+material.spacing.8.a light-photo FAIL ready.topology.g4.neck_pt 4.0 > 1.0
+material.spacing.80.a dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.80.a dark-photo FAIL ready.centre_pt 1.5 > 1.0
+material.spacing.80.a dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.80.a dark-photo FAIL settled.centre_pt 1.5 > 1.0
+material.spacing.80.b dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.80.b dark-photo FAIL ready.centre_pt 1.5 > 1.0
+material.spacing.80.b dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.80.b dark-photo FAIL settled.centre_pt 1.5 > 1.0
+material.spacing.80.c dark-photo FAIL ready.bbox_pt 2.0 > 1.0
+material.spacing.80.c dark-photo FAIL settled.bbox_pt 2.0 > 1.0
+material.spacing.80.c dark-photo FAIL ready.topology.g40.gap_pt 1.67 > 1.0
+material.spacing.80.c dark-photo FAIL ready.topology.g42.gap_pt 7.67 > 1.0
+material.spacing.80.c dark-photo FAIL ready.topology.g44.gap_pt 5.0 > 1.0
+material.spacing.80.c light-photo FAIL ready.bbox_pt 3.0 > 1.0
+material.spacing.80.c light-photo FAIL ready.centre_pt 1.5 > 1.0
+material.spacing.80.c light-photo FAIL settled.bbox_pt 3.0 > 1.0
+material.spacing.80.c light-photo FAIL settled.centre_pt 1.5 > 1.0
+material.spacing.80.c light-photo FAIL ready.topology.g40.count 1.0 > 0.0
+material.spacing.80.c light-photo FAIL ready.topology.g40.neck_pt absent > 1.0
+material.spacing.80.c light-photo FAIL ready.topology.g40.gap_pt absent > 1.0
+material.spacing.80.c light-photo FAIL ready.topology.g42.gap_pt 3.67 > 1.0
+material.spacing.80.d dark-photo FAIL ready.bbox_pt 3.0 > 1.0
+material.spacing.80.d dark-photo FAIL ready.centre_pt 1.5 > 1.0
+material.spacing.80.d dark-photo FAIL settled.bbox_pt 3.0 > 1.0
+material.spacing.80.d dark-photo FAIL settled.centre_pt 1.5 > 1.0
+material.spacing.80.d dark-photo FAIL ready.topology.g48.gap_pt 4.33 > 1.0
+material.spacing.80.d light-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.80.d light-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.80.d light-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.80.d light-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.80.e dark-photo FAIL ready.bbox_pt 3.0 > 1.0
+material.spacing.80.e dark-photo FAIL ready.centre_pt 1.5 > 1.0
+material.spacing.80.e dark-photo FAIL settled.bbox_pt 3.0 > 1.0
+material.spacing.80.e dark-photo FAIL settled.centre_pt 1.5 > 1.0
+material.spacing.80.e light-photo FAIL ready.bbox_pt 3.0 > 1.0
+material.spacing.80.e light-photo FAIL ready.centre_pt 1.5 > 1.0
+material.spacing.80.e light-photo FAIL settled.bbox_pt 3.0 > 1.0
+material.spacing.80.e light-photo FAIL settled.centre_pt 1.5 > 1.0
+material.spacing.default.a dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.default.a dark-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.default.a dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.default.a dark-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.default.a dark-photo FAIL ready.topology.g4.neck_pt absent > 1.0
+material.spacing.default.a light-photo FAIL ready.topology.g4.neck_pt 4.0 > 1.0
+material.spacing.default.b dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.default.b dark-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.default.b dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.default.b dark-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.default.b light-photo FAIL ready.rim_rms 6.9 > 6.0
+material.spacing.default.b light-photo FAIL settled.rim_rms 6.9 > 6.0
+material.spacing.default.c dark-photo FAIL ready.bbox_pt 2.0 > 1.0
+material.spacing.default.c dark-photo FAIL settled.bbox_pt 2.0 > 1.0
+material.spacing.default.c light-photo FAIL ready.bbox_pt 3.0 > 1.0
+material.spacing.default.c light-photo FAIL ready.centre_pt 1.5 > 1.0
+material.spacing.default.c light-photo FAIL settled.bbox_pt 3.0 > 1.0
+material.spacing.default.c light-photo FAIL settled.centre_pt 1.5 > 1.0
+material.spacing.default.d dark-photo FAIL ready.bbox_pt 4.0 > 1.0
+material.spacing.default.d dark-photo FAIL ready.centre_pt 2.0 > 1.0
+material.spacing.default.d dark-photo FAIL settled.bbox_pt 4.0 > 1.0
+material.spacing.default.d dark-photo FAIL settled.centre_pt 2.0 > 1.0
+material.spacing.default.d dark-photo FAIL ready.topology.g2.neck_pt 4.0 > 1.0
+material.spacing.default.d dark-photo FAIL ready.topology.g5.gap_pt 1.33 > 1.0
+material.spacing.default.d dark-photo FAIL ready.topology.g6.gap_pt 2.67 > 1.0
+material.spacing.default.d light-photo FAIL ready.topology.g2.neck_pt 2.33 > 1.0

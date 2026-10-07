@@ -1,0 +1,55 @@
+#### run build/glass_lab/runs/20261007-071931
+material.materialize dark-photo: pass 23 / judged 29 / expected 29 (static+topology 6/10, motion 17/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL ready.mad 4.857 > 4
+   FAIL ready.bbox_pt 2 > 1
+   FAIL settled.mad 4.857 > 4
+   FAIL settled.bbox_pt 2 > 1
+   FAIL motion.block.step1e0.progress.settle_ms 25 > 17
+   FAIL motion.block.step3e0.progress.sharpness 1.388 > 1
+material.materialize dark-stripes: pass 27 / judged 29 / expected 29 (static+topology 10/10, motion 17/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL motion.block.step3e0.progress.settle_ms 58.333 > 25
+   FAIL motion.block.step3e0.progress.response_pct 11.321 > 5.556 []
+material.materialize light-photo: pass 22 / judged 29 / expected 29 (static+topology 8/10, motion 14/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL ready.rim_rms 7.977 > 6
+   FAIL settled.rim_rms 7.964 > 6
+   FAIL motion.block.step1e0.progress.response_pct 26.087 > 18.75 []
+   FAIL motion.block.step1e0.progress.damping 0.24 > 0.12 []
+   FAIL motion.block.step3e0.progress.t10_90_ms 25 > 17
+   FAIL motion.block.step3e0.progress.settle_ms 33.333 > 17
+   FAIL motion.block.step3e0.progress.response_pct 6.061 > 5 []
+material.materialize light-stripes: pass 28 / judged 29 / expected 29 (static+topology 10/10, motion 18/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL motion.block.step3e0.progress.settle_ms 50 > 25
+material.materialize.bouncy dark-photo: pass 23 / judged 29 / expected 29 (static+topology 6/10, motion 17/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL ready.mad 4.857 > 4
+   FAIL ready.bbox_pt 2 > 1
+   FAIL settled.mad 4.857 > 4
+   FAIL settled.bbox_pt 2 > 1
+   FAIL motion.block.step1e0.progress.sharpness 1.377 > 1
+   FAIL motion.block.step3e0.progress.sharpness 1.326 > 1
+material.materialize.bouncy dark-stripes: pass 27 / judged 29 / expected 29 (static+topology 10/10, motion 17/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL motion.block.step3e0.progress.response_pct 21.053 > 5 []
+   FAIL motion.block.step3e0.progress.damping 0.06 > 0.05 []
+material.materialize.bouncy light-photo: pass 25 / judged 29 / expected 29 (static+topology 8/10, motion 17/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL ready.rim_rms 7.977 > 6
+   FAIL settled.rim_rms 7.964 > 6
+   FAIL motion.block.step3e0.progress.settle_ms 33.333 > 25
+   FAIL motion.block.step3e0.progress.sharpness 1.052 > 1
+material.materialize.bouncy light-stripes: pass 29 / judged 29 / expected 29 (static+topology 10/10, motion 19/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+material.materialize.snappy dark-photo: pass 20 / judged 29 / expected 29 (static+topology 6/10, motion 14/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL ready.mad 4.857 > 4
+   FAIL ready.bbox_pt 2 > 1
+   FAIL settled.mad 4.857 > 4
+   FAIL settled.bbox_pt 2 > 1
+   FAIL motion.block.step1e0.progress.damping 0.06 > 0.05 []
+   FAIL motion.block.step1e0.progress.sharpness 1.341 > 1
+   FAIL motion.block.step3e0.progress.response_pct 32.203 > 20.588 []
+   FAIL motion.block.step3e0.progress.damping 0.13 > 0.105 []
+   FAIL motion.block.step3e0.progress.sharpness 1.203 > 1
+material.materialize.snappy dark-stripes: pass 28 / judged 29 / expected 29 (static+topology 10/10, motion 18/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL motion.block.step3e0.progress.response_pct 17.391 > 13.333 []
+material.materialize.snappy light-photo: pass 25 / judged 29 / expected 29 (static+topology 8/10, motion 17/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL ready.rim_rms 7.977 > 6
+   FAIL settled.rim_rms 7.964 > 6
+   FAIL motion.block.step1e0.progress.sharpness 1.175 > 1
+   FAIL motion.block.step3e0.progress.t10_90_ms 25 > 17
+material.materialize.snappy light-stripes: pass 29 / judged 29 / expected 29 (static+topology 10/10, motion 19/19); events [2, 2] touches [2, 2] stalls flutter [30] native []

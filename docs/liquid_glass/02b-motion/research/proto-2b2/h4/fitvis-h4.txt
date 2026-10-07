@@ -1,0 +1,1861 @@
+blur ramp trade-off (sharpness RMS at matched progress, over the targets every k measures, / 1.0 + per-backdrop progress deviation RMS at fixed visibility / 0.05):
+  k     sharpness_rms  deviation_rms  objective
+  0.25  0.9727         0.0971         2.915
+  0.5   0.9726         0.0704         2.3812
+  1.0   0.941          0.0587         2.1144  <- chosen
+  1.5   0.8657         0.0679         2.2241
+  2.0   0.7127         0.0782         2.2774
+  3.0   0.7846         0.0969         2.7229
+  4.0   0.9823         0.1081         3.1433
+  sharpness targets left out because a k reads them between the glass-absent shot and its first level: dark-photo@0.25
+appear exponent (Done measures on simulated moving glass against every native appear, both first-frame outcomes):
+  material.materialize         1.85  failing per appear 0.4792 (at 1.0: 2.1146), mean value/limit 0.4216 (at 1.0: 1.3895), 48 appears
+  material.materialize.snappy  1.95  failing per appear 0.1458 (at 1.0: 1.7604), mean value/limit 0.2921 (at 1.0: 1.0195), 48 appears
+  material.materialize.bouncy  2.45  failing per appear 0.0417 (at 1.0: 2.4167), mean value/limit 0.2681 (at 1.0: 1.0883), 48 appears
+gain mode: pooled (the table carries the pooled gain for both appearances)
+{
+  "gain_mode": "pooled",
+  "mapping": {
+    "material.materialize": {
+      "spring": [
+        0.55,
+        1.0
+      ],
+      "exponent": {
+        "value": 3.1,
+        "rms": 0.030527432031677883,
+        "at_grid_edge": false,
+        "curves": 24,
+        "excluded": []
+      },
+      "exponent_cases": {
+        "dark-photo": {
+          "value": 2.9,
+          "rms": 0.007019955488886053,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "dark-stripes": {
+          "value": 2.45,
+          "rms": 0.04799292665861382,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "light-photo": {
+          "value": 3.5,
+          "rms": 0.01640350870888616,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "light-stripes": {
+          "value": 3.65,
+          "rms": 0.026121427537879514,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        }
+      },
+      "exponent_spread": {
+        "min": 3.05,
+        "max": 3.2,
+        "std": 0.045,
+        "per_take": {
+          "20261006-091133": 3.1,
+          "noise-2b1/take0": 3.05,
+          "noise-2b1/take1": 3.1,
+          "noise-2b1/take2": 3.1,
+          "noise-2b1/take3": 3.1,
+          "noise-2b1/take4": 3.2
+        }
+      },
+      "cases": [
+        "dark-photo",
+        "dark-stripes",
+        "light-photo",
+        "light-stripes"
+      ],
+      "reduce_motion_cases": [
+        "dark-photo-reduce-motion",
+        "dark-stripes-reduce-motion",
+        "light-photo-reduce-motion",
+        "light-stripes-reduce-motion"
+      ],
+      "takes": [
+        "20261006-091133",
+        "noise-2b1/take0",
+        "noise-2b1/take1",
+        "noise-2b1/take2",
+        "noise-2b1/take3",
+        "noise-2b1/take4"
+      ],
+      "gains": {
+        "pooled": {
+          "value": 0.0,
+          "identifiable": false,
+          "inert": true,
+          "from": "the spring does not overshoot, so no gain can be measured and none is used"
+        },
+        "appearances": {
+          "dark": {
+            "value": 0.0,
+            "identifiable": false,
+            "inert": true,
+            "from": "the spring does not overshoot, so no gain can be measured and none is used"
+          },
+          "light": {
+            "value": 0.0,
+            "identifiable": false,
+            "inert": true,
+            "from": "the spring does not overshoot, so no gain can be measured and none is used"
+          }
+        },
+        "cases": {},
+        "case_spread": null,
+        "take_spread": null
+      },
+      "reduce_motion_gains": {
+        "pooled": {
+          "value": 0.0,
+          "identifiable": false,
+          "inert": true,
+          "from": "the spring does not overshoot, so no gain can be measured and none is used"
+        },
+        "appearances": {
+          "dark": {
+            "value": 0.0,
+            "identifiable": false,
+            "inert": true,
+            "from": "the spring does not overshoot, so no gain can be measured and none is used"
+          },
+          "light": {
+            "value": 0.0,
+            "identifiable": false,
+            "inert": true,
+            "from": "the spring does not overshoot, so no gain can be measured and none is used"
+          }
+        },
+        "cases": {},
+        "case_spread": null,
+        "take_spread": null
+      },
+      "appear_exponent": {
+        "value": 1.85,
+        "at_grid_edge": false,
+        "events": 48,
+        "objective": "mean failing Done measures per native appear and first-frame outcome, Flutter simulated from the scan at 60 Hz from its build frame; ties by mean value / limit",
+        "table": {
+          "1.0": {
+            "failing": 2.1146,
+            "ratio": 1.3895,
+            "pairs": 96
+          },
+          "1.05": {
+            "failing": 2.0833,
+            "ratio": 1.1664,
+            "pairs": 96
+          },
+          "1.1": {
+            "failing": 1.7604,
+            "ratio": 0.9265,
+            "pairs": 96
+          },
+          "1.15": {
+            "failing": 1.7292,
+            "ratio": 0.8229,
+            "pairs": 96
+          },
+          "1.2": {
+            "failing": 1.4583,
+            "ratio": 0.7488,
+            "pairs": 96
+          },
+          "1.25": {
+            "failing": 1.1146,
+            "ratio": 0.6393,
+            "pairs": 96
+          },
+          "1.3": {
+            "failing": 1.0104,
+            "ratio": 0.6436,
+            "pairs": 96
+          },
+          "1.35": {
+            "failing": 0.8438,
+            "ratio": 0.5457,
+            "pairs": 96
+          },
+          "1.4": {
+            "failing": 0.9375,
+            "ratio": 0.492,
+            "pairs": 96
+          },
+          "1.45": {
+            "failing": 1.1146,
+            "ratio": 0.571,
+            "pairs": 96
+          },
+          "1.5": {
+            "failing": 0.625,
+            "ratio": 0.4833,
+            "pairs": 96
+          },
+          "1.55": {
+            "failing": 0.5208,
+            "ratio": 0.4076,
+            "pairs": 96
+          },
+          "1.6": {
+            "failing": 0.5521,
+            "ratio": 0.4234,
+            "pairs": 96
+          },
+          "1.65": {
+            "failing": 1.0417,
+            "ratio": 0.5151,
+            "pairs": 96
+          },
+          "1.7": {
+            "failing": 0.9167,
+            "ratio": 0.445,
+            "pairs": 96
+          },
+          "1.75": {
+            "failing": 0.8125,
+            "ratio": 0.5192,
+            "pairs": 96
+          },
+          "1.8": {
+            "failing": 0.5625,
+            "ratio": 0.4298,
+            "pairs": 96
+          },
+          "1.85": {
+            "failing": 0.4792,
+            "ratio": 0.4216,
+            "pairs": 96
+          },
+          "1.9": {
+            "failing": 0.5417,
+            "ratio": 0.4045,
+            "pairs": 96
+          },
+          "1.95": {
+            "failing": 0.6875,
+            "ratio": 0.417,
+            "pairs": 96
+          },
+          "2.0": {
+            "failing": 0.8125,
+            "ratio": 0.4446,
+            "pairs": 96
+          },
+          "2.05": {
+            "failing": 0.5,
+            "ratio": 0.3826,
+            "pairs": 96
+          },
+          "2.1": {
+            "failing": 0.7917,
+            "ratio": 0.4689,
+            "pairs": 96
+          },
+          "2.15": {
+            "failing": 0.6458,
+            "ratio": 0.4491,
+            "pairs": 96
+          },
+          "2.2": {
+            "failing": 0.5,
+            "ratio": 0.4068,
+            "pairs": 96
+          },
+          "2.25": {
+            "failing": 0.5208,
+            "ratio": 0.4081,
+            "pairs": 96
+          },
+          "2.3": {
+            "failing": 0.7083,
+            "ratio": 0.4357,
+            "pairs": 96
+          },
+          "2.35": {
+            "failing": 0.9375,
+            "ratio": 0.4826,
+            "pairs": 96
+          },
+          "2.4": {
+            "failing": 0.6458,
+            "ratio": 0.4091,
+            "pairs": 96
+          },
+          "2.45": {
+            "failing": 0.9167,
+            "ratio": 0.5309,
+            "pairs": 96
+          },
+          "2.5": {
+            "failing": 0.9583,
+            "ratio": 0.5631,
+            "pairs": 96
+          },
+          "2.55": {
+            "failing": 0.6875,
+            "ratio": 0.4562,
+            "pairs": 96
+          },
+          "2.6": {
+            "failing": 0.7708,
+            "ratio": 0.4713,
+            "pairs": 96
+          },
+          "2.65": {
+            "failing": 0.6458,
+            "ratio": 0.4259,
+            "pairs": 96
+          },
+          "2.7": {
+            "failing": 0.6875,
+            "ratio": 0.4345,
+            "pairs": 96
+          },
+          "2.75": {
+            "failing": 0.8125,
+            "ratio": 0.4578,
+            "pairs": 96
+          },
+          "2.8": {
+            "failing": 0.8958,
+            "ratio": 0.4983,
+            "pairs": 96
+          },
+          "2.85": {
+            "failing": 0.625,
+            "ratio": 0.4204,
+            "pairs": 96
+          },
+          "2.9": {
+            "failing": 0.8958,
+            "ratio": 0.5239,
+            "pairs": 96
+          },
+          "2.95": {
+            "failing": 0.8958,
+            "ratio": 0.5346,
+            "pairs": 96
+          },
+          "3.0": {
+            "failing": 0.8958,
+            "ratio": 0.5163,
+            "pairs": 96
+          }
+        }
+      }
+    },
+    "material.materialize.snappy": {
+      "spring": [
+        0.5,
+        0.85
+      ],
+      "exponent": {
+        "value": 2.75,
+        "rms": 0.02958421880418349,
+        "at_grid_edge": false,
+        "curves": 24,
+        "excluded": []
+      },
+      "exponent_cases": {
+        "dark-photo": {
+          "value": 2.55,
+          "rms": 0.008193677762287693,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "dark-stripes": {
+          "value": 2.2,
+          "rms": 0.04606810234772529,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "light-photo": {
+          "value": 3.1,
+          "rms": 0.016215375644412788,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "light-stripes": {
+          "value": 3.1,
+          "rms": 0.02569634044480251,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        }
+      },
+      "exponent_spread": {
+        "min": 2.65,
+        "max": 2.75,
+        "std": 0.038,
+        "per_take": {
+          "20261006-091133": 2.75,
+          "noise-2b1/take0": 2.65,
+          "noise-2b1/take1": 2.75,
+          "noise-2b1/take2": 2.75,
+          "noise-2b1/take3": 2.7,
+          "noise-2b1/take4": 2.75
+        }
+      },
+      "cases": [
+        "dark-photo",
+        "dark-stripes",
+        "light-photo",
+        "light-stripes"
+      ],
+      "reduce_motion_cases": [
+        "dark-photo-reduce-motion",
+        "dark-stripes-reduce-motion",
+        "light-photo-reduce-motion",
+        "light-stripes-reduce-motion"
+      ],
+      "takes": [
+        "20261006-091133",
+        "noise-2b1/take0",
+        "noise-2b1/take1",
+        "noise-2b1/take2",
+        "noise-2b1/take3",
+        "noise-2b1/take4"
+      ],
+      "gains": {
+        "dropped": {},
+        "pooled": {
+          "value": 0.44,
+          "rms": 0.0006910901935273844,
+          "at_grid_edge": false,
+          "at_floor": false,
+          "cases": [
+            "dark-photo",
+            "dark-stripes",
+            "light-photo",
+            "light-stripes"
+          ],
+          "native_overshoot": {
+            "dark-photo": 0.00298,
+            "dark-stripes": 0.00297,
+            "light-photo": 0.00284,
+            "light-stripes": 0.00293
+          },
+          "flutter_overshoot": {
+            "dark-photo": 0.0017,
+            "dark-stripes": 0.00299,
+            "light-photo": 0.00336,
+            "light-stripes": 0.00308
+          }
+        },
+        "appearances": {
+          "dark": {
+            "value": 0.52,
+            "rms": 0.0007878589296174827,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo",
+              "dark-stripes"
+            ],
+            "native_overshoot": {
+              "dark-photo": 0.00298,
+              "dark-stripes": 0.00297
+            },
+            "flutter_overshoot": {
+              "dark-photo": 0.00201,
+              "dark-stripes": 0.00353
+            }
+          },
+          "light": {
+            "value": 0.4,
+            "rms": 0.00017890251093838932,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo",
+              "light-stripes"
+            ],
+            "native_overshoot": {
+              "light-photo": 0.00284,
+              "light-stripes": 0.00293
+            },
+            "flutter_overshoot": {
+              "light-photo": 0.00305,
+              "light-stripes": 0.0028
+            }
+          }
+        },
+        "cases": {
+          "dark-photo": {
+            "value": 0.76,
+            "rms": 3.192518992415705e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo"
+            ],
+            "native_overshoot": {
+              "dark-photo": 0.00298
+            },
+            "flutter_overshoot": {
+              "dark-photo": 0.00294
+            }
+          },
+          "dark-stripes": {
+            "value": 0.44,
+            "rms": 1.9546180936432563e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-stripes"
+            ],
+            "native_overshoot": {
+              "dark-stripes": 0.00297
+            },
+            "flutter_overshoot": {
+              "dark-stripes": 0.00299
+            }
+          },
+          "light-photo": {
+            "value": 0.38,
+            "rms": 6.329426355781509e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo"
+            ],
+            "native_overshoot": {
+              "light-photo": 0.00284
+            },
+            "flutter_overshoot": {
+              "light-photo": 0.0029
+            }
+          },
+          "light-stripes": {
+            "value": 0.42,
+            "rms": 8.197043792364852e-06,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-stripes"
+            ],
+            "native_overshoot": {
+              "light-stripes": 0.00293
+            },
+            "flutter_overshoot": {
+              "light-stripes": 0.00294
+            }
+          }
+        },
+        "case_spread": {
+          "min": 0.38,
+          "max": 0.76,
+          "std": 0.152,
+          "per_take": {
+            "dark-photo": 0.76,
+            "dark-stripes": 0.44,
+            "light-photo": 0.38,
+            "light-stripes": 0.42
+          }
+        },
+        "take_spread": {
+          "min": 0.4,
+          "max": 0.48,
+          "std": 0.027,
+          "per_take": {
+            "20261006-091133": 0.42,
+            "noise-2b1/take0": 0.46,
+            "noise-2b1/take1": 0.44,
+            "noise-2b1/take2": 0.48,
+            "noise-2b1/take3": 0.4,
+            "noise-2b1/take4": 0.42
+          }
+        },
+        "spring_overshoot": 0.00629
+      },
+      "reduce_motion_gains": {
+        "dropped": {},
+        "pooled": {
+          "value": 0.6,
+          "rms": 0.0013123062924157041,
+          "at_grid_edge": false,
+          "at_floor": false,
+          "cases": [
+            "dark-photo-reduce-motion",
+            "dark-stripes-reduce-motion",
+            "light-photo-reduce-motion",
+            "light-stripes-reduce-motion"
+          ],
+          "native_overshoot": {
+            "dark-photo-reduce-motion": 0.00484,
+            "dark-stripes-reduce-motion": 0.00366,
+            "light-photo-reduce-motion": 0.00399,
+            "light-stripes-reduce-motion": 0.00402
+          },
+          "flutter_overshoot": {
+            "dark-photo-reduce-motion": 0.00232,
+            "dark-stripes-reduce-motion": 0.00408,
+            "light-photo-reduce-motion": 0.00458,
+            "light-stripes-reduce-motion": 0.0042
+          }
+        },
+        "appearances": {
+          "dark": {
+            "value": 0.72,
+            "rms": 0.0016919054939172741,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo-reduce-motion",
+              "dark-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "dark-photo-reduce-motion": 0.00484,
+              "dark-stripes-reduce-motion": 0.00366
+            },
+            "flutter_overshoot": {
+              "dark-photo-reduce-motion": 0.00279,
+              "dark-stripes-reduce-motion": 0.00489
+            }
+          },
+          "light": {
+            "value": 0.54,
+            "rms": 0.00019243888140449894,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo-reduce-motion",
+              "light-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "light-photo-reduce-motion": 0.00399,
+              "light-stripes-reduce-motion": 0.00402
+            },
+            "flutter_overshoot": {
+              "light-photo-reduce-motion": 0.00412,
+              "light-stripes-reduce-motion": 0.00378
+            }
+          }
+        },
+        "cases": {
+          "dark-photo-reduce-motion": {
+            "value": 1.24,
+            "rms": 3.690830477024853e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo-reduce-motion"
+            ],
+            "native_overshoot": {
+              "dark-photo-reduce-motion": 0.00484
+            },
+            "flutter_overshoot": {
+              "dark-photo-reduce-motion": 0.0048
+            }
+          },
+          "dark-stripes-reduce-motion": {
+            "value": 0.54,
+            "rms": 9.536477472556811e-06,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "dark-stripes-reduce-motion": 0.00366
+            },
+            "flutter_overshoot": {
+              "dark-stripes-reduce-motion": 0.00367
+            }
+          },
+          "light-photo-reduce-motion": {
+            "value": 0.52,
+            "rms": 1.761620926121754e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo-reduce-motion"
+            ],
+            "native_overshoot": {
+              "light-photo-reduce-motion": 0.00399
+            },
+            "flutter_overshoot": {
+              "light-photo-reduce-motion": 0.00397
+            }
+          },
+          "light-stripes-reduce-motion": {
+            "value": 0.58,
+            "rms": 4.377055679431318e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "light-stripes-reduce-motion": 0.00402
+            },
+            "flutter_overshoot": {
+              "light-stripes-reduce-motion": 0.00406
+            }
+          }
+        },
+        "case_spread": {
+          "min": 0.52,
+          "max": 1.24,
+          "std": 0.301,
+          "per_take": {
+            "dark-photo-reduce-motion": 1.24,
+            "dark-stripes-reduce-motion": 0.54,
+            "light-photo-reduce-motion": 0.52,
+            "light-stripes-reduce-motion": 0.58
+          }
+        },
+        "take_spread": {
+          "min": 0.58,
+          "max": 0.66,
+          "std": 0.025,
+          "per_take": {
+            "20261006-091925": 0.6,
+            "noise-2b1/take0": 0.6,
+            "noise-2b1/take1": 0.62,
+            "noise-2b1/take2": 0.6,
+            "noise-2b1/take3": 0.66,
+            "noise-2b1/take4": 0.58
+          }
+        },
+        "spring_overshoot": 0.00629
+      },
+      "appear_exponent": {
+        "value": 1.95,
+        "at_grid_edge": false,
+        "events": 48,
+        "objective": "mean failing Done measures per native appear and first-frame outcome, Flutter simulated from the scan at 60 Hz from its build frame; ties by mean value / limit",
+        "table": {
+          "1.0": {
+            "failing": 1.7604,
+            "ratio": 1.0195,
+            "pairs": 96
+          },
+          "1.05": {
+            "failing": 1.6667,
+            "ratio": 0.8638,
+            "pairs": 96
+          },
+          "1.1": {
+            "failing": 1.6146,
+            "ratio": 0.798,
+            "pairs": 96
+          },
+          "1.15": {
+            "failing": 1.3333,
+            "ratio": 0.6928,
+            "pairs": 96
+          },
+          "1.2": {
+            "failing": 1.1875,
+            "ratio": 0.6032,
+            "pairs": 96
+          },
+          "1.25": {
+            "failing": 1.0625,
+            "ratio": 0.5451,
+            "pairs": 96
+          },
+          "1.3": {
+            "failing": 0.8333,
+            "ratio": 0.4973,
+            "pairs": 96
+          },
+          "1.35": {
+            "failing": 0.8021,
+            "ratio": 0.4718,
+            "pairs": 96
+          },
+          "1.4": {
+            "failing": 0.7188,
+            "ratio": 0.4409,
+            "pairs": 96
+          },
+          "1.45": {
+            "failing": 0.6042,
+            "ratio": 0.4018,
+            "pairs": 96
+          },
+          "1.5": {
+            "failing": 0.4896,
+            "ratio": 0.3674,
+            "pairs": 96
+          },
+          "1.55": {
+            "failing": 0.4167,
+            "ratio": 0.3746,
+            "pairs": 96
+          },
+          "1.6": {
+            "failing": 0.3542,
+            "ratio": 0.3523,
+            "pairs": 96
+          },
+          "1.65": {
+            "failing": 0.5417,
+            "ratio": 0.3828,
+            "pairs": 96
+          },
+          "1.7": {
+            "failing": 0.4792,
+            "ratio": 0.3486,
+            "pairs": 96
+          },
+          "1.75": {
+            "failing": 0.4896,
+            "ratio": 0.357,
+            "pairs": 96
+          },
+          "1.8": {
+            "failing": 0.4167,
+            "ratio": 0.3577,
+            "pairs": 96
+          },
+          "1.85": {
+            "failing": 0.3333,
+            "ratio": 0.3357,
+            "pairs": 96
+          },
+          "1.9": {
+            "failing": 0.2292,
+            "ratio": 0.3031,
+            "pairs": 96
+          },
+          "1.95": {
+            "failing": 0.1458,
+            "ratio": 0.2921,
+            "pairs": 96
+          },
+          "2.0": {
+            "failing": 0.2292,
+            "ratio": 0.3111,
+            "pairs": 96
+          },
+          "2.05": {
+            "failing": 0.5208,
+            "ratio": 0.3656,
+            "pairs": 96
+          },
+          "2.1": {
+            "failing": 0.4792,
+            "ratio": 0.3492,
+            "pairs": 96
+          },
+          "2.15": {
+            "failing": 0.3958,
+            "ratio": 0.3266,
+            "pairs": 96
+          },
+          "2.2": {
+            "failing": 0.3958,
+            "ratio": 0.3427,
+            "pairs": 96
+          },
+          "2.25": {
+            "failing": 0.4375,
+            "ratio": 0.3635,
+            "pairs": 96
+          },
+          "2.3": {
+            "failing": 0.4167,
+            "ratio": 0.3635,
+            "pairs": 96
+          },
+          "2.35": {
+            "failing": 0.2708,
+            "ratio": 0.3368,
+            "pairs": 96
+          },
+          "2.4": {
+            "failing": 0.2708,
+            "ratio": 0.3233,
+            "pairs": 96
+          },
+          "2.45": {
+            "failing": 0.25,
+            "ratio": 0.3181,
+            "pairs": 96
+          },
+          "2.5": {
+            "failing": 0.2292,
+            "ratio": 0.3124,
+            "pairs": 96
+          },
+          "2.55": {
+            "failing": 0.5208,
+            "ratio": 0.4102,
+            "pairs": 96
+          },
+          "2.6": {
+            "failing": 0.4792,
+            "ratio": 0.3992,
+            "pairs": 96
+          },
+          "2.65": {
+            "failing": 0.5417,
+            "ratio": 0.4043,
+            "pairs": 96
+          },
+          "2.7": {
+            "failing": 0.4792,
+            "ratio": 0.3845,
+            "pairs": 96
+          },
+          "2.75": {
+            "failing": 0.5417,
+            "ratio": 0.4132,
+            "pairs": 96
+          },
+          "2.8": {
+            "failing": 0.5208,
+            "ratio": 0.4005,
+            "pairs": 96
+          },
+          "2.85": {
+            "failing": 0.4792,
+            "ratio": 0.4126,
+            "pairs": 96
+          },
+          "2.9": {
+            "failing": 0.5,
+            "ratio": 0.4139,
+            "pairs": 96
+          },
+          "2.95": {
+            "failing": 0.4167,
+            "ratio": 0.427,
+            "pairs": 96
+          },
+          "3.0": {
+            "failing": 0.375,
+            "ratio": 0.4167,
+            "pairs": 96
+          }
+        }
+      }
+    },
+    "material.materialize.bouncy": {
+      "spring": [
+        0.5,
+        0.7
+      ],
+      "exponent": {
+        "value": 2.7,
+        "rms": 0.03063889829499412,
+        "at_grid_edge": false,
+        "curves": 24,
+        "excluded": []
+      },
+      "exponent_cases": {
+        "dark-photo": {
+          "value": 2.6,
+          "rms": 0.007668241674967538,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "dark-stripes": {
+          "value": 2.3,
+          "rms": 0.050115605904978835,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "light-photo": {
+          "value": 3.05,
+          "rms": 0.017568322355522817,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        },
+        "light-stripes": {
+          "value": 3.05,
+          "rms": 0.02668548902743888,
+          "at_grid_edge": false,
+          "curves": 6,
+          "excluded": []
+        }
+      },
+      "exponent_spread": {
+        "min": 2.7,
+        "max": 2.85,
+        "std": 0.055,
+        "per_take": {
+          "20261006-091133": 2.7,
+          "noise-2b1/take0": 2.75,
+          "noise-2b1/take1": 2.7,
+          "noise-2b1/take2": 2.7,
+          "noise-2b1/take3": 2.7,
+          "noise-2b1/take4": 2.85
+        }
+      },
+      "cases": [
+        "dark-photo",
+        "dark-stripes",
+        "light-photo",
+        "light-stripes"
+      ],
+      "reduce_motion_cases": [
+        "dark-photo-reduce-motion",
+        "dark-stripes-reduce-motion",
+        "light-photo-reduce-motion",
+        "light-stripes-reduce-motion"
+      ],
+      "takes": [
+        "20261006-091133",
+        "noise-2b1/take0",
+        "noise-2b1/take1",
+        "noise-2b1/take2",
+        "noise-2b1/take3",
+        "noise-2b1/take4"
+      ],
+      "gains": {
+        "dropped": {},
+        "pooled": {
+          "value": 0.5,
+          "rms": 0.0028252603856539615,
+          "at_grid_edge": false,
+          "at_floor": false,
+          "cases": [
+            "dark-photo",
+            "dark-stripes",
+            "light-photo",
+            "light-stripes"
+          ],
+          "native_overshoot": {
+            "dark-photo": 0.01804,
+            "dark-stripes": 0.02368,
+            "light-photo": 0.02474,
+            "light-stripes": 0.02796
+          },
+          "flutter_overshoot": {
+            "dark-photo": 0.01416,
+            "dark-stripes": 0.02484,
+            "light-photo": 0.02791,
+            "light-stripes": 0.0256
+          }
+        },
+        "appearances": {
+          "dark": {
+            "value": 0.52,
+            "rms": 0.002788048514937312,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo",
+              "dark-stripes"
+            ],
+            "native_overshoot": {
+              "dark-photo": 0.01804,
+              "dark-stripes": 0.02368
+            },
+            "flutter_overshoot": {
+              "dark-photo": 0.01473,
+              "dark-stripes": 0.02584
+            }
+          },
+          "light": {
+            "value": 0.5,
+            "rms": 0.002793380944743873,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo",
+              "light-stripes"
+            ],
+            "native_overshoot": {
+              "light-photo": 0.02474,
+              "light-stripes": 0.02796
+            },
+            "flutter_overshoot": {
+              "light-photo": 0.02791,
+              "light-stripes": 0.0256
+            }
+          }
+        },
+        "cases": {
+          "dark-photo": {
+            "value": 0.64,
+            "rms": 9.557415915354903e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo"
+            ],
+            "native_overshoot": {
+              "dark-photo": 0.01804
+            },
+            "flutter_overshoot": {
+              "dark-photo": 0.01813
+            }
+          },
+          "dark-stripes": {
+            "value": 0.48,
+            "rms": 0.000164390513836727,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-stripes"
+            ],
+            "native_overshoot": {
+              "dark-stripes": 0.02368
+            },
+            "flutter_overshoot": {
+              "dark-stripes": 0.02385
+            }
+          },
+          "light-photo": {
+            "value": 0.44,
+            "rms": 0.0001800056590960386,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo"
+            ],
+            "native_overshoot": {
+              "light-photo": 0.02474
+            },
+            "flutter_overshoot": {
+              "light-photo": 0.02456
+            }
+          },
+          "light-stripes": {
+            "value": 0.54,
+            "rms": 0.0003095594330877853,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-stripes"
+            ],
+            "native_overshoot": {
+              "light-stripes": 0.02796
+            },
+            "flutter_overshoot": {
+              "light-stripes": 0.02765
+            }
+          }
+        },
+        "case_spread": {
+          "min": 0.44,
+          "max": 0.64,
+          "std": 0.075,
+          "per_take": {
+            "dark-photo": 0.64,
+            "dark-stripes": 0.48,
+            "light-photo": 0.44,
+            "light-stripes": 0.54
+          }
+        },
+        "take_spread": {
+          "min": 0.48,
+          "max": 0.52,
+          "std": 0.012,
+          "per_take": {
+            "20261006-091133": 0.5,
+            "noise-2b1/take0": 0.48,
+            "noise-2b1/take1": 0.52,
+            "noise-2b1/take2": 0.5,
+            "noise-2b1/take3": 0.5,
+            "noise-2b1/take4": 0.5
+          }
+        },
+        "spring_overshoot": 0.04599
+      },
+      "reduce_motion_gains": {
+        "dropped": {},
+        "pooled": {
+          "value": 0.8,
+          "rms": 0.007256243586311975,
+          "at_grid_edge": false,
+          "at_floor": false,
+          "cases": [
+            "dark-photo-reduce-motion",
+            "dark-stripes-reduce-motion",
+            "light-photo-reduce-motion",
+            "light-stripes-reduce-motion"
+          ],
+          "native_overshoot": {
+            "dark-photo-reduce-motion": 0.0353,
+            "dark-stripes-reduce-motion": 0.03963,
+            "light-photo-reduce-motion": 0.03752,
+            "light-stripes-reduce-motion": 0.04087
+          },
+          "flutter_overshoot": {
+            "dark-photo-reduce-motion": 0.02266,
+            "dark-stripes-reduce-motion": 0.03975,
+            "light-photo-reduce-motion": 0.04466,
+            "light-stripes-reduce-motion": 0.04097
+          }
+        },
+        "appearances": {
+          "dark": {
+            "value": 0.9,
+            "rms": 0.007873432418968046,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo-reduce-motion",
+              "dark-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "dark-photo-reduce-motion": 0.0353,
+              "dark-stripes-reduce-motion": 0.03963
+            },
+            "flutter_overshoot": {
+              "dark-photo-reduce-motion": 0.0254,
+              "dark-stripes-reduce-motion": 0.04473
+            }
+          },
+          "light": {
+            "value": 0.72,
+            "rms": 0.003404267873034708,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo-reduce-motion",
+              "light-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "light-photo-reduce-motion": 0.03752,
+              "light-stripes-reduce-motion": 0.04087
+            },
+            "flutter_overshoot": {
+              "light-photo-reduce-motion": 0.04019,
+              "light-stripes-reduce-motion": 0.03687
+            }
+          }
+        },
+        "cases": {
+          "dark-photo-reduce-motion": {
+            "value": 1.28,
+            "rms": 3.404500818534467e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-photo-reduce-motion"
+            ],
+            "native_overshoot": {
+              "dark-photo-reduce-motion": 0.0353
+            },
+            "flutter_overshoot": {
+              "dark-photo-reduce-motion": 0.03533
+            }
+          },
+          "dark-stripes-reduce-motion": {
+            "value": 0.8,
+            "rms": 0.00011497615713940146,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "dark-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "dark-stripes-reduce-motion": 0.03963
+            },
+            "flutter_overshoot": {
+              "dark-stripes-reduce-motion": 0.03975
+            }
+          },
+          "light-photo-reduce-motion": {
+            "value": 0.68,
+            "rms": 0.0004400198385996826,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-photo-reduce-motion"
+            ],
+            "native_overshoot": {
+              "light-photo-reduce-motion": 0.03752
+            },
+            "flutter_overshoot": {
+              "light-photo-reduce-motion": 0.03796
+            }
+          },
+          "light-stripes-reduce-motion": {
+            "value": 0.8,
+            "rms": 9.264710668018677e-05,
+            "at_grid_edge": false,
+            "at_floor": false,
+            "cases": [
+              "light-stripes-reduce-motion"
+            ],
+            "native_overshoot": {
+              "light-stripes-reduce-motion": 0.04087
+            },
+            "flutter_overshoot": {
+              "light-stripes-reduce-motion": 0.04097
+            }
+          }
+        },
+        "case_spread": {
+          "min": 0.68,
+          "max": 1.28,
+          "std": 0.23,
+          "per_take": {
+            "dark-photo-reduce-motion": 1.28,
+            "dark-stripes-reduce-motion": 0.8,
+            "light-photo-reduce-motion": 0.68,
+            "light-stripes-reduce-motion": 0.8
+          }
+        },
+        "take_spread": {
+          "min": 0.78,
+          "max": 0.8,
+          "std": 0.007,
+          "per_take": {
+            "20261006-091925": 0.8,
+            "noise-2b1/take0": 0.78,
+            "noise-2b1/take1": 0.8,
+            "noise-2b1/take2": 0.8,
+            "noise-2b1/take3": 0.8,
+            "noise-2b1/take4": 0.8
+          }
+        },
+        "spring_overshoot": 0.04599
+      },
+      "appear_exponent": {
+        "value": 2.45,
+        "at_grid_edge": false,
+        "events": 48,
+        "objective": "mean failing Done measures per native appear and first-frame outcome, Flutter simulated from the scan at 60 Hz from its build frame; ties by mean value / limit",
+        "table": {
+          "1.0": {
+            "failing": 2.4167,
+            "ratio": 1.0883,
+            "pairs": 96
+          },
+          "1.05": {
+            "failing": 2.0729,
+            "ratio": 0.9378,
+            "pairs": 96
+          },
+          "1.1": {
+            "failing": 2.1458,
+            "ratio": 0.9154,
+            "pairs": 96
+          },
+          "1.15": {
+            "failing": 2.2396,
+            "ratio": 0.8998,
+            "pairs": 96
+          },
+          "1.2": {
+            "failing": 1.9479,
+            "ratio": 0.8538,
+            "pairs": 96
+          },
+          "1.25": {
+            "failing": 1.7292,
+            "ratio": 0.8051,
+            "pairs": 96
+          },
+          "1.3": {
+            "failing": 1.4688,
+            "ratio": 0.7578,
+            "pairs": 96
+          },
+          "1.35": {
+            "failing": 1.2083,
+            "ratio": 0.7236,
+            "pairs": 96
+          },
+          "1.4": {
+            "failing": 1.0833,
+            "ratio": 0.6768,
+            "pairs": 96
+          },
+          "1.45": {
+            "failing": 1.0,
+            "ratio": 0.6109,
+            "pairs": 96
+          },
+          "1.5": {
+            "failing": 0.7292,
+            "ratio": 0.5767,
+            "pairs": 96
+          },
+          "1.55": {
+            "failing": 0.6875,
+            "ratio": 0.5732,
+            "pairs": 96
+          },
+          "1.6": {
+            "failing": 0.6562,
+            "ratio": 0.5609,
+            "pairs": 96
+          },
+          "1.65": {
+            "failing": 0.7917,
+            "ratio": 0.564,
+            "pairs": 96
+          },
+          "1.7": {
+            "failing": 0.7083,
+            "ratio": 0.5429,
+            "pairs": 96
+          },
+          "1.75": {
+            "failing": 0.5208,
+            "ratio": 0.5167,
+            "pairs": 96
+          },
+          "1.8": {
+            "failing": 0.2708,
+            "ratio": 0.4807,
+            "pairs": 96
+          },
+          "1.85": {
+            "failing": 0.2708,
+            "ratio": 0.4537,
+            "pairs": 96
+          },
+          "1.9": {
+            "failing": 0.1458,
+            "ratio": 0.3505,
+            "pairs": 96
+          },
+          "1.95": {
+            "failing": 0.1458,
+            "ratio": 0.3199,
+            "pairs": 96
+          },
+          "2.0": {
+            "failing": 0.1667,
+            "ratio": 0.3469,
+            "pairs": 96
+          },
+          "2.05": {
+            "failing": 0.1667,
+            "ratio": 0.3225,
+            "pairs": 96
+          },
+          "2.1": {
+            "failing": 0.3333,
+            "ratio": 0.3828,
+            "pairs": 96
+          },
+          "2.15": {
+            "failing": 0.3333,
+            "ratio": 0.3793,
+            "pairs": 96
+          },
+          "2.2": {
+            "failing": 0.2917,
+            "ratio": 0.4019,
+            "pairs": 96
+          },
+          "2.25": {
+            "failing": 0.375,
+            "ratio": 0.4153,
+            "pairs": 96
+          },
+          "2.3": {
+            "failing": 0.2917,
+            "ratio": 0.3596,
+            "pairs": 96
+          },
+          "2.35": {
+            "failing": 0.3125,
+            "ratio": 0.3915,
+            "pairs": 96
+          },
+          "2.4": {
+            "failing": 0.3125,
+            "ratio": 0.3968,
+            "pairs": 96
+          },
+          "2.45": {
+            "failing": 0.0417,
+            "ratio": 0.2681,
+            "pairs": 96
+          },
+          "2.5": {
+            "failing": 0.1042,
+            "ratio": 0.309,
+            "pairs": 96
+          },
+          "2.55": {
+            "failing": 0.1042,
+            "ratio": 0.2826,
+            "pairs": 96
+          },
+          "2.6": {
+            "failing": 0.1042,
+            "ratio": 0.2794,
+            "pairs": 96
+          },
+          "2.65": {
+            "failing": 0.1667,
+            "ratio": 0.2832,
+            "pairs": 96
+          },
+          "2.7": {
+            "failing": 0.5,
+            "ratio": 0.3964,
+            "pairs": 96
+          },
+          "2.75": {
+            "failing": 0.5,
+            "ratio": 0.3794,
+            "pairs": 96
+          },
+          "2.8": {
+            "failing": 0.5208,
+            "ratio": 0.422,
+            "pairs": 96
+          },
+          "2.85": {
+            "failing": 0.5417,
+            "ratio": 0.4386,
+            "pairs": 96
+          },
+          "2.9": {
+            "failing": 0.5833,
+            "ratio": 0.4502,
+            "pairs": 96
+          },
+          "2.95": {
+            "failing": 0.5625,
+            "ratio": 0.4587,
+            "pairs": 96
+          },
+          "3.0": {
+            "failing": 0.6458,
+            "ratio": 0.4926,
+            "pairs": 96
+          }
+        }
+      }
+    }
+  },
+  "default_spring_check": {
+    "swiftui": [
+      0.55,
+      1.0
+    ],
+    "all": {
+      "response": 0.58,
+      "damping": 0.97,
+      "rms": 0.02774213225996886,
+      "at_grid_edge": false,
+      "pass": false
+    },
+    "cases": {
+      "dark-photo": {
+        "response": 0.58,
+        "damping": 0.97,
+        "rms": 0.007984385192813115,
+        "at_grid_edge": false,
+        "pass": false
+      },
+      "dark-stripes": {
+        "response": 0.71,
+        "damping": 0.79,
+        "rms": 0.041362012578958156,
+        "at_grid_edge": false,
+        "pass": false
+      },
+      "light-photo": {
+        "response": 0.51,
+        "damping": 1.09,
+        "rms": 0.015282917143490615,
+        "at_grid_edge": false,
+        "pass": false
+      },
+      "light-stripes": {
+        "response": 0.45,
+        "damping": 1.24,
+        "rms": 0.02353320658728732,
+        "at_grid_edge": false,
+        "pass": false
+      }
+    },
+    "pass": false
+  },
+  "blur_ramp": {
+    "value": 1.0,
+    "objective": "sharpness RMS at matched progress, over the targets every k measures, / 1.0 + per-backdrop progress deviation RMS at fixed visibility / 0.05",
+    "table": {
+      "0.25": {
+        "sharpness_rms": 0.9727,
+        "progress_deviation_rms": 0.0971,
+        "objective": 2.915,
+        "unmeasured": [
+          "dark-photo@0.25"
+        ],
+        "flutter_deviation": {
+          "dark-photo": {
+            "0.25": 0.211,
+            "0.5": 0.197,
+            "0.75": 0.1082
+          },
+          "dark-stripes": {
+            "0.25": -0.0283,
+            "0.5": -0.0306,
+            "0.75": -0.0163
+          },
+          "light-photo": {
+            "0.25": -0.1012,
+            "0.5": -0.0936,
+            "0.75": -0.0524
+          },
+          "light-stripes": {
+            "0.25": -0.0814,
+            "0.5": -0.0728,
+            "0.75": -0.0395
+          }
+        }
+      },
+      "0.5": {
+        "sharpness_rms": 0.9726,
+        "progress_deviation_rms": 0.0704,
+        "objective": 2.3812,
+        "unmeasured": [],
+        "flutter_deviation": {
+          "dark-photo": {
+            "0.25": 0.126,
+            "0.5": 0.131,
+            "0.75": 0.0794
+          },
+          "dark-stripes": {
+            "0.25": -0.0129,
+            "0.5": -0.019,
+            "0.75": -0.0115
+          },
+          "light-photo": {
+            "0.25": -0.0658,
+            "0.5": -0.0654,
+            "0.75": -0.0398
+          },
+          "light-stripes": {
+            "0.25": -0.0473,
+            "0.5": -0.0466,
+            "0.75": -0.0281
+          }
+        }
+      },
+      "1.0": {
+        "sharpness_rms": 0.941,
+        "progress_deviation_rms": 0.0587,
+        "objective": 2.1144,
+        "unmeasured": [],
+        "flutter_deviation": {
+          "dark-photo": {
+            "0.25": 0.0239,
+            "0.5": 0.0476,
+            "0.75": 0.0407
+          },
+          "dark-stripes": {
+            "0.25": 0.0013,
+            "0.5": -0.0053,
+            "0.75": -0.0053
+          },
+          "light-photo": {
+            "0.25": -0.0184,
+            "0.5": -0.029,
+            "0.75": -0.0222
+          },
+          "light-stripes": {
+            "0.25": -0.0068,
+            "0.5": -0.0133,
+            "0.75": -0.0132
+          }
+        }
+      },
+      "1.5": {
+        "sharpness_rms": 0.8657,
+        "progress_deviation_rms": 0.0679,
+        "objective": 2.2241,
+        "unmeasured": [],
+        "flutter_deviation": {
+          "dark-photo": {
+            "0.25": -0.0299,
+            "0.5": -0.0116,
+            "0.75": 0.0141
+          },
+          "dark-stripes": {
+            "0.25": 0.0081,
+            "0.5": 0.0038,
+            "0.75": 0.0016
+          },
+          "light-photo": {
+            "0.25": 0.0068,
+            "0.5": -0.0025,
+            "0.75": -0.0109
+          },
+          "light-stripes": {
+            "0.25": 0.015,
+            "0.5": 0.0103,
+            "0.75": -0.0047
+          }
+        }
+      },
+      "2.0": {
+        "sharpness_rms": 0.7127,
+        "progress_deviation_rms": 0.0782,
+        "objective": 2.2774,
+        "unmeasured": [],
+        "flutter_deviation": {
+          "dark-photo": {
+            "0.25": -0.0603,
+            "0.5": -0.0444,
+            "0.75": -0.0106
+          },
+          "dark-stripes": {
+            "0.25": 0.0115,
+            "0.5": 0.0103,
+            "0.75": 0.0039
+          },
+          "light-photo": {
+            "0.25": 0.0216,
+            "0.5": 0.0123,
+            "0.75": 0.0012
+          },
+          "light-stripes": {
+            "0.25": 0.0272,
+            "0.5": 0.0219,
+            "0.75": 0.0055
+          }
+        }
+      },
+      "3.0": {
+        "sharpness_rms": 0.7846,
+        "progress_deviation_rms": 0.0969,
+        "objective": 2.7229,
+        "unmeasured": [],
+        "flutter_deviation": {
+          "dark-photo": {
+            "0.25": -0.0891,
+            "0.5": -0.1022,
+            "0.75": -0.0519
+          },
+          "dark-stripes": {
+            "0.25": 0.0132,
+            "0.5": 0.0183,
+            "0.75": 0.011
+          },
+          "light-photo": {
+            "0.25": 0.0372,
+            "0.5": 0.0392,
+            "0.75": 0.0201
+          },
+          "light-stripes": {
+            "0.25": 0.0387,
+            "0.5": 0.0447,
+            "0.75": 0.0208
+          }
+        }
+      },
+      "4.0": {
+        "sharpness_rms": 0.9823,
+        "progress_deviation_rms": 0.1081,
+        "objective": 3.1433,
+        "unmeasured": [],
+        "flutter_deviation": {
+          "dark-photo": {
+            "0.25": -0.0972,
+            "0.5": -0.1328,
+            "0.75": -0.0812
+          },
+          "dark-stripes": {
+            "0.25": 0.0114,
+            "0.5": 0.0232,
+            "0.75": 0.0153
+          },
+          "light-photo": {
+            "0.25": 0.0435,
+            "0.5": 0.0535,
+            "0.75": 0.0339
+          },
+          "light-stripes": {
+            "0.25": 0.0423,
+            "0.5": 0.0561,
+            "0.75": 0.032
+          }
+        }
+      }
+    },
+    "dropped_targets": [
+      "dark-photo@0.25"
+    ],
+    "native_deviation": {
+      "dark-photo": {
+        "0.25": 0.0284,
+        "0.5": 0.0379,
+        "0.75": 0.0234
+      },
+      "dark-stripes": {
+        "0.25": 0.0893,
+        "0.5": 0.092,
+        "0.75": 0.0798
+      },
+      "light-photo": {
+        "0.25": -0.0585,
+        "0.5": -0.0626,
+        "0.75": -0.0451
+      },
+      "light-stripes": {
+        "0.25": -0.0592,
+        "0.5": -0.0673,
+        "0.75": -0.0581
+      }
+    },
+    "at_grid_edge": false
+  },
+  "visibility_for_progress": [
+    0.0,
+    0.0461,
+    0.0923,
+    0.1362,
+    0.1798,
+    0.2248,
+    0.2711,
+    0.3175,
+    0.3641,
+    0.4112,
+    0.4594,
+    0.5085,
+    0.5616,
+    0.6146,
+    0.6672,
+    0.7203,
+    0.7744,
+    0.8295,
+    0.8855,
+    0.9426,
+    1.0
+  ],
+  "visibility_above_full": [
+    1.0664,
+    1.1281,
+    1.1925,
+    1.2578,
+    1.3235,
+    1.391,
+    1.4658
+  ],
+  "overrides": {
+    "allowed": [],
+    "used": []
+  },
+  "write": {
+    "requested": true,
+    "refused": [],
+    "problems": []
+  }
+}
+/Users/omaraly/development/AI/Operator-2b2-h4/packages/mobile/build/glass_lab/fitvis/h4-20261007-022517

@@ -1,6 +1,6 @@
 # ios_liquid_glass: master roadmap
 
-Last updated: 2026-10-06. Owner: Omar Aly (the user). This is the single source of truth for the whole Liquid Glass effort. Every other document in `docs/liquid_glass/` hangs off it.
+Last updated: 2026-10-07. Owner: Omar Aly (the user). This is the single source of truth for the whole Liquid Glass effort. Every other document in `docs/liquid_glass/` hangs off it.
 
 **Status at a glance**
 
@@ -9,7 +9,7 @@ Last updated: 2026-10-06. Owner: Omar Aly (the user). This is the single source 
 | 1 | Reference lab (measuring instrument) | **DONE**, merged to `development` (`7f74f5a0b`), not pushed |
 | 2A | Package foundation + how glass looks | **DONE**, merged to `development` on 2026-10-02 (2A, 2A.1 and the review fix wave). Done item 3 passes 10 of 20 cases, item 4 5 of 6, item 5 17 of 20, item 6 22 of 32 measures, item 8 passes. Results: `docs/liquid_glass/02a-looks/results-2a1.md`. |
 | 2A.2 | Static-look polish (shader residuals) | TODO, not planned: `docs/liquid_glass/02a-looks/todo-2a2.md` |
-| 2B | How glass moves | **2B.1 DONE**, merged to `development` and pushed on 2026-10-06 (`c4de9358a`): the lab measures motion per shape, the native references and noise floors are recorded over fresh simulator boots, and the package has its motion coordinator with materialize and dematerialize. Done items 1, 2, 3, 5 and 6 pass; item 4 passes 133 of 168 progress measures in normal and Reduce Motion (gates 120 of 120), and its 70 classed failures are in `02b-motion/todo-2b1.md`. Results `02b-motion/results-2b1.md`; reviews `review-2b1-code.md`, `review-2b1-audit.md`. Recordings archived at `/Users/omaraly/development/AI/glass-lab-runs/2b1/`. **Next: the 2B.2 plan** (merge, split, union, morph). |
+| 2B | How glass moves | **2B.1 DONE**, merged to `development` and pushed on 2026-10-06 (`c4de9358a`): the lab measures motion per shape, the native references and noise floors are recorded over fresh simulator boots, and the package has its motion coordinator with materialize and dematerialize. Done items 1, 2, 3, 5 and 6 pass; item 4 passes 133 of 168 progress measures in normal and Reduce Motion (gates 120 of 120), and its 70 classed failures are in `02b-motion/todo-2b1.md`. Results `02b-motion/results-2b1.md`; reviews `review-2b1-code.md`, `review-2b1-audit.md`. Recordings archived at `/Users/omaraly/development/AI/glass-lab-runs/2b1/`. **2B.2: the plan is written, reviewed twice and ready to execute** (`02b-motion/plan-2b2.md`, 28 tasks, 32 rulings; merge reach settled by the user as option A; handoff `02b-motion/handoff-2b2.md`). **Next: a fresh local session executes it.** |
 | 3 | Every iOS component inside the package | NOT STARTED |
 | 4 | Operator adopts the package | NOT STARTED |
 | 5 | Real-device verification pass | NOT STARTED |
@@ -575,12 +575,9 @@ After the review fix wave (runs `20261002-200447` to `20261002-210140`; the firs
 
 ## 9. Exact next steps
 
-1. **Write the 2B.2 plan** (spec §4: merge, split, union, morph; container spacing animation moved here by plan-2b1 ruling 29), prototype-first, from `development` at `c4de9358a` or later, and have it independently reviewed before execution (§5). Carry in:
-   - **Fit on moving glass.** `fitvis` learns from still glass, but moving Flutter glass runs 0.06–0.10 of progress ahead of that prediction; this drives most of 2B.1's 33 tunable (a) failures (`results-2b1.md`, `todo-2b1.md`). Prototype a fit on moving glass first.
-   - **Native merge reach** is about half of `spacing` in the 2B.1 prototype, against spec M4's "closer than `spacing`"; settle it with the N7 scenes before calibrating.
-   - **Gotcha 52:** exclude its one take before 2B.2 reuses `noise.json`.
-   - **2B.1's recordings** (native references, current noise takes, Done runs, `reference/` for `reproduce.py`) live at `/Users/omaraly/development/AI/glass-lab-runs/2b1/`, moved from the removed worktree `Operator-2b1/packages/mobile/build/glass_lab/`; run folders cited in `results-2b1.md` are under its `runs/`. Copy what a new worktree needs into its own `build/glass_lab/`; never record into the archive. Superseded data (the stale noise session, excluded takes, extracted frame caches, the scan scratch and the prototype worktree) was deleted with the user's approval on 2026-10-06; the branch `proto/2b1` keeps the prototype's commits.
-   - Free disk was 155 GB after the cleanup; noise recording takes about 7 GB per Done run pair and more for noise takes. Check before recording.
+1. **Execute the 2B.2 plan** (`02b-motion/plan-2b2.md`; handoff `02b-motion/handoff-2b2.md`) in a fresh local session, worktree `Operator-2b2`, branch `feat/ios-liquid-glass-2b2`. The plan was written prototype-first on `proto/2b2` (worktrees `Operator-2b2-proto`, `Operator-2b2-h4`, `Operator-2b2-morph` stay until 2B.2 merges: the plan reads their recordings), reviewed independently twice (`plan-2b2-review.md`, `research/proto-2b2/plan/rereview-1.md`) and replayed onto `development` (41 patches, 113 runs, 0 problems). User decisions of 2026-10-07: merge reach option A (native joins glass below `spacing / 2` and deforms it below `spacing`; default spacing 8 pt; spec M4's sentence stays, "begins to merge" means "begins to blend"); container spacing animation stays, with a native reference recorded in Task 26; the merge and morph manifest correction (D3) is approved, with edge-only morph tracking; the median member's material row for mixed-size containers is accepted (per-glass materials are a project 3 carry-in). The plan forecasts that Done items 1 to 3 still fail in part; the failures are classed and carried to `todo-2b2.md`.
+   - Disk was about 83 GB free on 2026-10-07; recording takes about 26 GB. Check before recording.
+   - Gotcha 52 is closed by replacement inside each executor's own copy of `noise-2b1` (Task 3); the 2B.1 archive at `/Users/omaraly/development/AI/glass-lab-runs/2b1/` is only read and copied.
 
 2. **2A.2 (static-look polish)** is a to-do list, not yet planned: `docs/liquid_glass/02a-looks/todo-2a2.md`. The user decides when, likely alongside project 3, since the tinted rings are a prominent-button detail.
 3. **Pending user decisions:**

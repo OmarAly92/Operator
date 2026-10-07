@@ -1,0 +1,6 @@
+Union glyph ink (light stripes, pt; ink_flutter.py on ready.png; thresholds as verify/union_tone.py).
+native (run 20261007-011723, verify/union-tone-light-stripes.json): star 25.67 x 24.67, heart 23.0 x 21.0, bolt 16.33 x 26.0, leaf 25.33 x 21.33.
+Flutter Icon size 24 (same json): star 18.67 x 18.0, heart 19.33 x 18.0, bolt 9.33 x 18.0, leaf 15.67 x 15.67.
+glyph sizes chosen by ink height, 24 * native_h / flutter_h rounded to 0.5: star 33, heart 28, bolt 34.5, leaf 32.5 (union_scene_test derives them from the json).
+Flutter after, example at package tip of 20261007-120641 (run folder 20261007-120641 material.union light-stripes flutter): star 26.67 x 24.67, heart 22.67 x 21.0, bolt 14.0 x 25.67, leaf 21.33 x 21.33.
+Heights agree within 0.33 pt; widths within 1.0 pt for star and heart; bolt is 2.33 pt and leaf 4.0 pt narrower because Material Icons.bolt and Icons.eco are other shapes than SF bolt.fill and leaf.fill (class (b), content).

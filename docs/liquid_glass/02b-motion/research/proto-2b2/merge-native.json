@@ -1,0 +1,3396 @@
+{
+"dark-stripes": {
+"pad": 1.0,
+"rest": {
+"width": 242.0,
+"height": 80.33333333333333,
+"count": 4.0
+},
+"transitions": [],
+"touches": [
+[
+15.631667,
+15.67
+],
+[
+18.581667,
+18.638333
+]
+],
+"frames": [
+{
+"t": 15.25,
+"width": 242.0,
+"gap": 80.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.6317,
+"width": 242.0,
+"gap": 80.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.67,
+"width": 242.0,
+"gap": 80.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.7217,
+"width": 240.67,
+"gap": 78.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.7383,
+"width": 236.67,
+"gap": 74.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.755,
+"width": 231.67,
+"gap": 69.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.7717,
+"width": 225.67,
+"gap": 63.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.7883,
+"width": 218.33,
+"gap": 56.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.805,
+"width": 212.0,
+"gap": 50.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.8217,
+"width": 206.33,
+"gap": 44.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.84,
+"width": 201.0,
+"gap": 39.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.8583,
+"width": 196.0,
+"gap": 34.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.8683,
+"width": 191.67,
+"gap": 29.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.885,
+"width": 187.67,
+"gap": 25.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.9017,
+"width": 184.0,
+"gap": 22.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.92,
+"width": 181.0,
+"gap": 19.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.9367,
+"width": 178.33,
+"gap": 16.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.9517,
+"width": 176.0,
+"gap": 14.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.9683,
+"width": 174.33,
+"gap": 12.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.985,
+"width": 172.67,
+"gap": 10.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.0033,
+"width": 170.67,
+"gap": 8.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.0217,
+"width": 169.33,
+"gap": 7.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.0417,
+"width": 168.0,
+"gap": 6.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.0533,
+"width": 167.33,
+"gap": 5.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.0683,
+"width": 166.67,
+"gap": 4.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.085,
+"width": 166.0,
+"gap": 4.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.105,
+"width": 165.33,
+"gap": 3.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.1183,
+"width": 164.67,
+"gap": 2.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.1367,
+"width": 164.0,
+"gap": 2.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.1517,
+"width": 164.0,
+"gap": 2.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.17,
+"width": 163.33,
+"gap": 1.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.1867,
+"width": 163.33,
+"gap": 1.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.205,
+"width": 163.33,
+"gap": 1.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.225,
+"width": 162.67,
+"gap": 0.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.2383,
+"width": 162.67,
+"gap": 0.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.2533,
+"width": 162.67,
+"gap": 0.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.27,
+"width": 162.67,
+"gap": 0.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.2867,
+"width": 162.67,
+"gap": 0.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.3033,
+"width": 162.0,
+"gap": 0.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.32,
+"width": 162.0,
+"gap": 0.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.3383,
+"width": 162.0,
+"gap": 0.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.5817,
+"width": 162.0,
+"gap": 0.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.6383,
+"width": 162.0,
+"gap": 0.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.6883,
+"width": 163.33,
+"gap": 1.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.705,
+"width": 166.67,
+"gap": 4.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.72,
+"width": 172.0,
+"gap": 10.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.7383,
+"width": 178.0,
+"gap": 16.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.755,
+"width": 184.0,
+"gap": 22.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.7717,
+"width": 190.33,
+"gap": 28.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.7917,
+"width": 197.33,
+"gap": 35.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.8067,
+"width": 202.67,
+"gap": 40.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.82,
+"width": 207.33,
+"gap": 45.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.84,
+"width": 212.0,
+"gap": 50.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.8533,
+"width": 216.0,
+"gap": 54.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.8683,
+"width": 219.33,
+"gap": 57.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.8883,
+"width": 222.67,
+"gap": 60.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.9017,
+"width": 225.33,
+"gap": 63.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.92,
+"width": 227.67,
+"gap": 65.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.9367,
+"width": 229.33,
+"gap": 67.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.9533,
+"width": 231.33,
+"gap": 69.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.97,
+"width": 232.67,
+"gap": 70.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.9867,
+"width": 234.0,
+"gap": 72.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.0033,
+"width": 235.33,
+"gap": 73.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.02,
+"width": 236.0,
+"gap": 74.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.0367,
+"width": 237.33,
+"gap": 75.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.0533,
+"width": 238.0,
+"gap": 76.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.07,
+"width": 238.67,
+"gap": 76.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.0867,
+"width": 239.0,
+"gap": 77.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.1017,
+"width": 239.33,
+"gap": 77.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.12,
+"width": 240.0,
+"gap": 78.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.1383,
+"width": 240.0,
+"gap": 78.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.155,
+"width": 240.67,
+"gap": 78.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.17,
+"width": 240.67,
+"gap": 78.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.1867,
+"width": 240.67,
+"gap": 78.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.2067,
+"width": 241.0,
+"gap": 79.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.22,
+"width": 241.33,
+"gap": 79.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.2367,
+"width": 241.33,
+"gap": 79.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.2533,
+"width": 241.33,
+"gap": 79.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.2733,
+"width": 241.33,
+"gap": 79.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.2867,
+"width": 241.33,
+"gap": 79.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.3033,
+"width": 242.0,
+"gap": 80.0,
+"count": 4.0,
+"neck": null,
+"band": false
+}
+]
+},
+"light-stripes": {
+"pad": 1.0,
+"rest": {
+"width": 242.0,
+"height": 81.33333333333333,
+"count": 4.0
+},
+"transitions": [],
+"touches": [
+[
+15.665,
+15.71
+],
+[
+18.633333,
+18.71
+]
+],
+"frames": [
+{
+"t": 15.25,
+"width": 242.0,
+"gap": 80.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.665,
+"width": 242.0,
+"gap": 80.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.71,
+"width": 242.0,
+"gap": 80.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.76,
+"width": 240.67,
+"gap": 78.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.7767,
+"width": 236.67,
+"gap": 74.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.7933,
+"width": 230.67,
+"gap": 68.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.81,
+"width": 224.33,
+"gap": 62.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.8267,
+"width": 218.0,
+"gap": 56.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.8433,
+"width": 212.0,
+"gap": 50.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.86,
+"width": 206.0,
+"gap": 44.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.8767,
+"width": 200.67,
+"gap": 38.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.8917,
+"width": 196.0,
+"gap": 34.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.91,
+"width": 191.33,
+"gap": 29.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.9267,
+"width": 187.33,
+"gap": 25.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.9433,
+"width": 184.0,
+"gap": 22.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.96,
+"width": 180.67,
+"gap": 18.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.9767,
+"width": 178.0,
+"gap": 16.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 15.9933,
+"width": 176.0,
+"gap": 14.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.01,
+"width": 174.0,
+"gap": 12.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.0267,
+"width": 172.67,
+"gap": 10.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.045,
+"width": 170.67,
+"gap": 8.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.0617,
+"width": 169.33,
+"gap": 7.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.075,
+"width": 168.0,
+"gap": 6.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.0917,
+"width": 167.33,
+"gap": 5.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.1083,
+"width": 166.67,
+"gap": 4.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.125,
+"width": 165.33,
+"gap": 3.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.1417,
+"width": 165.33,
+"gap": 3.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.16,
+"width": 164.67,
+"gap": 2.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.1833,
+"width": 164.0,
+"gap": 2.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.195,
+"width": 164.0,
+"gap": 2.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.2117,
+"width": 163.33,
+"gap": 1.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.2333,
+"width": 163.33,
+"gap": 1.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.2467,
+"width": 162.67,
+"gap": 0.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.26,
+"width": 162.67,
+"gap": 0.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.2767,
+"width": 162.67,
+"gap": 0.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.2933,
+"width": 162.67,
+"gap": 0.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.3083,
+"width": 162.33,
+"gap": 0.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.3267,
+"width": 162.0,
+"gap": 0.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.3417,
+"width": 162.0,
+"gap": 0.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.36,
+"width": 162.0,
+"gap": 0.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.3767,
+"width": 162.0,
+"gap": 0.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.6333,
+"width": 162.0,
+"gap": 0.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.71,
+"width": 162.0,
+"gap": 0.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.7433,
+"width": 163.0,
+"gap": 1.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.76,
+"width": 166.67,
+"gap": 4.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.7767,
+"width": 173.33,
+"gap": 11.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.7933,
+"width": 179.33,
+"gap": 17.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.81,
+"width": 185.33,
+"gap": 23.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.8283,
+"width": 191.33,
+"gap": 29.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.845,
+"width": 197.33,
+"gap": 35.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.8617,
+"width": 202.67,
+"gap": 40.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.875,
+"width": 207.33,
+"gap": 45.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.8917,
+"width": 212.0,
+"gap": 50.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.91,
+"width": 216.0,
+"gap": 54.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.9283,
+"width": 219.33,
+"gap": 57.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.9467,
+"width": 222.67,
+"gap": 60.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.9617,
+"width": 225.33,
+"gap": 63.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.9767,
+"width": 225.33,
+"gap": 63.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 18.9967,
+"width": 227.33,
+"gap": 65.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.0133,
+"width": 229.33,
+"gap": 67.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.0283,
+"width": 231.33,
+"gap": 69.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.0467,
+"width": 232.67,
+"gap": 70.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.0633,
+"width": 234.0,
+"gap": 72.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.08,
+"width": 235.33,
+"gap": 73.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.0983,
+"width": 236.33,
+"gap": 74.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.1083,
+"width": 237.33,
+"gap": 75.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.125,
+"width": 238.0,
+"gap": 76.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.1417,
+"width": 238.67,
+"gap": 76.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.1633,
+"width": 238.67,
+"gap": 76.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.1783,
+"width": 239.33,
+"gap": 77.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.1933,
+"width": 240.0,
+"gap": 78.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.2117,
+"width": 240.0,
+"gap": 78.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.2283,
+"width": 240.0,
+"gap": 78.0,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.2433,
+"width": 240.67,
+"gap": 78.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.2617,
+"width": 240.67,
+"gap": 78.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.2783,
+"width": 240.67,
+"gap": 78.67,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.2983,
+"width": 241.33,
+"gap": 79.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.315,
+"width": 241.33,
+"gap": 79.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.3267,
+"width": 241.33,
+"gap": 79.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.345,
+"width": 241.33,
+"gap": 79.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.3617,
+"width": 241.33,
+"gap": 79.33,
+"count": 4.0,
+"neck": null,
+"band": false
+},
+{
+"t": 19.3783,
+"width": 242.0,
+"gap": 80.0,
+"count": 4.0,
+"neck": null,
+"band": false
+}
+]
+},
+"dark-photo": {
+"pad": 0.67,
+"rest": {
+"width": 241.33333333333334,
+"height": 80.33333333333333,
+"count": 8.0
+},
+"transitions": [],
+"touches": [
+[
+15.91,
+15.943333
+],
+[
+18.84,
+18.896667
+]
+],
+"frames": [
+{
+"t": 15.5,
+"width": 241.33,
+"gap": 80.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 15.91,
+"width": 241.33,
+"gap": 80.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 15.9433,
+"width": 241.33,
+"gap": 80.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.0,
+"width": 240.0,
+"gap": 78.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.0167,
+"width": 236.33,
+"gap": 75.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.03,
+"width": 230.0,
+"gap": 68.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.045,
+"width": 224.0,
+"gap": 62.67,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.0617,
+"width": 217.67,
+"gap": 56.33,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.0783,
+"width": 211.33,
+"gap": 50.0,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.0967,
+"width": 206.0,
+"gap": 44.67,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.1117,
+"width": 200.67,
+"gap": 39.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.1283,
+"width": 196.0,
+"gap": 34.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.145,
+"width": 191.67,
+"gap": 30.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.1617,
+"width": 187.67,
+"gap": 26.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.18,
+"width": 184.0,
+"gap": 22.67,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.1967,
+"width": 181.0,
+"gap": 19.67,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.21,
+"width": 178.33,
+"gap": 17.0,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.2267,
+"width": 176.0,
+"gap": 14.67,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.245,
+"width": 174.33,
+"gap": 13.0,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.26,
+"width": 172.33,
+"gap": 11.0,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.2783,
+"width": 170.67,
+"gap": 9.33,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.295,
+"width": 169.33,
+"gap": 8.0,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.3117,
+"width": 168.0,
+"gap": 6.67,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.33,
+"width": 167.0,
+"gap": 5.67,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.345,
+"width": 166.33,
+"gap": 5.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.3617,
+"width": 165.67,
+"gap": 4.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.3783,
+"width": 165.0,
+"gap": 3.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.3983,
+"width": 164.67,
+"gap": 3.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.4117,
+"width": 164.0,
+"gap": 2.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.4333,
+"width": 164.0,
+"gap": 2.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.4483,
+"width": 163.67,
+"gap": 2.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.465,
+"width": 163.0,
+"gap": 1.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.48,
+"width": 163.0,
+"gap": 1.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.5017,
+"width": 162.67,
+"gap": 1.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.5133,
+"width": 162.67,
+"gap": 1.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.5317,
+"width": 162.67,
+"gap": 1.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.5483,
+"width": 162.33,
+"gap": 1.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.565,
+"width": 162.33,
+"gap": 1.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.5783,
+"width": 162.33,
+"gap": 1.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.595,
+"width": 162.33,
+"gap": 1.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.6117,
+"width": 161.67,
+"gap": 0.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 18.84,
+"width": 161.67,
+"gap": 0.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 18.8967,
+"width": 161.67,
+"gap": 0.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 18.9433,
+"width": 163.0,
+"gap": 1.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 18.9483,
+"width": 163.0,
+"gap": 1.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 18.965,
+"width": 166.67,
+"gap": 5.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 18.9783,
+"width": 172.0,
+"gap": 10.67,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 18.9967,
+"width": 178.0,
+"gap": 16.67,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.0117,
+"width": 184.0,
+"gap": 22.67,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.03,
+"width": 191.67,
+"gap": 30.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.045,
+"width": 197.0,
+"gap": 35.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.0633,
+"width": 202.0,
+"gap": 40.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.08,
+"width": 207.0,
+"gap": 45.67,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.0967,
+"width": 211.33,
+"gap": 50.0,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.1133,
+"width": 215.33,
+"gap": 54.0,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.13,
+"width": 219.0,
+"gap": 57.67,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.1467,
+"width": 222.0,
+"gap": 60.67,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.1667,
+"width": 224.67,
+"gap": 63.33,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.18,
+"width": 227.33,
+"gap": 66.0,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.2,
+"width": 228.67,
+"gap": 67.33,
+"count": 7.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.2167,
+"width": 230.67,
+"gap": 69.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.2333,
+"width": 232.33,
+"gap": 71.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.245,
+"width": 233.67,
+"gap": 72.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.2617,
+"width": 234.67,
+"gap": 73.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.2783,
+"width": 236.0,
+"gap": 74.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.2983,
+"width": 236.67,
+"gap": 75.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.315,
+"width": 237.33,
+"gap": 76.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.3283,
+"width": 238.0,
+"gap": 76.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.345,
+"width": 238.67,
+"gap": 77.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.3633,
+"width": 239.0,
+"gap": 77.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.3833,
+"width": 239.33,
+"gap": 78.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.3983,
+"width": 239.33,
+"gap": 78.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.4167,
+"width": 240.0,
+"gap": 78.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.4317,
+"width": 240.0,
+"gap": 78.67,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.4483,
+"width": 240.33,
+"gap": 79.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.4667,
+"width": 240.33,
+"gap": 79.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.4833,
+"width": 240.67,
+"gap": 79.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.5,
+"width": 240.67,
+"gap": 79.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.515,
+"width": 240.67,
+"gap": 79.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.5333,
+"width": 240.67,
+"gap": 79.33,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.55,
+"width": 241.33,
+"gap": 80.0,
+"count": 8.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.5633,
+"width": 241.33,
+"gap": 80.0,
+"count": 8.0,
+"neck": null,
+"band": true
+}
+]
+},
+"light-photo": {
+"pad": 0.67,
+"rest": {
+"width": 241.33333333333334,
+"height": 80.66666666666667,
+"count": 5.0
+},
+"transitions": [],
+"touches": [
+[
+16.473333,
+16.523333
+],
+[
+19.45,
+19.506667
+]
+],
+"frames": [
+{
+"t": 16.05,
+"width": 241.33,
+"gap": 80.0,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.4733,
+"width": 241.33,
+"gap": 80.0,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.5233,
+"width": 241.33,
+"gap": 80.0,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.5733,
+"width": 240.0,
+"gap": 78.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.59,
+"width": 236.33,
+"gap": 75.0,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.6067,
+"width": 231.0,
+"gap": 69.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.6217,
+"width": 225.0,
+"gap": 63.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.6383,
+"width": 219.0,
+"gap": 57.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.655,
+"width": 212.67,
+"gap": 51.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.6717,
+"width": 206.67,
+"gap": 45.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.6883,
+"width": 201.33,
+"gap": 40.0,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.7067,
+"width": 196.67,
+"gap": 35.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.7217,
+"width": 192.0,
+"gap": 30.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.7383,
+"width": 188.33,
+"gap": 27.0,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.755,
+"width": 184.0,
+"gap": 22.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.7717,
+"width": 181.0,
+"gap": 19.67,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.7883,
+"width": 178.33,
+"gap": 17.0,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.805,
+"width": 176.0,
+"gap": 14.67,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.8233,
+"width": 174.33,
+"gap": 13.0,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.84,
+"width": 172.33,
+"gap": 11.0,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.8617,
+"width": 170.67,
+"gap": 9.33,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.87,
+"width": 169.33,
+"gap": 8.0,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.8867,
+"width": 168.33,
+"gap": 7.0,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.905,
+"width": 167.33,
+"gap": 6.0,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.9267,
+"width": 166.67,
+"gap": 5.33,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.9433,
+"width": 165.67,
+"gap": 4.33,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.955,
+"width": 165.33,
+"gap": 4.0,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.975,
+"width": 164.67,
+"gap": 3.33,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 16.9917,
+"width": 164.0,
+"gap": 2.67,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 17.0067,
+"width": 164.0,
+"gap": 2.67,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 17.0233,
+"width": 163.67,
+"gap": 2.33,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 17.0383,
+"width": 163.0,
+"gap": 1.67,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 17.055,
+"width": 163.0,
+"gap": 1.67,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 17.0717,
+"width": 162.67,
+"gap": 1.33,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 17.09,
+"width": 162.67,
+"gap": 1.33,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 17.1067,
+"width": 162.67,
+"gap": 1.33,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 17.12,
+"width": 162.33,
+"gap": 1.0,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 17.14,
+"width": 162.33,
+"gap": 1.0,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 17.1583,
+"width": 162.33,
+"gap": 1.0,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 17.1717,
+"width": 162.33,
+"gap": 1.0,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 17.1917,
+"width": 161.67,
+"gap": 0.33,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.45,
+"width": 161.67,
+"gap": 0.33,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.5067,
+"width": 161.67,
+"gap": 0.33,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.555,
+"width": 163.0,
+"gap": 1.67,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.57,
+"width": 166.67,
+"gap": 5.33,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.5867,
+"width": 172.0,
+"gap": 10.67,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.6067,
+"width": 178.0,
+"gap": 16.67,
+"count": 4.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.6233,
+"width": 184.0,
+"gap": 22.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.6417,
+"width": 190.33,
+"gap": 29.0,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.6533,
+"width": 196.0,
+"gap": 34.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.67,
+"width": 201.0,
+"gap": 39.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.6867,
+"width": 206.0,
+"gap": 44.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.7067,
+"width": 210.67,
+"gap": 49.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.72,
+"width": 214.67,
+"gap": 53.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.7367,
+"width": 218.0,
+"gap": 56.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.7533,
+"width": 222.0,
+"gap": 60.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.7717,
+"width": 224.67,
+"gap": 63.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.7883,
+"width": 227.33,
+"gap": 66.0,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.8083,
+"width": 228.67,
+"gap": 67.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.8217,
+"width": 230.67,
+"gap": 69.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.8383,
+"width": 232.0,
+"gap": 70.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.8567,
+"width": 233.67,
+"gap": 72.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.87,
+"width": 234.67,
+"gap": 73.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.8883,
+"width": 235.33,
+"gap": 74.0,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.9067,
+"width": 236.67,
+"gap": 75.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.92,
+"width": 237.33,
+"gap": 76.0,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.9433,
+"width": 238.0,
+"gap": 76.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.955,
+"width": 238.33,
+"gap": 77.0,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.9717,
+"width": 238.67,
+"gap": 77.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 19.9917,
+"width": 239.33,
+"gap": 78.0,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 20.0033,
+"width": 239.33,
+"gap": 78.0,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 20.0217,
+"width": 240.0,
+"gap": 78.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 20.0417,
+"width": 240.0,
+"gap": 78.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 20.0567,
+"width": 240.0,
+"gap": 78.67,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 20.0733,
+"width": 240.33,
+"gap": 79.0,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 20.0883,
+"width": 240.67,
+"gap": 79.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 20.105,
+"width": 240.67,
+"gap": 79.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 20.125,
+"width": 240.67,
+"gap": 79.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 20.1383,
+"width": 240.67,
+"gap": 79.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 20.1567,
+"width": 240.67,
+"gap": 79.33,
+"count": 5.0,
+"neck": null,
+"band": true
+},
+{
+"t": 20.1733,
+"width": 241.33,
+"gap": 80.0,
+"count": 5.0,
+"neck": null,
+"band": true
+}
+]
+},
+"light-black": {
+"pad": 0.33,
+"rest": {
+"width": 240.66666666666666,
+"height": 80.66666666666667,
+"count": 2.0
+},
+"transitions": [
+{
+"kind": "join",
+"t": 17.1617,
+"gap_before": 22.0,
+"gap_at": 19.33,
+"neck_at": 11.33,
+"dt_ms": 16.7
+},
+{
+"kind": "split",
+"t": 19.9983,
+"gap_before": 16.0,
+"gap_at": 22.0,
+"neck_before": 24.0,
+"dt_ms": 18.3
+}
+],
+"touches": [
+[
+16.93,
+16.946667
+],
+[
+19.898333,
+19.913333
+]
+],
+"frames": [
+{
+"t": 16.55,
+"width": 240.67,
+"gap": 80.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.8367,
+"width": 240.67,
+"gap": 80.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.8767,
+"width": 240.67,
+"gap": 80.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.93,
+"width": 240.67,
+"gap": 80.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.9467,
+"width": 240.67,
+"gap": 80.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.9633,
+"width": 239.33,
+"gap": 78.67,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.9783,
+"width": 235.33,
+"gap": 74.67,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 16.9967,
+"width": 230.67,
+"gap": 70.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 17.0133,
+"width": 224.67,
+"gap": 64.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 17.0283,
+"width": 218.0,
+"gap": 57.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 17.045,
+"width": 212.0,
+"gap": 51.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 17.0683,
+"width": 206.0,
+"gap": 45.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 17.0767,
+"width": 200.67,
+"gap": 40.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 17.0933,
+"width": 194.67,
+"gap": 34.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 17.11,
+"width": 190.67,
+"gap": 30.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 17.1283,
+"width": 186.67,
+"gap": 26.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 17.145,
+"width": 182.67,
+"gap": 22.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 17.1617,
+"width": 180.0,
+"gap": 19.33,
+"count": 1.0,
+"neck": 11.33,
+"band": false
+},
+{
+"t": 17.1783,
+"width": 177.33,
+"gap": 16.67,
+"count": 1.0,
+"neck": 22.67,
+"band": false
+},
+{
+"t": 17.1967,
+"width": 174.67,
+"gap": 14.0,
+"count": 1.0,
+"neck": 29.33,
+"band": false
+},
+{
+"t": 17.2117,
+"width": 173.33,
+"gap": 12.67,
+"count": 1.0,
+"neck": 32.67,
+"band": false
+},
+{
+"t": 17.23,
+"width": 171.33,
+"gap": 10.67,
+"count": 1.0,
+"neck": 36.0,
+"band": false
+},
+{
+"t": 17.245,
+"width": 170.0,
+"gap": 9.33,
+"count": 1.0,
+"neck": 38.67,
+"band": false
+},
+{
+"t": 17.2617,
+"width": 168.67,
+"gap": 8.0,
+"count": 1.0,
+"neck": 41.33,
+"band": false
+},
+{
+"t": 17.2783,
+"width": 167.33,
+"gap": 6.67,
+"count": 1.0,
+"neck": 42.67,
+"band": false
+},
+{
+"t": 17.295,
+"width": 166.0,
+"gap": 5.33,
+"count": 1.0,
+"neck": 44.0,
+"band": false
+},
+{
+"t": 17.315,
+"width": 165.33,
+"gap": 4.67,
+"count": 1.0,
+"neck": 45.33,
+"band": false
+},
+{
+"t": 17.3283,
+"width": 164.67,
+"gap": 4.0,
+"count": 1.0,
+"neck": 46.0,
+"band": false
+},
+{
+"t": 17.3467,
+"width": 164.0,
+"gap": 3.33,
+"count": 1.0,
+"neck": 47.33,
+"band": false
+},
+{
+"t": 17.3633,
+"width": 163.33,
+"gap": 2.67,
+"count": 1.0,
+"neck": 48.0,
+"band": false
+},
+{
+"t": 17.3833,
+"width": 162.67,
+"gap": 2.0,
+"count": 1.0,
+"neck": 48.0,
+"band": false
+},
+{
+"t": 17.3983,
+"width": 162.67,
+"gap": 2.0,
+"count": 1.0,
+"neck": 48.67,
+"band": false
+},
+{
+"t": 17.4167,
+"width": 162.0,
+"gap": 1.33,
+"count": 1.0,
+"neck": 48.67,
+"band": false
+},
+{
+"t": 17.4333,
+"width": 162.0,
+"gap": 1.33,
+"count": 1.0,
+"neck": 49.33,
+"band": false
+},
+{
+"t": 17.4483,
+"width": 162.0,
+"gap": 1.33,
+"count": 1.0,
+"neck": 49.33,
+"band": false
+},
+{
+"t": 17.4667,
+"width": 162.0,
+"gap": 1.33,
+"count": 1.0,
+"neck": 50.0,
+"band": false
+},
+{
+"t": 17.4783,
+"width": 161.33,
+"gap": 0.67,
+"count": 1.0,
+"neck": 50.0,
+"band": false
+},
+{
+"t": 17.4967,
+"width": 161.33,
+"gap": 0.67,
+"count": 1.0,
+"neck": 50.0,
+"band": false
+},
+{
+"t": 17.5133,
+"width": 161.33,
+"gap": 0.67,
+"count": 1.0,
+"neck": 50.0,
+"band": false
+},
+{
+"t": 17.5283,
+"width": 161.33,
+"gap": 0.67,
+"count": 1.0,
+"neck": 50.0,
+"band": false
+},
+{
+"t": 17.545,
+"width": 161.33,
+"gap": 0.67,
+"count": 1.0,
+"neck": 50.67,
+"band": false
+},
+{
+"t": 19.78,
+"width": 161.33,
+"gap": 0.67,
+"count": 1.0,
+"neck": 50.67,
+"band": false
+},
+{
+"t": 19.8467,
+"width": 160.67,
+"gap": 0.0,
+"count": 1.0,
+"neck": 50.67,
+"band": false
+},
+{
+"t": 19.8983,
+"width": 160.67,
+"gap": 0.0,
+"count": 1.0,
+"neck": 50.67,
+"band": false
+},
+{
+"t": 19.9133,
+"width": 160.67,
+"gap": 0.0,
+"count": 1.0,
+"neck": 50.67,
+"band": false
+},
+{
+"t": 19.93,
+"width": 162.0,
+"gap": 1.33,
+"count": 1.0,
+"neck": 49.33,
+"band": false
+},
+{
+"t": 19.9483,
+"width": 165.33,
+"gap": 4.67,
+"count": 1.0,
+"neck": 44.67,
+"band": false
+},
+{
+"t": 19.9633,
+"width": 170.67,
+"gap": 10.0,
+"count": 1.0,
+"neck": 37.33,
+"band": false
+},
+{
+"t": 19.98,
+"width": 176.67,
+"gap": 16.0,
+"count": 1.0,
+"neck": 24.0,
+"band": false
+},
+{
+"t": 19.9983,
+"width": 182.67,
+"gap": 22.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.0133,
+"width": 189.33,
+"gap": 28.67,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.03,
+"width": 194.67,
+"gap": 34.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.0467,
+"width": 200.67,
+"gap": 40.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.065,
+"width": 205.33,
+"gap": 44.67,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.0817,
+"width": 210.0,
+"gap": 49.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.0983,
+"width": 214.67,
+"gap": 54.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.115,
+"width": 218.67,
+"gap": 58.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.1333,
+"width": 221.33,
+"gap": 60.67,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.15,
+"width": 224.0,
+"gap": 63.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.1633,
+"width": 226.67,
+"gap": 66.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.18,
+"width": 228.0,
+"gap": 67.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.1967,
+"width": 230.0,
+"gap": 69.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.215,
+"width": 231.33,
+"gap": 70.67,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.2333,
+"width": 232.67,
+"gap": 72.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.2467,
+"width": 234.0,
+"gap": 73.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.2633,
+"width": 235.33,
+"gap": 74.67,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.28,
+"width": 236.0,
+"gap": 75.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.2967,
+"width": 236.67,
+"gap": 76.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.3133,
+"width": 237.33,
+"gap": 76.67,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.3283,
+"width": 238.0,
+"gap": 77.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.345,
+"width": 238.0,
+"gap": 77.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.3617,
+"width": 238.67,
+"gap": 78.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.3783,
+"width": 238.67,
+"gap": 78.0,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.395,
+"width": 239.33,
+"gap": 78.67,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.4117,
+"width": 239.33,
+"gap": 78.67,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.4283,
+"width": 239.33,
+"gap": 78.67,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.445,
+"width": 240.0,
+"gap": 79.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.4617,
+"width": 240.0,
+"gap": 79.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.48,
+"width": 240.0,
+"gap": 79.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.495,
+"width": 240.0,
+"gap": 79.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 20.5133,
+"width": 240.0,
+"gap": 79.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 23.5383,
+"width": 240.0,
+"gap": 79.33,
+"count": 2.0,
+"neck": null,
+"band": false
+},
+{
+"t": 23.5417,
+"width": 240.67,
+"gap": 80.0,
+"count": 2.0,
+"neck": null,
+"band": false
+}
+]
+}
+}

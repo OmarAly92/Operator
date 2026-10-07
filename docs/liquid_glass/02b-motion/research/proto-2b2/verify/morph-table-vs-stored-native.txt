@@ -1,0 +1,144 @@
+== light-stripes expand
+  nat onset 48.3 toggle 450.9->558.9 t10 26.2 t90 390.3 fit 0.29/1.93 rms0.02 width rest 58.0 peak 71.67@151.7 low 56.33@391.7 sharp 485.0
+      counts 303:1>2 333:2>3 500:3>4
+      bolt       first 168.3 cy 486.7 r 30.9; last 1238.3 cy 487.1 r 28.8; extreme 489.73 max_r 32.7 min_r None fit 0.37/0.64 s449.9 rms0.17 sharp 283.3
+      heart      first 85.0 cy 440.9 r 18.4; last 1238.3 cy 415.1 r 28.8; extreme 412.61 max_r 32.59 min_r None fit 0.58/0.67 s453.3 rms0.88 sharp 303.3
+      star       first 185.0 cy 393.2 r 22.5; last 1238.3 cy 343.1 r 28.8; extreme 332.38 max_r 29.14 min_r None fit 0.55/0.70 s566.0 rms0.98 sharp 376.6
+  flu onset 0.0 toggle 451.02->559.03 t10 159.9 t90 413.8 fit 1.11/0.69 rms0.25 width rest 57.67 peak 58.67@48.3 low 57.67@181.7 sharp 48.3
+      counts 398:1>4
+      bolt       first 281.7 cy 463.1 r 29.0; last 1300.0 cy 487.1 r 28.8; extreme 487.1 max_r 28.97 min_r None fit 0.59/0.97 s358.7 rms0.06 sharp 365.0
+      heart      first 48.3 cy 343.9 r 29.4; last 1300.0 cy 415.1 r 28.8; extreme 343.93 max_r 29.37 min_r None fit 0.22/1.94 s322.4 rms0.77 sharp 365.0
+      star       first 65.0 cy 343.7 r 29.2; last 1300.0 cy 343.1 r 28.8; extreme 343.12 max_r 29.18 min_r None fit 0.91/2.00 s343.5 rms0.05 sharp 365.0
+== light-stripes collapse
+  nat onset 56.7 toggle 558.91->450.91 t10 9.6 t90 253.2 fit 0.22/1.77 rms0.02 width rest 58.0 peak 71.67@161.7 low 54.67@391.7 sharp 481.7
+      counts 67:4>3 82:3>2 218:2>3 233:3>2 298:2>3 315:3>1
+      bolt       first -171.7 cy 487.1 r 28.8; last 66.7 cy 479.4 r 20.4; extreme None max_r None min_r 20.38 fit 0.32/2.00 s486.8 rms0.77 sharp 100.0
+      heart      first -171.7 cy 415.1 r 28.8; last 66.7 cy 435.0 r 20.4; extreme None max_r None min_r 20.36 fit 0.13/1.94 s415.4 rms0.85 sharp 100.0
+      heart+bolt first 75.0 cy 449.1 r 21.3; last 116.7 cy 451.3 r 14.4; extreme None max_r None min_r 14.41 fit 0.17/0.10 s454.2 rms0.9 sharp 131.7
+      star       first -171.7 cy 343.1 r 28.8; last 208.3 cy 344.5 r 9.2; extreme None max_r None min_r None fit - sharp 100.0
+  flu onset 0.0 toggle 559.03->451.04 t10 0.0 t90 415.2 fit 1.07/0.72 rms0.2 width rest 57.67 peak 58.0@100.0 low 57.67@133.3 sharp 83.3
+      counts 0:4>3 33:3>2 67:2>3 183:3>2 268:2>1
+      bolt       first -55.0 cy 487.1 r 28.8; last 133.3 cy 456.2 r 16.6; extreme None max_r None min_r 16.61 fit 0.29/0.85 s487.0 rms0.1 sharp 66.7
+      heart      first -55.0 cy 415.1 r 28.8; last 133.3 cy 446.0 r 16.6; extreme None max_r None min_r 16.59 fit 0.29/0.84 s415.0 rms0.15 sharp 33.3
+      heart+bolt first 150.0 cy 451.1 r 16.4; last 283.3 cy 448.4 r 9.0; extreme None max_r None min_r 9.04 fit 0.65/0.10 s453.2 rms0.81 sharp 183.3
+      star       first -55.0 cy 343.1 r 28.8; last 166.7 cy 343.3 r 16.2; extreme None max_r None min_r None fit - sharp 33.3
+== light-photo expand
+  nat onset 63.3 toggle 451.11->558.74 t10 25.1 t90 380.8 fit 0.29/1.96 rms0.02 width rest 57.33 peak 71.33@168.3 low 55.33@406.7 sharp 505.0
+      counts 305:1>2 315:2>1 350:1>2 487:2>3 505:3>4
+      bolt       first 121.7 cy 478.6 r 23.8; last 1216.7 cy 486.8 r 28.3; extreme 490.52 max_r 32.04 min_r None fit 0.38/0.66 s456.8 rms0.8 sharp 305.0
+      heart      first 66.7 cy 443.3 r 14.9; last 1216.7 cy 415.0 r 28.3; extreme 412.51 max_r 32.12 min_r None fit 0.62/0.65 s449.6 rms0.62 sharp 315.0
+      star       first 335.0 cy 388.6 r 21.2; last 1216.7 cy 343.1 r 28.3; extreme 335.07 max_r 28.93 min_r None fit 0.44/0.54 s-177.5 rms1.35 sharp 505.0
+  flu onset 0.0 toggle 451.16->559.0 t10 158.2 t90 414.0 fit 1.10/0.70 rms0.25 width rest 56.67 peak 58.33@48.3 low 57.0@148.3 sharp 31.7
+      counts 365:1>3 382:3>4
+      bolt       first 265.0 cy 460.6 r 28.2; last 1281.7 cy 486.8 r 28.2; extreme 486.82 max_r 28.33 min_r None fit 0.56/1.01 s358.1 rms0.15 sharp 365.0
+      heart      first 31.7 cy 344.1 r 29.0; last 1281.7 cy 415.0 r 28.2; extreme 343.07 max_r 29.18 min_r None fit 0.50/1.04 s335.9 rms1.23 sharp 365.0
+      star       first 81.7 cy 343.0 r 28.2; last 1281.7 cy 343.1 r 28.2; extreme 342.99 max_r 28.27 min_r None fit 1.50/2.00 s343.3 rms0.05 sharp 365.0
+== light-photo collapse
+  nat onset 55.0 toggle 558.82->450.88 t10 28.2 t90 284.9 fit 0.36/1.21 rms0.01 width rest 57.67 peak 68.33@155.0 low 54.67@386.7 sharp 571.7
+      counts 72:4>3 112:3>2 197:2>3 227:3>2 290:2>1
+      bolt       first -133.3 cy 486.8 r 28.3; last 101.7 cy 477.3 r 17.0; extreme None max_r None min_r 17.0 fit 0.43/2.00 s486.7 rms0.39 sharp 90.0
+      heart      first -133.3 cy 415.0 r 28.3; last 101.7 cy 442.8 r 16.9; extreme None max_r None min_r 16.86 fit 0.39/0.37 s415.3 rms0.73 sharp 90.0
+      heart+bolt first 118.3 cy 448.6 r 15.1; last 141.7 cy 453.2 r 13.2; extreme None max_r None min_r 13.25 fit 0.05/0.10 s467.6 rms0.96 sharp 173.3
+      star       first -133.3 cy 343.1 r 28.3; last 175.0 cy 343.0 r 9.2; extreme None max_r None min_r None fit - sharp 90.0
+  flu onset 0.0 toggle 559.0->451.17 t10 0.0 t90 414.4 fit 1.05/0.73 rms0.19 width rest 57.0 peak 57.33@83.3 low 56.67@100.0 sharp 116.7
+      counts 0:4>3 33:3>2 67:2>3 167:3>6 183:6>2 267:2>1
+      bolt       first -71.7 cy 486.8 r 28.2; last 150.0 cy 456.8 r 13.0; extreme None max_r None min_r 12.98 fit 0.26/1.07 s486.8 rms0.23 sharp 66.7
+      heart      first -71.7 cy 415.0 r 28.2; last 183.3 cy 414.0 r 39.6; extreme None max_r None min_r 14.15 fit 0.19/2.00 s415.8 rms9.29 sharp 33.3
+      heart+bolt first 166.7 cy 451.1 r 13.7; last 250.0 cy 455.3 r 8.4; extreme None max_r None min_r 8.43 fit 0.70/0.10 s444.3 rms1.26 sharp 200.0
+      star       first -71.7 cy 343.1 r 28.2; last 133.3 cy 342.4 r 16.8; extreme None max_r None min_r None fit - sharp 33.3
+== dark-stripes expand
+  nat onset 58.3 toggle 450.68->558.61 t10 18.9 t90 374.4 fit 0.28/1.97 rms0.02 width rest 58.0 peak 71.67@151.7 low 56.0@376.7 sharp 485.0
+      counts 302:1>2 345:2>1 370:1>2 485:2>4
+      bolt       first 163.3 cy 487.3 r 31.0; last 1225.0 cy 487.1 r 28.7; extreme 490.28 max_r 32.71 min_r None fit 0.35/0.65 s441.9 rms0.31 sharp 291.6
+      heart      first 86.7 cy 441.0 r 18.4; last 1225.0 cy 415.1 r 28.7; extreme 406.94 max_r 32.38 min_r None fit 0.59/0.65 s453.5 rms1.39 sharp 301.6
+      star       first 363.3 cy 378.6 r 22.7; last 1225.0 cy 343.2 r 28.7; extreme 334.94 max_r 29.6 min_r None fit 0.60/0.84 s1399.7 rms2.12 sharp 500.0
+  flu onset 0.0 toggle 450.94->558.94 t10 159.9 t90 413.6 fit 1.12/0.69 rms0.26 width rest 58.33 peak 58.67@31.7 low 58.33@131.7 sharp 98.3
+      counts 398:1>4
+      bolt       first 281.7 cy 463.1 r 29.2; last 1281.7 cy 487.1 r 29.0; extreme 487.11 max_r 29.18 min_r None fit 0.57/0.98 s350.0 rms0.08 sharp 365.0
+      heart      first 65.0 cy 343.6 r 29.3; last 1281.7 cy 415.1 r 29.0; extreme 343.6 max_r 29.43 min_r None fit 0.20/2.00 s306.4 rms0.79 sharp 365.0
+      star       first 81.7 cy 343.6 r 29.3; last 1281.7 cy 343.1 r 29.0; extreme 343.13 max_r 29.32 min_r None fit 1.11/2.00 s343.5 rms0.05 sharp 365.0
+== dark-stripes collapse
+  nat onset 50.0 toggle 558.65->450.62 t10 37.2 t90 288.5 fit 0.35/1.27 rms0.01 width rest 58.0 peak 69.0@100.0 low 55.33@436.7 sharp 493.3
+      counts 85:4>3 100:3>2 243:2>3 267:3>2 288:2>1
+      bolt       first -140.0 cy 487.1 r 28.7; last 73.3 cy 480.3 r 21.7; extreme None max_r None min_r 21.68 fit 0.45/1.66 s487.2 rms0.36 sharp 85.0
+      heart      first -140.0 cy 415.1 r 28.7; last 73.3 cy 431.7 r 21.6; extreme None max_r None min_r 21.58 fit 0.38/0.36 s415.1 rms0.74 sharp 85.0
+      heart+bolt first 85.0 cy 448.1 r 23.3; last 120.0 cy 448.7 r 15.5; extreme None max_r None min_r 15.55 fit 0.15/0.67 s515.7 rms0.5 sharp 135.0
+      star       first -140.0 cy 343.2 r 28.7; last 140.0 cy 344.2 r 9.0; extreme None max_r None min_r None fit - sharp 85.0
+  flu onset 0.0 toggle 558.94->450.94 t10 0.0 t90 415.5 fit 1.07/0.72 rms0.2 width rest 58.33 peak 58.33@-55.0 low 58.0@50.0 sharp 83.3
+      counts 0:4>3 33:3>2 67:2>3 200:3>2 267:2>1
+      bolt       first -55.0 cy 487.1 r 29.0; last 150.0 cy 454.7 r 15.0; extreme None max_r None min_r 15.03 fit 0.28/0.89 s487.1 rms0.12 sharp 66.7
+      heart      first -55.0 cy 415.1 r 29.0; last 150.0 cy 447.6 r 15.0; extreme None max_r None min_r 15.0 fit 0.29/0.84 s415.0 rms0.18 sharp 33.3
+      heart+bolt first 166.7 cy 451.2 r 14.5; last 283.3 cy 449.2 r 8.3; extreme None max_r None min_r 8.29 fit 0.77/0.10 s452.6 rms0.89 sharp 183.3
+      star       first -55.0 cy 343.1 r 29.0; last 166.7 cy 343.3 r 16.2; extreme None max_r None min_r None fit - sharp 33.3
+== light-stripes-rm expand
+  nat onset 35.0 toggle 450.9->558.9 t10 63.7 t90 300.4 fit 0.45/1.04 rms0.03 width rest 58.0 peak 58.0@-113.3 low 58.0@-111.7 sharp 118.3
+      counts 370:1>4
+      bolt       first 66.7 cy 461.6 r 28.9; last 745.0 cy 487.1 r 28.8; extreme 487.06 max_r 28.92 min_r None fit 0.47/1.03 s453.6 rms0.49 sharp 148.3
+      heart      first 66.7 cy 440.4 r 28.9; last 745.0 cy 415.1 r 28.8; extreme 415.06 max_r 28.92 min_r None fit 0.45/1.07 s449.1 rms0.49 sharp 148.3
+      star       first 66.7 cy 419.4 r 28.9; last 745.0 cy 343.1 r 28.8; extreme 343.09 max_r 28.91 min_r None fit 0.45/1.07 s445.5 rms1.48 sharp 148.3
+  flu onset 0.0 toggle 451.01->559.0 t10 143.3 t90 397.0 fit 1.02/0.71 rms0.22 width rest 57.67 peak 58.67@33.3 low 57.67@181.7 sharp 33.3
+      counts 382:1>4
+      bolt       first 81.7 cy 388.4 r 29.1; last 1300.0 cy 487.1 r 28.8; extreme 487.08 max_r 29.15 min_r None fit 0.53/1.01 s356.1 rms0.16 sharp 131.7
+      heart      first 81.7 cy 365.7 r 29.3; last 1300.0 cy 415.1 r 28.8; extreme 365.69 max_r 29.32 min_r None fit 0.52/1.02 s348.9 rms0.11 sharp 131.7
+      star       first 81.7 cy 343.5 r 29.1; last 1300.0 cy 343.1 r 28.8; extreme 343.12 max_r 29.09 min_r None fit 0.83/2.00 s343.6 rms0.04 sharp 131.7
+== light-stripes-rm collapse
+  nat onset 40.0 toggle 558.91->450.88 t10 38.8 t90 271.8 fit 0.47/0.96 rms0.02 width rest 58.0 peak 58.0@-123.3 low 58.0@-120.0 sharp 75.0
+      counts 82:4>2 207:2>3 225:3>4 230:4>2 397:2>3 413:3>1
+      bolt       first -123.3 cy 487.1 r 28.8; last 203.3 cy 461.4 r 28.9; extreme None max_r None min_r 28.82 fit 0.43/1.15 s487.0 rms0.82 sharp 75.0
+      heart      first -123.3 cy 415.1 r 28.8; last 203.3 cy 440.9 r 28.9; extreme None max_r None min_r 28.82 fit 0.43/1.13 s415.1 rms0.83 sharp 75.0
+      heart+bolt first 208.3 cy 442.4 r 28.9; last 270.0 cy 445.8 r 29.0; extreme None max_r None min_r 28.92 fit 0.28/1.56 s412.1 rms0.36 sharp 248.3
+      star       first -123.3 cy 343.1 r 28.8; last 316.7 cy 344.5 r 8.8; extreme None max_r None min_r None fit - sharp 75.0
+  flu onset 0.0 toggle 559.02->451.03 t10 0.0 t90 384.5 fit 1.05/0.72 rms0.2 width rest 57.67 peak 58.67@333.3 low 57.67@1050.0 sharp 33.3
+      counts 0:4>3 50:3>2 67:2>3 183:3>2 200:2>1
+      bolt       first -35.0 cy 487.1 r 28.8; last 283.3 cy 457.7 r 28.9; extreme None max_r None min_r 28.81 fit 0.51/1.11 s487.2 rms0.14 sharp 66.7
+      heart      first -35.0 cy 415.1 r 28.8; last 283.3 cy 445.5 r 29.1; extreme None max_r None min_r 28.82 fit 0.54/0.99 s415.1 rms0.04 sharp 33.3
+      heart+bolt first 100.0 cy 456.8 r 36.8; last 416.7 cy 449.7 r 29.1; extreme None max_r None min_r 29.06 fit 0.55/0.34 s461.6 rms0.1 sharp 301.7
+      star       first -35.0 cy 343.1 r 28.8; last 83.3 cy 343.1 r 28.4; extreme None max_r None min_r None fit - sharp 33.3
+== light-photo-rm expand
+  nat onset 30.0 toggle 450.91->558.72 t10 30.2 t90 297.4 fit 0.44/1.09 rms0.02 width rest 57.33 peak 57.67@35.0 low 57.67@50.0 sharp 65.0
+      counts 347:1>4
+      bolt       first 68.3 cy 467.1 r 28.4; last 753.3 cy 486.8 r 28.3; extreme 486.83 max_r 28.39 min_r None fit 0.65/0.91 s462.5 rms0.46 sharp 130.0
+      heart      first 68.3 cy 440.9 r 28.6; last 753.3 cy 415.0 r 28.3; extreme 415.01 max_r 28.57 min_r None fit 0.48/1.03 s449.4 rms0.56 sharp 153.3
+      star       first 68.3 cy 421.2 r 28.5; last 753.3 cy 343.1 r 28.1; extreme 343.1 max_r 28.49 min_r None fit 0.49/1.01 s445.6 rms1.7 sharp 130.0
+  flu onset 0.0 toggle 451.16->559.0 t10 159.8 t90 415.7 fit 1.11/0.70 rms0.25 width rest 56.67 peak 58.33@50.0 low 57.0@150.0 sharp 33.3
+      counts 367:1>4
+      bolt       first 100.0 cy 388.5 r 28.5; last 1300.0 cy 486.8 r 28.2; extreme 486.82 max_r 28.55 min_r None fit 0.55/1.00 s342.6 rms0.27 sharp 166.7
+      heart      first 100.0 cy 365.6 r 28.8; last 1300.0 cy 415.0 r 28.2; extreme 365.64 max_r 28.77 min_r None fit 0.47/1.08 s333.1 rms0.58 sharp 166.7
+      star       first 100.0 cy 342.5 r 27.9; last 1300.0 cy 343.1 r 28.2; extreme 342.49 max_r 28.28 min_r None fit 0.52/0.39 s342.0 rms0.13 sharp 150.0
+== light-photo-rm collapse
+  nat onset 53.3 toggle 558.76->450.83 t10 30.2 t90 299.1 fit 0.37/1.27 rms0.02 width rest 57.67 peak 57.67@-140.0 low 57.33@353.3 sharp 86.7
+      counts 87:4>2 188:2>3 207:3>8 218:8>4 237:4>2 365:2>1
+      bolt       first -140.0 cy 486.8 r 28.3; last 195.0 cy 467.7 r 28.4; extreme None max_r None min_r 28.16 fit 0.33/2.00 s486.4 rms1.25 sharp 86.6
+      heart      first -140.0 cy 415.0 r 28.3; last 195.0 cy 441.0 r 28.5; extreme None max_r None min_r 28.32 fit 0.34/1.39 s415.2 rms0.92 sharp 86.6
+      heart+bolt first 201.7 cy 443.1 r 28.8; last 433.3 cy 450.4 r 28.5; extreme None max_r None min_r 28.43 fit 0.64/0.88 s429.1 rms0.24 sharp 365.0
+      star       first -140.0 cy 343.1 r 28.1; last 178.3 cy 340.9 r 9.3; extreme None max_r None min_r None fit - sharp 86.6
+  flu onset 0.0 toggle 559.0->451.18 t10 0.0 t90 413.3 fit 1.17/0.58 rms0.23 width rest 57.0 peak 58.0@333.3 low 56.67@500.0 sharp 33.3
+      counts 0:4>3 50:3>2 67:2>3 167:3>4 183:4>2 200:2>1 833:1>2 917:2>1
+      bolt       first -33.3 cy 486.8 r 28.2; last 316.7 cy 473.8 r 28.8; extreme None max_r None min_r 27.41 fit 0.52/2.00 s482.6 rms5.07 sharp 66.7
+      heart      first -33.3 cy 415.0 r 28.2; last 316.7 cy 447.3 r 28.7; extreme None max_r None min_r 28.25 fit 0.54/1.00 s415.0 rms0.13 sharp 33.3
+      heart+bolt first 183.3 cy 456.7 r 32.3; last 748.3 cy 450.2 r 27.8; extreme None max_r None min_r 27.7 fit 0.50/0.65 s491.2 rms0.57 sharp 448.3
+      star       first -33.3 cy 343.1 r 28.2; last 133.3 cy 342.2 r 16.9; extreme None max_r None min_r None fit - sharp 33.3
+== dark-stripes-rm expand
+  nat onset 26.7 toggle 450.66->558.62 t10 56.7 t90 296.3 fit 0.46/1.05 rms0.02 width rest 58.0 peak 58.0@-91.7 low 58.0@-88.3 sharp 95.0
+      counts 343:1>4
+      bolt       first 68.3 cy 461.1 r 28.9; last 725.0 cy 487.1 r 28.7; extreme 487.14 max_r 28.92 min_r None fit 0.51/0.98 s453.8 rms0.44 sharp 135.0
+      heart      first 68.3 cy 440.9 r 28.9; last 725.0 cy 415.1 r 28.7; extreme 415.13 max_r 28.92 min_r None fit 0.48/1.05 s448.8 rms0.43 sharp 143.4
+      star       first 68.3 cy 421.6 r 29.0; last 725.0 cy 343.2 r 28.7; extreme 343.16 max_r 29.01 min_r None fit 0.49/1.03 s444.6 rms1.29 sharp 135.0
+  flu onset 0.0 toggle 450.95->558.94 t10 173.0 t90 427.5 fit 1.18/0.68 rms0.25 width rest 58.33 peak 58.67@50.0 low 58.33@150.0 sharp 33.3
+      counts 400:1>2 418:2>4
+      bolt       first 100.0 cy 381.6 r 29.3; last 1285.0 cy 487.1 r 29.0; extreme 487.11 max_r 29.34 min_r None fit 0.57/0.98 s335.0 rms0.13 sharp 150.0
+      heart      first 100.0 cy 362.4 r 29.5; last 1285.0 cy 415.1 r 29.0; extreme 362.41 max_r 29.46 min_r None fit 0.57/0.98 s339.2 rms0.08 sharp 150.0
+      star       first 100.0 cy 343.6 r 29.3; last 1285.0 cy 343.1 r 29.0; extreme 343.13 max_r 29.31 min_r None fit 0.80/2.00 s343.7 rms0.05 sharp 150.0
+== dark-stripes-rm collapse
+  nat onset 46.7 toggle 558.67->450.6 t10 31.9 t90 264.5 fit 0.43/1.02 rms0.02 width rest 58.0 peak 58.0@-120.0 low 58.0@-116.7 sharp 76.7
+      counts 82:4>2 233:2>3 243:3>2 365:2>3 387:3>1
+      bolt       first -120.0 cy 487.1 r 28.7; last 196.7 cy 461.0 r 28.9; extreme None max_r None min_r 28.71 fit 0.35/1.41 s487.0 rms0.81 sharp 76.7
+      heart      first -120.0 cy 415.1 r 28.7; last 196.7 cy 441.8 r 29.0; extreme None max_r None min_r 28.72 fit 0.35/1.35 s415.3 rms0.84 sharp 76.7
+      heart+bolt first 201.7 cy 443.2 r 29.0; last 280.0 cy 447.1 r 29.0; extreme None max_r None min_r 29.02 fit 1.11/0.31 s435.9 rms0.36 sharp 248.39999999999998
+      star       first -120.0 cy 343.2 r 28.7; last 268.3 cy 344.3 r 8.3; extreme None max_r None min_r None fit - sharp 76.7
+  flu onset 0.0 toggle 558.96->450.95 t10 0.0 t90 381.3 fit 1.00/0.81 rms0.2 width rest 58.33 peak 58.67@205.0 low 58.33@283.3 sharp 33.3
+      counts 0:4>3 50:3>2 67:2>3 183:3>2 205:2>1
+      bolt       first -33.3 cy 487.1 r 29.0; last 283.3 cy 457.8 r 29.1; extreme None max_r None min_r 29.02 fit 0.50/1.14 s487.3 rms0.19 sharp 66.7
+      heart      first -33.3 cy 415.1 r 29.0; last 283.3 cy 445.5 r 29.2; extreme None max_r None min_r 29.02 fit 0.54/0.99 s415.2 rms0.09 sharp 33.3
+      heart+bolt first 303.3 cy 447.4 r 29.9; last 1033.3 cy 451.3 r 29.1; extreme None max_r None min_r 29.09 fit 1.00/0.71 s439.4 rms0.1 sharp 550.0
+      star       first -33.3 cy 343.1 r 29.0; last 166.7 cy 343.3 r 16.2; extreme None max_r None min_r None fit - sharp 33.3

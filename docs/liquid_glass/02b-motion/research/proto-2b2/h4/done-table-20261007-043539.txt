@@ -1,0 +1,92 @@
+material.materialize dark-photo-reduce-motion: progress measures 11 pass / 14 judged / 14 expected; events and touches 5/5; events [2, 2] unpaired {'native': 0, 'flutter': 0} touches [2, 2] of 2; stalls native [] flutter []
+   step1e0 block: delay 43/17 ms, first frame 0.03@43ms/0.05@17ms; t10_90 133/125 settle 225/200 overshoot 0.0/0.0 spring 0.26/0.98 vs 0.28/0.87 rms 0.013 sharp -1.13/-2.26
+   step3e0 block: delay 95/68 ms, first frame 0.03@15ms/0.03@20ms; t10_90 283/275 settle 475/483 overshoot 0.0/0.0 spring 0.47/1.12 vs 0.48/1.06 rms 0.020 sharp -1.08/-2.44
+   FAIL block.step1e0.progress.damping 0.110 > 0.090
+   FAIL block.step1e0.progress.sharpness 1.129 > 1.000
+   FAIL block.step3e0.progress.sharpness 1.359 > 1.000
+material.materialize dark-stripes-reduce-motion: progress measures 13 pass / 14 judged / 14 expected; events and touches 5/5; events [2, 2] unpaired {'native': 0, 'flutter': 0} touches [2, 2] of 2; stalls native [] flutter []
+   step1e0 block: delay 48/17 ms, first frame 0.04@48ms/0.06@17ms; t10_90 125/133 settle 208/217 overshoot 0.0/0.0 spring 0.21/1.06 vs 0.23/1.01 rms 0.014 sharp 0.11/-0.15
+   step3e0 block: delay 113/67 ms, first frame 0.03@18ms/0.02@17ms; t10_90 283/308 settle 475/517 overshoot 0.0/0.0 spring 0.57/0.95 vs 0.59/0.98 rms 0.010 sharp 0.08/-0.19
+   FAIL block.step3e0.progress.settle_ms 41.667 > 25.000
+material.materialize light-photo-reduce-motion: progress measures 13 pass / 14 judged / 14 expected; events and touches 5/5; events [2, 2] unpaired {'native': 0, 'flutter': 0} touches [2, 2] of 2; stalls native [] flutter []
+   step1e0 block: delay 45/17 ms, first frame 0.04@45ms/0.05@17ms; t10_90 125/133 settle 208/208 overshoot 0.0/0.0 spring 0.20/1.11 vs 0.22/1.04 rms 0.009 sharp -1.51/-2.37
+   step3e0 block: delay 95/50 ms, first frame 0.01@17ms/0.01@17ms; t10_90 292/317 settle 525/558 overshoot 0.0/0.0 spring 0.67/0.89 vs 0.68/0.92 rms 0.012 sharp -1.50/-2.50
+   FAIL block.step3e0.progress.sharpness 1.000 > 1.000
+material.materialize light-stripes-reduce-motion: progress measures 13 pass / 14 judged / 14 expected; events and touches 5/5; events [2, 2] unpaired {'native': 0, 'flutter': 0} touches [2, 2] of 2; stalls native [] flutter []
+   step1e0 block: delay 45/17 ms, first frame 0.04@45ms/0.05@17ms; t10_90 125/133 settle 208/208 overshoot 0.0/0.0 spring 0.22/1.01 vs 0.22/1.05 rms 0.008 sharp 0.09/-0.14
+   step3e0 block: delay 97/52 ms, first frame 0.03@15ms/0.02@18ms; t10_90 308/308 settle 492/542 overshoot 0.1/0.1 spring 0.60/0.97 vs 0.67/0.91 rms 0.012 sharp 0.07/-0.23
+   FAIL block.step3e0.progress.settle_ms 50.000 > 37.500
+material.materialize.bouncy dark-photo-reduce-motion: progress measures 7 pass / 14 judged / 14 expected; events and touches 5/5; events [2, 2] unpaired {'native': 0, 'flutter': 0} touches [2, 2] of 2; stalls native [] flutter []
+   step1e0 block: delay 48/0 ms, first frame 0.03@48ms/0.28@32ms; t10_90 108/75 settle 167/117 overshoot 0.0/0.0 spring 0.24/0.87 vs 0.06/1.90 rms 0.039 sharp -1.11/-2.40
+   step3e0 block: delay 113/65 ms, first frame 0.05@17ms/0.02@17ms; t10_90 133/133 settle 358/208 overshoot 3.0/2.0 spring 0.36/0.74 vs 0.44/0.70 rms 0.011 sharp -1.08/-2.53
+   FAIL block.step1e0.progress.damping 1.030 > 0.180
+   FAIL block.step1e0.progress.response_pct 75.000 > 37.500
+   FAIL block.step1e0.progress.settle_ms 50.000 > 25.000
+   FAIL block.step1e0.progress.sharpness 1.292 > 1.000
+   FAIL block.step1e0.progress.t10_90_ms 33.333 > 17.000
+   FAIL block.step3e0.progress.settle_ms 150.000 > 75.000
+   FAIL block.step3e0.progress.sharpness 1.452 > 1.000
+material.materialize.bouncy dark-stripes-reduce-motion: progress measures 12 pass / 14 judged / 14 expected; events and touches 5/5; events [2, 2] unpaired {'native': 0, 'flutter': 0} touches [2, 2] of 2; stalls native [] flutter []
+   step1e0 block: delay 48/15 ms, first frame 0.04@48ms/0.06@15ms; t10_90 100/100 settle 158/167 overshoot 0.0/0.0 spring 0.22/0.89 vs 0.21/0.92 rms 0.007 sharp 0.07/-0.19
+   step3e0 block: delay 113/67 ms, first frame 0.05@12ms/0.03@17ms; t10_90 133/142 settle 383/450 overshoot 3.5/4.5 spring 0.41/0.68 vs 0.47/0.66 rms 0.015 sharp 0.02/-0.22
+   FAIL block.step3e0.progress.response_pct 14.634 > 7.500
+   FAIL block.step3e0.progress.settle_ms 66.667 > 17.000
+material.materialize.bouncy light-photo-reduce-motion: progress measures 11 pass / 14 judged / 14 expected; events and touches 5/5; events [2, 2] unpaired {'native': 0, 'flutter': 0} touches [2, 2] of 2; stalls native [] flutter []
+   step1e0 block: delay 47/15 ms, first frame 0.04@47ms/0.06@15ms; t10_90 100/108 settle 158/167 overshoot 0.0/0.0 spring 0.21/0.90 vs 0.21/0.93 rms 0.008 sharp -1.42/-2.61
+   step3e0 block: delay 97/50 ms, first frame 0.01@15ms/0.01@17ms; t10_90 133/142 settle 400/458 overshoot 3.6/4.9 spring 0.47/0.66 vs 0.54/0.64 rms 0.012 sharp -1.51/-2.60
+   FAIL block.step1e0.progress.sharpness 1.190 > 1.000
+   FAIL block.step3e0.progress.settle_ms 58.333 > 50.000
+   FAIL block.step3e0.progress.sharpness 1.086 > 1.000
+material.materialize.bouncy light-stripes-reduce-motion: progress measures 14 pass / 14 judged / 14 expected; events and touches 5/5; events [2, 2] unpaired {'native': 0, 'flutter': 0} touches [2, 2] of 2; stalls native [] flutter []
+   step1e0 block: delay 30/17 ms, first frame 0.05@30ms/0.06@17ms; t10_90 108/108 settle 158/167 overshoot 0.0/0.0 spring 0.23/0.86 vs 0.22/0.88 rms 0.008 sharp 0.05/-0.20
+   step3e0 block: delay 95/67 ms, first frame 0.02@15ms/0.02@17ms; t10_90 133/142 settle 408/425 overshoot 3.8/3.9 spring 0.48/0.66 vs 0.47/0.66 rms 0.011 sharp 0.03/-0.23
+material.materialize.snappy dark-photo-reduce-motion: progress measures 2 pass / 7 judged / 14 expected; events and touches 2/5; events [2, 2] unpaired {'native': 1, 'flutter': 1} touches [2, 1] of 2; stalls native [] flutter []
+   step1e0 block: delay 30/67 ms, first frame 0.03@30ms/0.03@15ms; t10_90 117/192 settle 200/292 overshoot 0.0/0.1 spring 0.26/0.91 vs 0.42/0.88 rms 0.057 sharp -1.16/-2.32
+   FAIL block.step1e0.progress.response_pct 61.538 > 6.000
+   FAIL block.step1e0.progress.rms 0.057 > 0.050
+   FAIL block.step1e0.progress.settle_ms 91.667 > 17.000
+   FAIL block.step1e0.progress.sharpness 1.160 > 1.000
+   FAIL block.step1e0.progress.t10_90_ms 75.000 > 17.000
+   FAIL block.step3e0.progress.damping absent > 0.180
+   FAIL block.step3e0.progress.overshoot_pct absent > 2.000
+   FAIL block.step3e0.progress.response_pct absent > 80.233
+   FAIL block.step3e0.progress.rms absent > 0.050
+   FAIL block.step3e0.progress.settle_ms absent > 75.000
+   FAIL block.step3e0.progress.sharpness absent > 1.000
+   FAIL block.step3e0.progress.t10_90_ms absent > 50.000
+   FAIL events.steps 1.000 > 0.000
+   FAIL events.unpaired 2.000 > 0.000
+   FAIL touches.flutter 1.000 > 0.000
+material.materialize.snappy dark-stripes-reduce-motion: progress measures 9 pass / 12 judged / 14 expected; events and touches 5/5; events [2, 2] unpaired {'native': 0, 'flutter': 0} touches [2, 2] of 2; stalls native [] flutter []
+   step1e0 block: delay 0/17 ms, first frame 0.32@415ms/0.06@17ms; t10_90 92/117 settle 150/183 overshoot 0.0/0.0 spring 0.06/2.00(edge) vs 0.22/0.96 rms 0.035 sharp 0.10/-0.17 fit invalid {'native': 'at the grid edge'}
+   step3e0 block: delay 113/50 ms, first frame 0.04@18ms/0.02@17ms; t10_90 200/200 settle 292/317 overshoot 0.3/0.2 spring 0.49/0.82 vs 0.54/0.80 rms 0.010 sharp 0.10/-0.16
+   FAIL block.step1e0.progress.damping absent > 0.060
+   FAIL block.step1e0.progress.response_pct absent > 13.043
+   FAIL block.step1e0.progress.settle_ms 33.333 > 17.000
+   FAIL block.step1e0.progress.t10_90_ms 25.000 > 17.000
+   FAIL block.step3e0.progress.response_pct 10.204 > 8.654
+material.materialize.snappy light-photo-reduce-motion: progress measures 7 pass / 7 judged / 14 expected; events and touches 2/5; events [2, 2] unpaired {'native': 1, 'flutter': 1} touches [1, 1] of 2; stalls native [] flutter []
+   step1e0 block: delay 95/50 ms, first frame 0.01@18ms/0.02@17ms; t10_90 200/208 settle 317/325 overshoot 0.4/0.3 spring 0.56/0.78 vs 0.56/0.79 rms 0.006 sharp -1.47/-2.33
+   FAIL block.step3e0.progress.damping absent > 0.050
+   FAIL block.step3e0.progress.overshoot_pct absent > 2.000
+   FAIL block.step3e0.progress.response_pct absent > 10.169
+   FAIL block.step3e0.progress.rms absent > 0.050
+   FAIL block.step3e0.progress.settle_ms absent > 37.500
+   FAIL block.step3e0.progress.sharpness absent > 1.000
+   FAIL block.step3e0.progress.t10_90_ms absent > 37.500
+   FAIL events.unpaired 2.000 > 0.000
+   FAIL touches.flutter 1.000 > 0.000
+   FAIL touches.native 1.000 > 0.000
+material.materialize.snappy light-stripes-reduce-motion: progress measures 5 pass / 12 judged / 14 expected; events and touches 5/5; events [2, 2] unpaired {'native': 0, 'flutter': 0} touches [2, 2] of 2; stalls native [] flutter []
+   step1e0 block: delay 45/12 ms, first frame 0.05@45ms/0.19@8ms; t10_90 108/42 settle 183/100 overshoot 0.0/0.0 spring 0.23/0.91 vs 0.05/1.05(edge) rms 0.091 sharp 0.06/-0.42 fit invalid {'flutter': 'at the grid edge'}
+   step3e0 block: delay 95/65 ms, first frame 0.01@17ms/0.05@15ms; t10_90 217/167 settle 317/250 overshoot 0.4/0.3 spring 0.51/0.84 vs 0.14/1.93 rms 0.034 sharp 0.06/-0.17
+   FAIL block.step1e0.progress.damping absent > 0.150
+   FAIL block.step1e0.progress.response_pct absent > 19.565
+   FAIL block.step1e0.progress.rms 0.091 > 0.050
+   FAIL block.step1e0.progress.settle_ms 83.333 > 17.000
+   FAIL block.step1e0.progress.t10_90_ms 66.667 > 17.000
+   FAIL block.step3e0.progress.damping 1.090 > 0.105
+   FAIL block.step3e0.progress.response_pct 72.549 > 8.654
+   FAIL block.step3e0.progress.settle_ms 66.667 > 37.500
+   FAIL block.step3e0.progress.t10_90_ms 50.000 > 25.000
+total: progress measures 117 pass / 150 judged / 168 expected; events and touches 54/60

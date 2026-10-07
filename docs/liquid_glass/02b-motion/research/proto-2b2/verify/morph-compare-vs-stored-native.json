@@ -1,0 +1,5699 @@
+{
+ "dark-photo": {
+  "expand": {
+   "native": {
+    "onset_ms_from_up": 56.7,
+    "toggle": {
+     "start_cy": 450.64,
+     "end_cy": 559.05,
+     "t10_ms": 37.0,
+     "t90_ms": 360.2,
+     "fit": {
+      "response": 0.35,
+      "damping": 1.57,
+      "start": null,
+      "rms": 0.03
+     },
+     "overshoot_pct": 0.51,
+     "width": [
+      57.33,
+      71.33,
+      170.0,
+      55.67,
+      385.0
+     ],
+     "sharp_ms_from_up": 491.7
+    },
+    "counts": [
+     [
+      141.7,
+      1,
+      2
+     ],
+     [
+      163.3,
+      2,
+      3
+     ],
+     [
+      191.7,
+      3,
+      5
+     ],
+     [
+      196.7,
+      5,
+      4
+     ],
+     [
+      226.7,
+      4,
+      3
+     ],
+     [
+      240.0,
+      3,
+      5
+     ],
+     [
+      276.7,
+      5,
+      6
+     ],
+     [
+      290.0,
+      6,
+      5
+     ],
+     [
+      308.3,
+      5,
+      6
+     ],
+     [
+      323.3,
+      6,
+      5
+     ],
+     [
+      358.3,
+      5,
+      6
+     ],
+     [
+      391.7,
+      6,
+      5
+     ],
+     [
+      408.3,
+      5,
+      6
+     ],
+     [
+      423.3,
+      6,
+      5
+     ],
+     [
+      441.7,
+      5,
+      7
+     ],
+     [
+      456.7,
+      7,
+      8
+     ],
+     [
+      475.0,
+      8,
+      7
+     ],
+     [
+      491.7,
+      7,
+      9
+     ],
+     [
+      508.3,
+      9,
+      8
+     ],
+     [
+      558.3,
+      8,
+      9
+     ],
+     [
+      621.7,
+      9,
+      10
+     ],
+     [
+      636.7,
+      10,
+      9
+     ],
+     [
+      1125.0,
+      9,
+      11
+     ],
+     [
+      1140.0,
+      11,
+      10
+     ]
+    ],
+    "badges": {
+     "heart": {
+      "first_ms": 68.3,
+      "last_ms": 1230.0,
+      "first": {
+       "cy": 441.112,
+       "r": 11.508
+      },
+      "last": {
+       "cy": 414.698,
+       "r": 24.123
+      },
+      "extreme_cy": 341.48,
+      "max_r": 39.94,
+      "position_fixed_onset": {
+       "response": 1.4100000000000001,
+       "damping": 0.1,
+       "start": 440.3,
+       "rms": 18.56
+      },
+      "position_free_onset": {
+       "response": 1.4100000000000001,
+       "damping": 0.1,
+       "start": 440.3,
+       "rms": 18.56
+      },
+      "radius_from_free_onset": {
+       "response": 0.21000000000000002,
+       "damping": 1.18,
+       "start": -10.9,
+       "rms": 4.27
+      },
+      "sharp_ms_from_up": 308.4
+     },
+     "bolt": {
+      "first_ms": 135.0,
+      "last_ms": 1230.0,
+      "first": {
+       "cy": 484.957,
+       "r": 22.329
+      },
+      "last": {
+       "cy": 483.667,
+       "r": 22.62
+      },
+      "extreme_cy": 489.28,
+      "max_r": 30.45,
+      "position_fixed_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 481.0,
+       "rms": 5.07
+      },
+      "position_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 482.3,
+       "rms": 4.81
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 22.4,
+       "rms": 2.41
+      },
+      "sharp_ms_from_up": 308.4
+     },
+     "star": {
+      "first_ms": 366.7,
+      "last_ms": 1230.0,
+      "first": {
+       "cy": 379.058,
+       "r": 19.15
+      },
+      "last": {
+       "cy": 340.823,
+       "r": 26.819
+      },
+      "extreme_cy": 333.97,
+      "max_r": 36.87,
+      "position_fixed_onset": {
+       "response": 0.8800000000000001,
+       "damping": 2.0,
+       "start": 377.3,
+       "rms": 32.05
+      },
+      "position_free_onset": {
+       "response": 0.07,
+       "damping": 0.1,
+       "start": 377.2,
+       "rms": 31.32
+      },
+      "radius_from_free_onset": {
+       "response": 0.11,
+       "damping": 0.22,
+       "start": 21.6,
+       "rms": 2.7
+      },
+      "sharp_ms_from_up": 508.4
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": 0.0,
+    "toggle": {
+     "start_cy": 450.31,
+     "end_cy": 452.3,
+     "t10_ms": 147.4,
+     "t90_ms": 149.7,
+     "fit": {
+      "response": 1.5,
+      "damping": 2.0,
+      "start": null,
+      "rms": 33.83
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      57.33,
+      58.33,
+      33.3,
+      57.67,
+      133.3
+     ],
+     "sharp_ms_from_up": 133.3
+    },
+    "counts": [
+     [
+      0.0,
+      2,
+      1
+     ],
+     [
+      50.0,
+      1,
+      2
+     ],
+     [
+      66.7,
+      2,
+      1
+     ],
+     [
+      83.3,
+      1,
+      2
+     ],
+     [
+      116.7,
+      2,
+      1
+     ],
+     [
+      200.0,
+      1,
+      2
+     ],
+     [
+      270.0,
+      2,
+      3
+     ],
+     [
+      283.3,
+      3,
+      2
+     ],
+     [
+      341.7,
+      2,
+      5
+     ],
+     [
+      350.0,
+      5,
+      4
+     ],
+     [
+      383.3,
+      4,
+      5
+     ],
+     [
+      405.0,
+      5,
+      8
+     ],
+     [
+      416.7,
+      8,
+      7
+     ],
+     [
+      433.3,
+      7,
+      9
+     ],
+     [
+      466.7,
+      9,
+      7
+     ],
+     [
+      500.0,
+      7,
+      9
+     ],
+     [
+      516.7,
+      9,
+      8
+     ],
+     [
+      533.3,
+      8,
+      10
+     ],
+     [
+      550.0,
+      10,
+      8
+     ],
+     [
+      566.7,
+      8,
+      10
+     ],
+     [
+      583.3,
+      10,
+      8
+     ],
+     [
+      600.0,
+      8,
+      7
+     ],
+     [
+      616.7,
+      7,
+      10
+     ],
+     [
+      633.3,
+      10,
+      8
+     ],
+     [
+      666.7,
+      8,
+      10
+     ],
+     [
+      685.0,
+      10,
+      9
+     ],
+     [
+      735.0,
+      9,
+      8
+     ],
+     [
+      751.7,
+      8,
+      10
+     ],
+     [
+      768.3,
+      10,
+      9
+     ],
+     [
+      785.0,
+      9,
+      10
+     ],
+     [
+      818.3,
+      10,
+      8
+     ],
+     [
+      835.0,
+      8,
+      10
+     ],
+     [
+      868.3,
+      10,
+      9
+     ],
+     [
+      885.0,
+      9,
+      10
+     ],
+     [
+      901.7,
+      10,
+      11
+     ],
+     [
+      918.3,
+      11,
+      9
+     ],
+     [
+      933.3,
+      9,
+      10
+     ],
+     [
+      950.0,
+      10,
+      11
+     ],
+     [
+      966.7,
+      11,
+      9
+     ],
+     [
+      1016.7,
+      9,
+      10
+     ],
+     [
+      1135.0,
+      10,
+      9
+     ],
+     [
+      1151.7,
+      9,
+      10
+     ],
+     [
+      1168.3,
+      10,
+      9
+     ],
+     [
+      1233.3,
+      9,
+      10
+     ],
+     [
+      1283.3,
+      10,
+      11
+     ]
+    ],
+    "badges": {
+     "heart": {
+      "first_ms": 33.3,
+      "last_ms": 1283.3,
+      "first": {
+       "cy": 344.609,
+       "r": 29.305
+      },
+      "last": {
+       "cy": 415.043,
+       "r": 27.821
+      },
+      "extreme_cy": 342.69,
+      "max_r": 29.3,
+      "position_fixed_onset": {
+       "response": 0.37,
+       "damping": 1.3,
+       "start": 334.1,
+       "rms": 1.15
+      },
+      "position_free_onset": {
+       "response": 0.22000000000000003,
+       "damping": 1.95,
+       "start": 343.4,
+       "rms": 1.08
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 0.1,
+       "start": 29.2,
+       "rms": 0.39
+      },
+      "sharp_ms_from_up": 383.3
+     },
+     "star": {
+      "first_ms": 66.7,
+      "last_ms": 1283.3,
+      "first": {
+       "cy": 344.61,
+       "r": 29.294
+      },
+      "last": {
+       "cy": 343.069,
+       "r": 28.174
+      },
+      "extreme_cy": 343.06,
+      "max_r": 29.29,
+      "position_fixed_onset": {
+       "response": 0.33999999999999997,
+       "damping": 1.97,
+       "start": 345.1,
+       "rms": 0.05
+      },
+      "position_free_onset": {
+       "response": 0.33999999999999997,
+       "damping": 1.97,
+       "start": 345.1,
+       "rms": 0.05
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 0.24,
+       "start": 29.0,
+       "rms": 0.15
+      },
+      "sharp_ms_from_up": 383.3
+     },
+     "unknown": {
+      "first_ms": 100.0,
+      "last_ms": 1151.7,
+      "first": {
+       "cy": 341.985,
+       "r": 27.601
+      },
+      "last": {
+       "cy": 485.863,
+       "r": 28.176
+      },
+      "sharp_ms_from_up": 918.3
+     },
+     "bolt": {
+      "first_ms": 250.0,
+      "last_ms": 1283.3,
+      "first": {
+       "cy": 460.042,
+       "r": 26.281
+      },
+      "last": {
+       "cy": 486.211,
+       "r": 28.055
+      },
+      "extreme_cy": 556.57,
+      "max_r": 30.09,
+      "position_fixed_onset": {
+       "response": 1.48,
+       "damping": 0.55,
+       "start": 448.6,
+       "rms": 12.2
+      },
+      "position_free_onset": {
+       "response": 1.48,
+       "damping": 0.55,
+       "start": 448.6,
+       "rms": 12.2
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 1.16,
+       "start": 27.5,
+       "rms": 0.47
+      },
+      "sharp_ms_from_up": 383.3
+     }
+    }
+   }
+  },
+  "collapse": {
+   "native": {
+    "onset_ms_from_up": -58.3,
+    "toggle": {
+     "start_cy": 560.4,
+     "end_cy": 452.4,
+     "t10_ms": 117.4,
+     "t90_ms": 334.2,
+     "fit": {
+      "response": 0.8700000000000001,
+      "damping": 0.76,
+      "start": null,
+      "rms": 0.07
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      57.67,
+      71.0,
+      258.3,
+      54.0,
+      506.7
+     ],
+     "sharp_ms_from_up": -23.3
+    },
+    "counts": [
+     [
+      55.0,
+      7,
+      6
+     ],
+     [
+      100.0,
+      6,
+      5
+     ],
+     [
+      116.7,
+      5,
+      6
+     ],
+     [
+      133.3,
+      6,
+      4
+     ],
+     [
+      166.7,
+      4,
+      2
+     ],
+     [
+      280.0,
+      2,
+      1
+     ],
+     [
+      615.0,
+      1,
+      2
+     ],
+     [
+      680.0,
+      2,
+      3
+     ],
+     [
+      1026.7,
+      3,
+      2
+     ],
+     [
+      1096.7,
+      2,
+      3
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": -11.7,
+      "last_ms": 300.0,
+      "first": {
+       "cy": 340.823,
+       "r": 26.819
+      },
+      "last": {
+       "cy": 344.603,
+       "r": 8.087
+      },
+      "sharp_ms_from_up": -23.299999999999997
+     },
+     "heart": {
+      "first_ms": -11.7,
+      "last_ms": 225.0,
+      "first": {
+       "cy": 414.698,
+       "r": 24.123
+      },
+      "last": {
+       "cy": 453.114,
+       "r": 12.238
+      },
+      "min_r": 12.24,
+      "toward_collapsed": {
+       "response": 0.93,
+       "damping": 0.1,
+       "start": 412.1,
+       "rms": 2.92
+      },
+      "sharp_ms_from_up": -23.299999999999997
+     },
+     "bolt": {
+      "first_ms": -11.7,
+      "last_ms": 225.0,
+      "first": {
+       "cy": 483.667,
+       "r": 22.62
+      },
+      "last": {
+       "cy": 491.821,
+       "r": 31.324
+      },
+      "min_r": 17.5,
+      "toward_collapsed": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 484.2,
+       "rms": 3.45
+      },
+      "sharp_ms_from_up": -23.299999999999997
+     },
+     "heart+bolt": {
+      "first_ms": 113.3,
+      "last_ms": 213.3,
+      "first": {
+       "cy": 451.106,
+       "r": 35.558
+      },
+      "last": {
+       "cy": 449.67,
+       "r": 12.774
+      },
+      "min_r": 12.55,
+      "toward_collapsed": {
+       "response": 0.09,
+       "damping": 0.1,
+       "start": 458.3,
+       "rms": 0.7
+      },
+      "sharp_ms_from_up": 55.0
+     },
+     "unknown": {
+      "first_ms": 158.3,
+      "last_ms": 158.3,
+      "first": {
+       "cy": 360.245,
+       "r": 11.611
+      },
+      "last": {
+       "cy": 360.245,
+       "r": 11.611
+      },
+      "sharp_ms_from_up": null
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": null,
+    "toggle": {
+     "start_cy": 606.36,
+     "end_cy": 450.28,
+     "t10_ms": 10.9,
+     "t90_ms": 296.8,
+     "fit": {
+      "response": 0.16999999999999998,
+      "damping": 2.0,
+      "start": null,
+      "rms": 0.01
+     },
+     "overshoot_pct": 0.15,
+     "width": [
+      57.67,
+      57.67,
+      -133.3,
+      50.0,
+      -35.0
+     ],
+     "sharp_ms_from_up": 116.7
+    },
+    "counts": [
+     [
+      0.0,
+      11,
+      7
+     ],
+     [
+      16.7,
+      7,
+      5
+     ],
+     [
+      33.3,
+      5,
+      3
+     ],
+     [
+      50.0,
+      3,
+      2
+     ],
+     [
+      66.7,
+      2,
+      4
+     ],
+     [
+      83.3,
+      4,
+      5
+     ],
+     [
+      116.7,
+      5,
+      4
+     ],
+     [
+      133.3,
+      4,
+      5
+     ],
+     [
+      158.3,
+      5,
+      6
+     ],
+     [
+      186.7,
+      6,
+      5
+     ],
+     [
+      253.3,
+      5,
+      4
+     ],
+     [
+      335.0,
+      4,
+      3
+     ],
+     [
+      351.7,
+      3,
+      1
+     ],
+     [
+      366.7,
+      1,
+      2
+     ],
+     [
+      386.7,
+      2,
+      1
+     ],
+     [
+      400.0,
+      1,
+      2
+     ],
+     [
+      483.3,
+      2,
+      3
+     ],
+     [
+      500.0,
+      3,
+      2
+     ],
+     [
+      533.3,
+      2,
+      1
+     ],
+     [
+      550.0,
+      1,
+      2
+     ],
+     [
+      583.3,
+      2,
+      1
+     ],
+     [
+      616.7,
+      1,
+      2
+     ],
+     [
+      666.7,
+      2,
+      3
+     ],
+     [
+      700.0,
+      3,
+      2
+     ],
+     [
+      733.3,
+      2,
+      3
+     ],
+     [
+      750.0,
+      3,
+      2
+     ],
+     [
+      766.7,
+      2,
+      1
+     ],
+     [
+      800.0,
+      1,
+      2
+     ],
+     [
+      833.3,
+      2,
+      1
+     ],
+     [
+      866.7,
+      1,
+      2
+     ],
+     [
+      900.0,
+      2,
+      3
+     ],
+     [
+      950.0,
+      3,
+      2
+     ],
+     [
+      1083.3,
+      2,
+      1
+     ],
+     [
+      1118.3,
+      1,
+      2
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": 0.0,
+      "last_ms": 148.3,
+      "first": {
+       "cy": 343.069,
+       "r": 28.174
+      },
+      "last": {
+       "cy": 336.006,
+       "r": 15.987
+      },
+      "sharp_ms_from_up": 31.7
+     },
+     "heart": {
+      "first_ms": 0.0,
+      "last_ms": 190.0,
+      "first": {
+       "cy": 415.126,
+       "r": 27.792
+      },
+      "last": {
+       "cy": 448.534,
+       "r": 14.566
+      },
+      "min_r": 14.57,
+      "toward_collapsed": {
+       "response": 0.44,
+       "damping": 0.6,
+       "start": 412.3,
+       "rms": 1.5
+      },
+      "sharp_ms_from_up": 31.7
+     },
+     "bolt": {
+      "first_ms": 0.0,
+      "last_ms": 398.3,
+      "first": {
+       "cy": 486.213,
+       "r": 28.055
+      },
+      "last": {
+       "cy": 466.906,
+       "r": 28.997
+      },
+      "min_r": 13.83,
+      "toward_collapsed": {
+       "response": 0.25,
+       "damping": 2.0,
+       "start": 483.2,
+       "rms": 7.44
+      },
+      "sharp_ms_from_up": 98.3
+     },
+     "unknown": {
+      "first_ms": 98.3,
+      "last_ms": 115.0,
+      "first": {
+       "cy": 333.021,
+       "r": 20.363
+      },
+      "last": {
+       "cy": 334.723,
+       "r": 17.729
+      },
+      "sharp_ms_from_up": 98.3
+     },
+     "heart+bolt": {
+      "first_ms": 218.3,
+      "last_ms": 366.7,
+      "first": {
+       "cy": 451.47,
+       "r": 13.847
+      },
+      "last": {
+       "cy": 451.307,
+       "r": 10.306
+      },
+      "min_r": 10.31,
+      "toward_collapsed": {
+       "response": 0.51,
+       "damping": 1.98,
+       "start": 451.8,
+       "rms": 0.05
+      },
+      "sharp_ms_from_up": 285.0
+     }
+    }
+   }
+  }
+ },
+ "dark-photo-rm": {
+  "expand": {
+   "native": {
+    "onset_ms_from_up": null,
+    "toggle": {
+     "start_cy": 450.69,
+     "end_cy": 560.32,
+     "t10_ms": 125.8,
+     "t90_ms": 400.5,
+     "fit": {
+      "response": 0.9900000000000001,
+      "damping": 0.72,
+      "start": null,
+      "rms": 0.06
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      57.33,
+      57.67,
+      121.7,
+      57.67,
+      133.3
+     ],
+     "sharp_ms_from_up": 105.0
+    },
+    "counts": [
+     [
+      -61.7,
+      3,
+      1
+     ],
+     [
+      60.0,
+      1,
+      2
+     ],
+     [
+      138.3,
+      2,
+      5
+     ],
+     [
+      188.3,
+      5,
+      7
+     ],
+     [
+      203.3,
+      7,
+      4
+     ],
+     [
+      228.3,
+      4,
+      6
+     ],
+     [
+      238.3,
+      6,
+      5
+     ],
+     [
+      276.7,
+      5,
+      4
+     ],
+     [
+      291.7,
+      4,
+      5
+     ],
+     [
+      305.0,
+      5,
+      4
+     ],
+     [
+      321.7,
+      4,
+      5
+     ],
+     [
+      340.0,
+      5,
+      4
+     ],
+     [
+      360.0,
+      4,
+      6
+     ],
+     [
+      373.3,
+      6,
+      7
+     ],
+     [
+      421.7,
+      7,
+      8
+     ],
+     [
+      426.7,
+      8,
+      7
+     ],
+     [
+      438.3,
+      7,
+      6
+     ],
+     [
+      443.3,
+      6,
+      7
+     ],
+     [
+      456.7,
+      7,
+      9
+     ],
+     [
+      480.0,
+      9,
+      8
+     ],
+     [
+      488.3,
+      8,
+      7
+     ],
+     [
+      510.0,
+      7,
+      6
+     ],
+     [
+      521.7,
+      6,
+      7
+     ],
+     [
+      528.3,
+      7,
+      8
+     ],
+     [
+      540.0,
+      8,
+      7
+     ],
+     [
+      560.0,
+      7,
+      9
+     ],
+     [
+      591.7,
+      9,
+      8
+     ],
+     [
+      596.7,
+      8,
+      9
+     ],
+     [
+      825.0,
+      9,
+      8
+     ]
+    ],
+    "badges": {
+     "merged": {
+      "first_ms": 171.7,
+      "last_ms": 673.3,
+      "first": {
+       "cy": 433.744,
+       "r": 26.461
+      },
+      "last": {
+       "cy": 448.705,
+       "r": 37.147
+      },
+      "sharp_ms_from_up": 398.3
+     },
+     "star": {
+      "first_ms": 198.3,
+      "last_ms": 901.7,
+      "first": {
+       "cy": 422.376,
+       "r": 25.144
+      },
+      "last": {
+       "cy": 340.977,
+       "r": 26.746
+      },
+      "extreme_cy": 340.98,
+      "max_r": 26.99,
+      "position_fixed_onset": {
+       "response": 0.6000000000000001,
+       "damping": 0.9,
+       "start": 571.3,
+       "rms": 1.15
+      },
+      "position_free_onset": {
+       "response": 0.6000000000000001,
+       "damping": 0.9,
+       "start": 571.3,
+       "rms": 1.15
+      },
+      "radius_from_free_onset": {
+       "response": 1.07,
+       "damping": 2.0,
+       "start": 24.4,
+       "rms": 0.5
+      },
+      "sharp_ms_from_up": 265.0
+     },
+     "heart": {
+      "first_ms": 198.3,
+      "last_ms": 901.7,
+      "first": {
+       "cy": 446.682,
+       "r": 27.471
+      },
+      "last": {
+       "cy": 414.5,
+       "r": 23.991
+      },
+      "extreme_cy": 414.5,
+      "max_r": 27.47,
+      "position_fixed_onset": {
+       "response": 0.21000000000000002,
+       "damping": 1.57,
+       "start": 641.1,
+       "rms": 1.91
+      },
+      "position_free_onset": {
+       "response": 0.21000000000000002,
+       "damping": 1.57,
+       "start": 641.1,
+       "rms": 1.91
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 21.9,
+       "rms": 1.29
+      },
+      "sharp_ms_from_up": 265.0
+     },
+     "bolt": {
+      "first_ms": 198.3,
+      "last_ms": 901.7,
+      "first": {
+       "cy": 465.169,
+       "r": 27.395
+      },
+      "last": {
+       "cy": 484.971,
+       "r": 22.876
+      },
+      "extreme_cy": 485.19,
+      "max_r": 27.39,
+      "position_fixed_onset": {
+       "response": 0.33999999999999997,
+       "damping": 1.71,
+       "start": 425.6,
+       "rms": 0.91
+      },
+      "position_free_onset": {
+       "response": 0.33999999999999997,
+       "damping": 1.71,
+       "start": 425.6,
+       "rms": 0.91
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 20.7,
+       "rms": 1.75
+      },
+      "sharp_ms_from_up": 198.3
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": 0.0,
+    "toggle": {
+     "start_cy": 450.33,
+     "end_cy": 452.62,
+     "t10_ms": 147.1,
+     "t90_ms": 149.7,
+     "fit": {
+      "response": 1.5,
+      "damping": 2.0,
+      "start": null,
+      "rms": 29.43
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      57.33,
+      58.33,
+      33.3,
+      57.67,
+      133.3
+     ],
+     "sharp_ms_from_up": 133.3
+    },
+    "counts": [
+     [
+      0.0,
+      2,
+      1
+     ],
+     [
+      81.7,
+      1,
+      2
+     ],
+     [
+      133.3,
+      2,
+      1
+     ],
+     [
+      201.7,
+      1,
+      2
+     ],
+     [
+      235.0,
+      2,
+      1
+     ],
+     [
+      250.0,
+      1,
+      2
+     ],
+     [
+      316.7,
+      2,
+      4
+     ],
+     [
+      335.0,
+      4,
+      2
+     ],
+     [
+      350.0,
+      2,
+      4
+     ],
+     [
+      366.7,
+      4,
+      5
+     ],
+     [
+      383.3,
+      5,
+      9
+     ],
+     [
+      400.0,
+      9,
+      11
+     ],
+     [
+      418.3,
+      11,
+      9
+     ],
+     [
+      450.0,
+      9,
+      11
+     ],
+     [
+      466.7,
+      11,
+      10
+     ],
+     [
+      483.3,
+      10,
+      8
+     ],
+     [
+      501.7,
+      8,
+      9
+     ],
+     [
+      516.7,
+      9,
+      8
+     ],
+     [
+      533.3,
+      8,
+      9
+     ],
+     [
+      583.3,
+      9,
+      8
+     ],
+     [
+      600.0,
+      8,
+      7
+     ],
+     [
+      620.0,
+      7,
+      10
+     ],
+     [
+      633.3,
+      10,
+      9
+     ],
+     [
+      653.3,
+      9,
+      8
+     ],
+     [
+      666.7,
+      8,
+      9
+     ],
+     [
+      681.7,
+      9,
+      11
+     ],
+     [
+      701.7,
+      11,
+      9
+     ],
+     [
+      718.3,
+      9,
+      8
+     ],
+     [
+      751.7,
+      8,
+      10
+     ],
+     [
+      766.7,
+      10,
+      9
+     ],
+     [
+      783.3,
+      9,
+      10
+     ],
+     [
+      798.3,
+      10,
+      9
+     ],
+     [
+      865.0,
+      9,
+      10
+     ],
+     [
+      883.3,
+      10,
+      11
+     ],
+     [
+      916.7,
+      11,
+      9
+     ],
+     [
+      935.0,
+      9,
+      10
+     ],
+     [
+      1201.7,
+      10,
+      9
+     ],
+     [
+      1215.0,
+      9,
+      10
+     ],
+     [
+      1285.0,
+      10,
+      9
+     ]
+    ],
+    "badges": {
+     "merged": {
+      "first_ms": 33.3,
+      "last_ms": 1250.0,
+      "first": {
+       "cy": 344.646,
+       "r": 29.327
+      },
+      "last": {
+       "cy": 487.88,
+       "r": 29.002
+      },
+      "sharp_ms_from_up": 266.7
+     },
+     "star": {
+      "first_ms": 115.0,
+      "last_ms": 1285.0,
+      "first": {
+       "cy": 342.525,
+       "r": 27.915
+      },
+      "last": {
+       "cy": 343.073,
+       "r": 28.169
+      },
+      "extreme_cy": 342.52,
+      "max_r": 28.39,
+      "position_fixed_onset": {
+       "response": 0.47,
+       "damping": 0.4,
+       "start": 341.0,
+       "rms": 0.15
+      },
+      "position_free_onset": {
+       "response": 0.47,
+       "damping": 0.4,
+       "start": 341.0,
+       "rms": 0.15
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 28.1,
+       "rms": 0.12
+      },
+      "sharp_ms_from_up": 150.0
+     },
+     "heart": {
+      "first_ms": 115.0,
+      "last_ms": 1285.0,
+      "first": {
+       "cy": 363.268,
+       "r": 28.087
+      },
+      "last": {
+       "cy": 414.805,
+       "r": 27.916
+      },
+      "extreme_cy": 363.27,
+      "max_r": 28.77,
+      "position_fixed_onset": {
+       "response": 0.19,
+       "damping": 2.0,
+       "start": 292.0,
+       "rms": 0.79
+      },
+      "position_free_onset": {
+       "response": 0.19,
+       "damping": 2.0,
+       "start": 292.0,
+       "rms": 0.79
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 0.1,
+       "start": 29.0,
+       "rms": 0.34
+      },
+      "sharp_ms_from_up": 183.3
+     },
+     "bolt": {
+      "first_ms": 115.0,
+      "last_ms": 1285.0,
+      "first": {
+       "cy": 397.273,
+       "r": 28.983
+      },
+      "last": {
+       "cy": 486.287,
+       "r": 27.985
+      },
+      "extreme_cy": 486.44,
+      "max_r": 28.98,
+      "position_fixed_onset": {
+       "response": 0.53,
+       "damping": 1.03,
+       "start": 339.8,
+       "rms": 0.57
+      },
+      "position_free_onset": {
+       "response": 0.46,
+       "damping": 1.09,
+       "start": 373.2,
+       "rms": 0.55
+      },
+      "radius_from_free_onset": {
+       "response": 0.8200000000000001,
+       "damping": 0.28,
+       "start": 29.3,
+       "rms": 0.3
+      },
+      "sharp_ms_from_up": 133.3
+     }
+    }
+   }
+  },
+  "collapse": {
+   "native": {
+    "onset_ms_from_up": null,
+    "toggle": {
+     "start_cy": 558.73,
+     "end_cy": 452.96,
+     "t10_ms": 156.6,
+     "t90_ms": 410.4,
+     "fit": {
+      "response": 1.11,
+      "damping": 0.65,
+      "start": null,
+      "rms": 0.07
+     },
+     "overshoot_pct": 0.48,
+     "width": [
+      57.67,
+      57.67,
+      -6.7,
+      57.33,
+      498.3
+     ],
+     "sharp_ms_from_up": 31.7
+    },
+    "counts": [
+     [
+      -73.3,
+      8,
+      6
+     ],
+     [
+      53.3,
+      6,
+      7
+     ],
+     [
+      63.3,
+      7,
+      8
+     ],
+     [
+      86.7,
+      8,
+      6
+     ],
+     [
+      103.3,
+      6,
+      5
+     ],
+     [
+      113.3,
+      5,
+      6
+     ],
+     [
+      131.7,
+      6,
+      5
+     ],
+     [
+      138.3,
+      5,
+      7
+     ],
+     [
+      148.3,
+      7,
+      5
+     ],
+     [
+      165.0,
+      5,
+      6
+     ],
+     [
+      186.7,
+      6,
+      4
+     ],
+     [
+      201.7,
+      4,
+      5
+     ],
+     [
+      220.0,
+      5,
+      4
+     ],
+     [
+      231.7,
+      4,
+      3
+     ],
+     [
+      263.3,
+      3,
+      4
+     ],
+     [
+      288.3,
+      4,
+      3
+     ],
+     [
+      298.3,
+      3,
+      4
+     ],
+     [
+      313.3,
+      4,
+      3
+     ],
+     [
+      333.3,
+      3,
+      4
+     ],
+     [
+      338.3,
+      4,
+      3
+     ],
+     [
+      355.0,
+      3,
+      2
+     ],
+     [
+      431.7,
+      2,
+      3
+     ],
+     [
+      446.7,
+      3,
+      2
+     ],
+     [
+      485.0,
+      2,
+      3
+     ],
+     [
+      498.3,
+      3,
+      2
+     ],
+     [
+      503.3,
+      2,
+      3
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": 0.0,
+      "last_ms": 385.0,
+      "first": {
+       "cy": 340.975,
+       "r": 26.746
+      },
+      "last": {
+       "cy": 342.934,
+       "r": 8.344
+      },
+      "sharp_ms_from_up": 35.0
+     },
+     "heart": {
+      "first_ms": 0.0,
+      "last_ms": 328.3,
+      "first": {
+       "cy": 414.499,
+       "r": 23.991
+      },
+      "last": {
+       "cy": 442.508,
+       "r": 25.433
+      },
+      "min_r": 23.91,
+      "toward_collapsed": {
+       "response": 1.48,
+       "damping": 0.1,
+       "start": 411.8,
+       "rms": 3.68
+      },
+      "sharp_ms_from_up": 35.0
+     },
+     "bolt": {
+      "first_ms": 0.0,
+      "last_ms": 328.3,
+      "first": {
+       "cy": 485.004,
+       "r": 22.807
+      },
+      "last": {
+       "cy": 465.463,
+       "r": 27.005
+      },
+      "min_r": 21.88,
+      "toward_collapsed": {
+       "response": 1.5,
+       "damping": 0.6,
+       "start": 485.9,
+       "rms": 3.39
+      },
+      "sharp_ms_from_up": 35.0
+     },
+     "heart+bolt": {
+      "first_ms": 133.3,
+      "last_ms": 413.3,
+      "first": {
+       "cy": 448.815,
+       "r": 36.615
+      },
+      "last": {
+       "cy": 449.903,
+       "r": 26.807
+      },
+      "min_r": 24.6,
+      "toward_collapsed": {
+       "response": 0.5900000000000001,
+       "damping": 0.1,
+       "start": 458.4,
+       "rms": 2.89
+      },
+      "sharp_ms_from_up": 228.3
+     },
+     "unknown": {
+      "first_ms": 166.7,
+      "last_ms": 263.3,
+      "first": {
+       "cy": 376.31,
+       "r": 44.003
+      },
+      "last": {
+       "cy": 374.193,
+       "r": 38.44
+      },
+      "sharp_ms_from_up": 166.7
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": null,
+    "toggle": {
+     "start_cy": 605.93,
+     "end_cy": 450.2,
+     "t10_ms": 12.3,
+     "t90_ms": 297.0,
+     "fit": {
+      "response": 0.22999999999999998,
+      "damping": 2.0,
+      "start": null,
+      "rms": 0.04
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      57.67,
+      58.33,
+      100.0,
+      57.33,
+      416.7
+     ],
+     "sharp_ms_from_up": 98.3
+    },
+    "counts": [
+     [
+      0.0,
+      9,
+      7
+     ],
+     [
+      31.7,
+      7,
+      5
+     ],
+     [
+      48.3,
+      5,
+      3
+     ],
+     [
+      81.7,
+      3,
+      5
+     ],
+     [
+      98.3,
+      5,
+      4
+     ],
+     [
+      115.0,
+      4,
+      5
+     ],
+     [
+      165.0,
+      5,
+      6
+     ],
+     [
+      198.3,
+      6,
+      2
+     ],
+     [
+      215.0,
+      2,
+      3
+     ],
+     [
+      231.7,
+      3,
+      4
+     ],
+     [
+      265.0,
+      4,
+      3
+     ],
+     [
+      298.3,
+      3,
+      1
+     ],
+     [
+      316.7,
+      1,
+      2
+     ],
+     [
+      331.7,
+      2,
+      1
+     ],
+     [
+      348.3,
+      1,
+      2
+     ],
+     [
+      366.7,
+      2,
+      3
+     ],
+     [
+      383.3,
+      3,
+      2
+     ],
+     [
+      416.7,
+      2,
+      1
+     ],
+     [
+      466.7,
+      1,
+      2
+     ],
+     [
+      481.7,
+      2,
+      3
+     ],
+     [
+      533.3,
+      3,
+      2
+     ],
+     [
+      550.0,
+      2,
+      3
+     ],
+     [
+      600.0,
+      3,
+      2
+     ],
+     [
+      700.0,
+      2,
+      3
+     ],
+     [
+      715.0,
+      3,
+      2
+     ],
+     [
+      751.7,
+      2,
+      1
+     ],
+     [
+      783.3,
+      1,
+      3
+     ],
+     [
+      851.7,
+      3,
+      2
+     ],
+     [
+      866.7,
+      2,
+      3
+     ],
+     [
+      918.3,
+      3,
+      2
+     ],
+     [
+      1216.7,
+      2,
+      3
+     ],
+     [
+      1285.0,
+      3,
+      2
+     ],
+     [
+      1300.0,
+      2,
+      3
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": 0.0,
+      "last_ms": 170.0,
+      "first": {
+       "cy": 343.073,
+       "r": 28.169
+      },
+      "last": {
+       "cy": 335.837,
+       "r": 15.79
+      },
+      "sharp_ms_from_up": 55.0
+     },
+     "heart": {
+      "first_ms": 0.0,
+      "last_ms": 320.0,
+      "first": {
+       "cy": 414.804,
+       "r": 27.916
+      },
+      "last": {
+       "cy": 446.67,
+       "r": 29.067
+      },
+      "min_r": 27.81,
+      "toward_collapsed": {
+       "response": 0.8200000000000001,
+       "damping": 0.64,
+       "start": 412.5,
+       "rms": 0.94
+      },
+      "sharp_ms_from_up": 55.0
+     },
+     "bolt": {
+      "first_ms": 0.0,
+      "last_ms": 320.0,
+      "first": {
+       "cy": 486.179,
+       "r": 28.026
+      },
+      "last": {
+       "cy": 460.032,
+       "r": 28.535
+      },
+      "min_r": 27.54,
+      "toward_collapsed": {
+       "response": 0.76,
+       "damping": 1.05,
+       "start": 486.8,
+       "rms": 1.29
+      },
+      "sharp_ms_from_up": 121.7
+     },
+     "unknown": {
+      "first_ms": 136.7,
+      "last_ms": 220.0,
+      "first": {
+       "cy": 334.266,
+       "r": 17.415
+      },
+      "last": {
+       "cy": 538.275,
+       "r": 31.819
+      },
+      "sharp_ms_from_up": 136.7
+     },
+     "heart+bolt": {
+      "first_ms": 336.7,
+      "last_ms": 1055.0,
+      "first": {
+       "cy": 448.237,
+       "r": 29.311
+      },
+      "last": {
+       "cy": 452.087,
+       "r": 28.18
+      },
+      "min_r": 28.12,
+      "toward_collapsed": {
+       "response": 0.9,
+       "damping": 0.63,
+       "start": 424.1,
+       "rms": 0.52
+      },
+      "sharp_ms_from_up": 471.7
+     }
+    }
+   }
+  }
+ },
+ "dark-stripes": {
+  "expand": {
+   "native": {
+    "onset_ms_from_up": 58.3,
+    "toggle": {
+     "start_cy": 450.68,
+     "end_cy": 558.61,
+     "t10_ms": 18.9,
+     "t90_ms": 374.4,
+     "fit": {
+      "response": 0.28,
+      "damping": 1.97,
+      "start": null,
+      "rms": 0.02
+     },
+     "overshoot_pct": 0.07,
+     "width": [
+      58.0,
+      71.67,
+      151.7,
+      56.0,
+      376.7
+     ],
+     "sharp_ms_from_up": 485.0
+    },
+    "counts": [
+     [
+      301.7,
+      1,
+      2
+     ],
+     [
+      345.0,
+      2,
+      1
+     ],
+     [
+      370.0,
+      1,
+      2
+     ],
+     [
+      485.0,
+      2,
+      4
+     ]
+    ],
+    "badges": {
+     "heart": {
+      "first_ms": 86.7,
+      "last_ms": 1225.0,
+      "first": {
+       "cy": 441.038,
+       "r": 18.394
+      },
+      "last": {
+       "cy": 415.129,
+       "r": 28.721
+      },
+      "extreme_cy": 406.94,
+      "max_r": 32.38,
+      "position_fixed_onset": {
+       "response": 0.5900000000000001,
+       "damping": 0.65,
+       "start": 453.5,
+       "rms": 1.39
+      },
+      "position_free_onset": {
+       "response": 0.48,
+       "damping": 0.58,
+       "start": 441.8,
+       "rms": 1.21
+      },
+      "radius_from_free_onset": {
+       "response": 0.3,
+       "damping": 0.29,
+       "start": 19.6,
+       "rms": 1.12
+      },
+      "sharp_ms_from_up": 301.6
+     },
+     "bolt": {
+      "first_ms": 163.3,
+      "last_ms": 1225.0,
+      "first": {
+       "cy": 487.27,
+       "r": 31.011
+      },
+      "last": {
+       "cy": 487.136,
+       "r": 28.716
+      },
+      "extreme_cy": 490.28,
+      "max_r": 32.71,
+      "position_fixed_onset": {
+       "response": 0.35,
+       "damping": 0.65,
+       "start": 441.9,
+       "rms": 0.31
+      },
+      "position_free_onset": {
+       "response": 0.35,
+       "damping": 0.65,
+       "start": 441.9,
+       "rms": 0.31
+      },
+      "radius_from_free_onset": {
+       "response": 0.35,
+       "damping": 0.57,
+       "start": -10.2,
+       "rms": 0.25
+      },
+      "sharp_ms_from_up": 291.6
+     },
+     "star": {
+      "first_ms": 363.3,
+      "last_ms": 1225.0,
+      "first": {
+       "cy": 378.639,
+       "r": 22.701
+      },
+      "last": {
+       "cy": 343.156,
+       "r": 28.714
+      },
+      "extreme_cy": 334.94,
+      "max_r": 29.6,
+      "position_fixed_onset": {
+       "response": 0.6000000000000001,
+       "damping": 0.84,
+       "start": 1399.7,
+       "rms": 2.12
+      },
+      "position_free_onset": {
+       "response": 0.6100000000000001,
+       "damping": 0.83,
+       "start": 1247.9,
+       "rms": 2.11
+      },
+      "radius_from_free_onset": {
+       "response": 0.8700000000000001,
+       "damping": 0.73,
+       "start": -15.4,
+       "rms": 0.34
+      },
+      "sharp_ms_from_up": 500.0
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": 0.0,
+    "toggle": {
+     "start_cy": 450.94,
+     "end_cy": 558.94,
+     "t10_ms": 159.9,
+     "t90_ms": 413.6,
+     "fit": {
+      "response": 1.12,
+      "damping": 0.69,
+      "start": null,
+      "rms": 0.26
+     },
+     "overshoot_pct": 0.02,
+     "width": [
+      58.33,
+      58.67,
+      31.7,
+      58.33,
+      131.7
+     ],
+     "sharp_ms_from_up": 98.3
+    },
+    "counts": [
+     [
+      398.3,
+      1,
+      4
+     ]
+    ],
+    "badges": {
+     "heart": {
+      "first_ms": 65.0,
+      "last_ms": 1281.7,
+      "first": {
+       "cy": 343.596,
+       "r": 29.325
+      },
+      "last": {
+       "cy": 415.114,
+       "r": 29.016
+      },
+      "extreme_cy": 343.6,
+      "max_r": 29.43,
+      "position_fixed_onset": {
+       "response": 0.2,
+       "damping": 2.0,
+       "start": 306.4,
+       "rms": 0.79
+      },
+      "position_free_onset": {
+       "response": 0.2,
+       "damping": 2.0,
+       "start": 306.4,
+       "rms": 0.79
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.6,
+       "rms": 0.17
+      },
+      "sharp_ms_from_up": 365.0
+     },
+     "star": {
+      "first_ms": 81.7,
+      "last_ms": 1281.7,
+      "first": {
+       "cy": 343.609,
+       "r": 29.316
+      },
+      "last": {
+       "cy": 343.142,
+       "r": 29.009
+      },
+      "extreme_cy": 343.13,
+      "max_r": 29.32,
+      "position_fixed_onset": {
+       "response": 1.11,
+       "damping": 2.0,
+       "start": 343.5,
+       "rms": 0.05
+      },
+      "position_free_onset": {
+       "response": 1.11,
+       "damping": 2.0,
+       "start": 343.5,
+       "rms": 0.05
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.6,
+       "rms": 0.18
+      },
+      "sharp_ms_from_up": 365.0
+     },
+     "unknown": {
+      "first_ms": 98.3,
+      "last_ms": 265.0,
+      "first": {
+       "cy": 343.602,
+       "r": 29.305
+      },
+      "last": {
+       "cy": 459.41,
+       "r": 29.19
+      },
+      "sharp_ms_from_up": 98.3
+     },
+     "bolt": {
+      "first_ms": 281.7,
+      "last_ms": 1281.7,
+      "first": {
+       "cy": 463.121,
+       "r": 29.184
+      },
+      "last": {
+       "cy": 487.112,
+       "r": 29.016
+      },
+      "extreme_cy": 487.11,
+      "max_r": 29.18,
+      "position_fixed_onset": {
+       "response": 0.5700000000000001,
+       "damping": 0.98,
+       "start": 350.0,
+       "rms": 0.08
+      },
+      "position_free_onset": {
+       "response": 0.5700000000000001,
+       "damping": 0.98,
+       "start": 350.0,
+       "rms": 0.08
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.7,
+       "rms": 0.17
+      },
+      "sharp_ms_from_up": 365.0
+     }
+    }
+   }
+  },
+  "collapse": {
+   "native": {
+    "onset_ms_from_up": 50.0,
+    "toggle": {
+     "start_cy": 558.65,
+     "end_cy": 450.62,
+     "t10_ms": 37.2,
+     "t90_ms": 288.5,
+     "fit": {
+      "response": 0.35,
+      "damping": 1.27,
+      "start": null,
+      "rms": 0.01
+     },
+     "overshoot_pct": 0.24,
+     "width": [
+      58.0,
+      69.0,
+      100.0,
+      55.33,
+      436.7
+     ],
+     "sharp_ms_from_up": 493.3
+    },
+    "counts": [
+     [
+      85.0,
+      4,
+      3
+     ],
+     [
+      100.0,
+      3,
+      2
+     ],
+     [
+      243.3,
+      2,
+      3
+     ],
+     [
+      266.7,
+      3,
+      2
+     ],
+     [
+      288.3,
+      2,
+      1
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": -140.0,
+      "last_ms": 140.0,
+      "first": {
+       "cy": 343.155,
+       "r": 28.713
+      },
+      "last": {
+       "cy": 344.226,
+       "r": 9.039
+      },
+      "sharp_ms_from_up": 85.0
+     },
+     "heart": {
+      "first_ms": -140.0,
+      "last_ms": 73.3,
+      "first": {
+       "cy": 415.129,
+       "r": 28.721
+      },
+      "last": {
+       "cy": 431.69,
+       "r": 21.577
+      },
+      "min_r": 21.58,
+      "toward_collapsed": {
+       "response": 0.38,
+       "damping": 0.36,
+       "start": 415.1,
+       "rms": 0.74
+      },
+      "sharp_ms_from_up": 85.0
+     },
+     "bolt": {
+      "first_ms": -140.0,
+      "last_ms": 73.3,
+      "first": {
+       "cy": 487.135,
+       "r": 28.716
+      },
+      "last": {
+       "cy": 480.297,
+       "r": 21.68
+      },
+      "min_r": 21.68,
+      "toward_collapsed": {
+       "response": 0.45,
+       "damping": 1.66,
+       "start": 487.2,
+       "rms": 0.36
+      },
+      "sharp_ms_from_up": 85.0
+     },
+     "heart+bolt": {
+      "first_ms": 85.0,
+      "last_ms": 120.0,
+      "first": {
+       "cy": 448.122,
+       "r": 23.302
+      },
+      "last": {
+       "cy": 448.704,
+       "r": 15.548
+      },
+      "min_r": 15.55,
+      "toward_collapsed": {
+       "response": 0.15000000000000002,
+       "damping": 0.67,
+       "start": 515.7,
+       "rms": 0.5
+      },
+      "sharp_ms_from_up": 135.0
+     },
+     "unknown": {
+      "first_ms": 135.0,
+      "last_ms": 188.3,
+      "first": {
+       "cy": 326.054,
+       "r": 8.465
+      },
+      "last": {
+       "cy": 360.164,
+       "r": 8.078
+      },
+      "sharp_ms_from_up": 185.0
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": 0.0,
+    "toggle": {
+     "start_cy": 558.94,
+     "end_cy": 450.94,
+     "t10_ms": 0.0,
+     "t90_ms": 415.5,
+     "fit": {
+      "response": 1.07,
+      "damping": 0.72,
+      "start": null,
+      "rms": 0.2
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      58.33,
+      58.33,
+      -55.0,
+      58.0,
+      50.0
+     ],
+     "sharp_ms_from_up": 83.3
+    },
+    "counts": [
+     [
+      0.0,
+      4,
+      3
+     ],
+     [
+      33.3,
+      3,
+      2
+     ],
+     [
+      66.7,
+      2,
+      3
+     ],
+     [
+      200.0,
+      3,
+      2
+     ],
+     [
+      266.7,
+      2,
+      1
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": -55.0,
+      "last_ms": 166.7,
+      "first": {
+       "cy": 343.143,
+       "r": 29.009
+      },
+      "last": {
+       "cy": 343.334,
+       "r": 16.219
+      },
+      "sharp_ms_from_up": 33.3
+     },
+     "heart": {
+      "first_ms": -55.0,
+      "last_ms": 150.0,
+      "first": {
+       "cy": 415.115,
+       "r": 29.017
+      },
+      "last": {
+       "cy": 447.591,
+       "r": 14.998
+      },
+      "min_r": 15.0,
+      "toward_collapsed": {
+       "response": 0.29,
+       "damping": 0.84,
+       "start": 415.0,
+       "rms": 0.18
+      },
+      "sharp_ms_from_up": 33.3
+     },
+     "bolt": {
+      "first_ms": -55.0,
+      "last_ms": 150.0,
+      "first": {
+       "cy": 487.112,
+       "r": 29.017
+      },
+      "last": {
+       "cy": 454.675,
+       "r": 15.032
+      },
+      "min_r": 15.03,
+      "toward_collapsed": {
+       "response": 0.28,
+       "damping": 0.89,
+       "start": 487.1,
+       "rms": 0.12
+      },
+      "sharp_ms_from_up": 66.7
+     },
+     "heart+bolt": {
+      "first_ms": 166.7,
+      "last_ms": 283.3,
+      "first": {
+       "cy": 451.218,
+       "r": 14.509
+      },
+      "last": {
+       "cy": 449.179,
+       "r": 8.285
+      },
+      "min_r": 8.29,
+      "toward_collapsed": {
+       "response": 0.77,
+       "damping": 0.1,
+       "start": 452.6,
+       "rms": 0.89
+      },
+      "sharp_ms_from_up": 183.3
+     }
+    }
+   }
+  }
+ },
+ "dark-stripes-rm": {
+  "expand": {
+   "native": {
+    "onset_ms_from_up": 26.7,
+    "toggle": {
+     "start_cy": 450.66,
+     "end_cy": 558.62,
+     "t10_ms": 56.7,
+     "t90_ms": 296.3,
+     "fit": {
+      "response": 0.46,
+      "damping": 1.05,
+      "start": null,
+      "rms": 0.02
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      58.0,
+      58.0,
+      -91.7,
+      58.0,
+      -88.3
+     ],
+     "sharp_ms_from_up": 95.0
+    },
+    "counts": [
+     [
+      343.3,
+      1,
+      4
+     ]
+    ],
+    "badges": {
+     "merged": {
+      "first_ms": 33.3,
+      "last_ms": 55.0,
+      "first": {
+       "cy": 438.395,
+       "r": 29.256
+      },
+      "last": {
+       "cy": 430.074,
+       "r": 29.085
+      },
+      "sharp_ms_from_up": 60.0
+     },
+     "star": {
+      "first_ms": 68.3,
+      "last_ms": 725.0,
+      "first": {
+       "cy": 421.602,
+       "r": 29.013
+      },
+      "last": {
+       "cy": 343.156,
+       "r": 28.719
+      },
+      "extreme_cy": 343.16,
+      "max_r": 29.01,
+      "position_fixed_onset": {
+       "response": 0.49,
+       "damping": 1.03,
+       "start": 444.6,
+       "rms": 1.29
+      },
+      "position_free_onset": {
+       "response": 0.44,
+       "damping": 1.08,
+       "start": 433.6,
+       "rms": 1.29
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 28.9,
+       "rms": 0.04
+      },
+      "sharp_ms_from_up": 135.0
+     },
+     "heart": {
+      "first_ms": 68.3,
+      "last_ms": 725.0,
+      "first": {
+       "cy": 440.866,
+       "r": 28.918
+      },
+      "last": {
+       "cy": 415.139,
+       "r": 28.719
+      },
+      "extreme_cy": 415.13,
+      "max_r": 28.92,
+      "position_fixed_onset": {
+       "response": 0.48,
+       "damping": 1.05,
+       "start": 448.8,
+       "rms": 0.43
+      },
+      "position_free_onset": {
+       "response": 0.39,
+       "damping": 1.17,
+       "start": 442.9,
+       "rms": 0.42
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 28.9,
+       "rms": 0.03
+      },
+      "sharp_ms_from_up": 143.4
+     },
+     "bolt": {
+      "first_ms": 68.3,
+      "last_ms": 725.0,
+      "first": {
+       "cy": 461.073,
+       "r": 28.913
+      },
+      "last": {
+       "cy": 487.143,
+       "r": 28.708
+      },
+      "extreme_cy": 487.14,
+      "max_r": 28.92,
+      "position_fixed_onset": {
+       "response": 0.51,
+       "damping": 0.98,
+       "start": 453.8,
+       "rms": 0.44
+      },
+      "position_free_onset": {
+       "response": 0.51,
+       "damping": 0.98,
+       "start": 453.8,
+       "rms": 0.44
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.0,
+       "rms": 0.03
+      },
+      "sharp_ms_from_up": 135.0
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": 0.0,
+    "toggle": {
+     "start_cy": 450.95,
+     "end_cy": 558.94,
+     "t10_ms": 173.0,
+     "t90_ms": 427.5,
+     "fit": {
+      "response": 1.1800000000000002,
+      "damping": 0.68,
+      "start": null,
+      "rms": 0.25
+     },
+     "overshoot_pct": 0.01,
+     "width": [
+      58.33,
+      58.67,
+      50.0,
+      58.33,
+      150.0
+     ],
+     "sharp_ms_from_up": 33.3
+    },
+    "counts": [
+     [
+      400.0,
+      1,
+      2
+     ],
+     [
+      418.3,
+      2,
+      4
+     ]
+    ],
+    "badges": {
+     "merged": {
+      "first_ms": 33.3,
+      "last_ms": 83.3,
+      "first": {
+       "cy": 343.525,
+       "r": 29.262
+      },
+      "last": {
+       "cy": 343.609,
+       "r": 29.331
+      },
+      "sharp_ms_from_up": null
+     },
+     "star": {
+      "first_ms": 100.0,
+      "last_ms": 1285.0,
+      "first": {
+       "cy": 343.612,
+       "r": 29.313
+      },
+      "last": {
+       "cy": 343.135,
+       "r": 29.009
+      },
+      "extreme_cy": 343.13,
+      "max_r": 29.31,
+      "position_fixed_onset": {
+       "response": 0.8,
+       "damping": 2.0,
+       "start": 343.7,
+       "rms": 0.05
+      },
+      "position_free_onset": {
+       "response": 0.8,
+       "damping": 2.0,
+       "start": 343.7,
+       "rms": 0.05
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.5,
+       "rms": 0.18
+      },
+      "sharp_ms_from_up": 150.0
+     },
+     "heart": {
+      "first_ms": 100.0,
+      "last_ms": 1285.0,
+      "first": {
+       "cy": 362.406,
+       "r": 29.46
+      },
+      "last": {
+       "cy": 415.112,
+       "r": 29.019
+      },
+      "extreme_cy": 362.41,
+      "max_r": 29.46,
+      "position_fixed_onset": {
+       "response": 0.5700000000000001,
+       "damping": 0.98,
+       "start": 339.2,
+       "rms": 0.08
+      },
+      "position_free_onset": {
+       "response": 0.5700000000000001,
+       "damping": 0.98,
+       "start": 339.2,
+       "rms": 0.08
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.6,
+       "rms": 0.16
+      },
+      "sharp_ms_from_up": 150.0
+     },
+     "bolt": {
+      "first_ms": 100.0,
+      "last_ms": 1285.0,
+      "first": {
+       "cy": 381.585,
+       "r": 29.303
+      },
+      "last": {
+       "cy": 487.112,
+       "r": 29.021
+      },
+      "extreme_cy": 487.11,
+      "max_r": 29.34,
+      "position_fixed_onset": {
+       "response": 0.5700000000000001,
+       "damping": 0.98,
+       "start": 335.0,
+       "rms": 0.13
+      },
+      "position_free_onset": {
+       "response": 0.55,
+       "damping": 1.0,
+       "start": 340.1,
+       "rms": 0.1
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.6,
+       "rms": 0.17
+      },
+      "sharp_ms_from_up": 150.0
+     }
+    }
+   }
+  },
+  "collapse": {
+   "native": {
+    "onset_ms_from_up": 46.7,
+    "toggle": {
+     "start_cy": 558.67,
+     "end_cy": 450.6,
+     "t10_ms": 31.9,
+     "t90_ms": 264.5,
+     "fit": {
+      "response": 0.43,
+      "damping": 1.02,
+      "start": null,
+      "rms": 0.02
+     },
+     "overshoot_pct": 0.02,
+     "width": [
+      58.0,
+      58.0,
+      -120.0,
+      58.0,
+      -116.7
+     ],
+     "sharp_ms_from_up": 76.7
+    },
+    "counts": [
+     [
+      81.7,
+      4,
+      2
+     ],
+     [
+      233.3,
+      2,
+      3
+     ],
+     [
+      243.3,
+      3,
+      2
+     ],
+     [
+      365.0,
+      2,
+      3
+     ],
+     [
+      386.7,
+      3,
+      1
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": -120.0,
+      "last_ms": 268.3,
+      "first": {
+       "cy": 343.167,
+       "r": 28.715
+      },
+      "last": {
+       "cy": 344.327,
+       "r": 8.291
+      },
+      "sharp_ms_from_up": 76.7
+     },
+     "heart": {
+      "first_ms": -120.0,
+      "last_ms": 196.7,
+      "first": {
+       "cy": 415.139,
+       "r": 28.718
+      },
+      "last": {
+       "cy": 441.767,
+       "r": 29.001
+      },
+      "min_r": 28.72,
+      "toward_collapsed": {
+       "response": 0.35,
+       "damping": 1.35,
+       "start": 415.3,
+       "rms": 0.84
+      },
+      "sharp_ms_from_up": 76.7
+     },
+     "bolt": {
+      "first_ms": -120.0,
+      "last_ms": 196.7,
+      "first": {
+       "cy": 487.143,
+       "r": 28.708
+      },
+      "last": {
+       "cy": 461.004,
+       "r": 28.908
+      },
+      "min_r": 28.71,
+      "toward_collapsed": {
+       "response": 0.35,
+       "damping": 1.41,
+       "start": 487.0,
+       "rms": 0.81
+      },
+      "sharp_ms_from_up": 76.7
+     },
+     "unknown": {
+      "first_ms": 118.3,
+      "last_ms": 181.7,
+      "first": {
+       "cy": 355.72,
+       "r": 10.342
+      },
+      "last": {
+       "cy": 356.531,
+       "r": 8.115
+      },
+      "sharp_ms_from_up": 165.0
+     },
+     "heart+bolt": {
+      "first_ms": 201.7,
+      "last_ms": 280.0,
+      "first": {
+       "cy": 443.157,
+       "r": 29.022
+      },
+      "last": {
+       "cy": 447.149,
+       "r": 29.034
+      },
+      "min_r": 29.02,
+      "toward_collapsed": {
+       "response": 1.11,
+       "damping": 0.31,
+       "start": 435.9,
+       "rms": 0.36
+      },
+      "sharp_ms_from_up": 248.39999999999998
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": 0.0,
+    "toggle": {
+     "start_cy": 558.96,
+     "end_cy": 450.95,
+     "t10_ms": 0.0,
+     "t90_ms": 381.3,
+     "fit": {
+      "response": 1.0,
+      "damping": 0.81,
+      "start": null,
+      "rms": 0.2
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      58.33,
+      58.67,
+      205.0,
+      58.33,
+      283.3
+     ],
+     "sharp_ms_from_up": 33.3
+    },
+    "counts": [
+     [
+      0.0,
+      4,
+      3
+     ],
+     [
+      50.0,
+      3,
+      2
+     ],
+     [
+      66.7,
+      2,
+      3
+     ],
+     [
+      183.3,
+      3,
+      2
+     ],
+     [
+      205.0,
+      2,
+      1
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": -33.3,
+      "last_ms": 166.7,
+      "first": {
+       "cy": 343.142,
+       "r": 29.009
+      },
+      "last": {
+       "cy": 343.333,
+       "r": 16.221
+      },
+      "sharp_ms_from_up": 33.3
+     },
+     "heart": {
+      "first_ms": -33.3,
+      "last_ms": 283.3,
+      "first": {
+       "cy": 415.115,
+       "r": 29.017
+      },
+      "last": {
+       "cy": 445.462,
+       "r": 29.226
+      },
+      "min_r": 29.02,
+      "toward_collapsed": {
+       "response": 0.54,
+       "damping": 0.99,
+       "start": 415.2,
+       "rms": 0.09
+      },
+      "sharp_ms_from_up": 33.3
+     },
+     "bolt": {
+      "first_ms": -33.3,
+      "last_ms": 283.3,
+      "first": {
+       "cy": 487.112,
+       "r": 29.016
+      },
+      "last": {
+       "cy": 457.798,
+       "r": 29.111
+      },
+      "min_r": 29.02,
+      "toward_collapsed": {
+       "response": 0.5,
+       "damping": 1.14,
+       "start": 487.3,
+       "rms": 0.19
+      },
+      "sharp_ms_from_up": 66.7
+     },
+     "heart+bolt": {
+      "first_ms": 303.3,
+      "last_ms": 1033.3,
+      "first": {
+       "cy": 447.44,
+       "r": 29.871
+      },
+      "last": {
+       "cy": 451.279,
+       "r": 29.09
+      },
+      "min_r": 29.09,
+      "toward_collapsed": {
+       "response": 1.0,
+       "damping": 0.71,
+       "start": 439.4,
+       "rms": 0.1
+      },
+      "sharp_ms_from_up": 550.0
+     }
+    }
+   }
+  }
+ },
+ "light-photo": {
+  "expand": {
+   "native": {
+    "onset_ms_from_up": 63.3,
+    "toggle": {
+     "start_cy": 451.11,
+     "end_cy": 558.74,
+     "t10_ms": 25.1,
+     "t90_ms": 380.8,
+     "fit": {
+      "response": 0.29,
+      "damping": 1.96,
+      "start": null,
+      "rms": 0.02
+     },
+     "overshoot_pct": 0.05,
+     "width": [
+      57.33,
+      71.33,
+      168.3,
+      55.33,
+      406.7
+     ],
+     "sharp_ms_from_up": 505.0
+    },
+    "counts": [
+     [
+      305.0,
+      1,
+      2
+     ],
+     [
+      315.0,
+      2,
+      1
+     ],
+     [
+      350.0,
+      1,
+      2
+     ],
+     [
+      486.7,
+      2,
+      3
+     ],
+     [
+      505.0,
+      3,
+      4
+     ]
+    ],
+    "badges": {
+     "heart": {
+      "first_ms": 66.7,
+      "last_ms": 1216.7,
+      "first": {
+       "cy": 443.272,
+       "r": 14.902
+      },
+      "last": {
+       "cy": 415.019,
+       "r": 28.33
+      },
+      "extreme_cy": 412.51,
+      "max_r": 32.12,
+      "position_fixed_onset": {
+       "response": 0.6200000000000001,
+       "damping": 0.65,
+       "start": 449.6,
+       "rms": 0.62
+      },
+      "position_free_onset": {
+       "response": 0.54,
+       "damping": 0.62,
+       "start": 443.6,
+       "rms": 0.53
+      },
+      "radius_from_free_onset": {
+       "response": 0.33,
+       "damping": 0.39,
+       "start": 14.3,
+       "rms": 0.36
+      },
+      "sharp_ms_from_up": 315.0
+     },
+     "bolt": {
+      "first_ms": 121.7,
+      "last_ms": 1216.7,
+      "first": {
+       "cy": 478.606,
+       "r": 23.777
+      },
+      "last": {
+       "cy": 486.826,
+       "r": 28.252
+      },
+      "extreme_cy": 490.52,
+      "max_r": 32.04,
+      "position_fixed_onset": {
+       "response": 0.38,
+       "damping": 0.66,
+       "start": 456.8,
+       "rms": 0.8
+      },
+      "position_free_onset": {
+       "response": 0.38,
+       "damping": 0.66,
+       "start": 456.8,
+       "rms": 0.8
+      },
+      "radius_from_free_onset": {
+       "response": 0.38,
+       "damping": 0.51,
+       "start": 5.7,
+       "rms": 0.66
+      },
+      "sharp_ms_from_up": 305.0
+     },
+     "star": {
+      "first_ms": 335.0,
+      "last_ms": 1216.7,
+      "first": {
+       "cy": 388.622,
+       "r": 21.175
+      },
+      "last": {
+       "cy": 343.106,
+       "r": 28.263
+      },
+      "extreme_cy": 335.07,
+      "max_r": 28.93,
+      "position_fixed_onset": {
+       "response": 0.44,
+       "damping": 0.54,
+       "start": -177.5,
+       "rms": 1.35
+      },
+      "position_free_onset": {
+       "response": 0.49,
+       "damping": 0.6,
+       "start": 439.0,
+       "rms": 1.27
+      },
+      "radius_from_free_onset": {
+       "response": 0.6000000000000001,
+       "damping": 0.64,
+       "start": 16.2,
+       "rms": 0.19
+      },
+      "sharp_ms_from_up": 505.0
+     },
+     "unknown": {
+      "first_ms": 406.7,
+      "last_ms": 491.7,
+      "first": {
+       "cy": 486.022,
+       "r": 27.216
+      },
+      "last": {
+       "cy": 486.681,
+       "r": 27.887
+      },
+      "sharp_ms_from_up": 470.0
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": 0.0,
+    "toggle": {
+     "start_cy": 451.16,
+     "end_cy": 559.0,
+     "t10_ms": 158.2,
+     "t90_ms": 414.0,
+     "fit": {
+      "response": 1.1,
+      "damping": 0.7,
+      "start": null,
+      "rms": 0.25
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      56.67,
+      58.33,
+      48.3,
+      57.0,
+      148.3
+     ],
+     "sharp_ms_from_up": 31.7
+    },
+    "counts": [
+     [
+      365.0,
+      1,
+      3
+     ],
+     [
+      381.7,
+      3,
+      4
+     ]
+    ],
+    "badges": {
+     "heart": {
+      "first_ms": 31.7,
+      "last_ms": 1281.7,
+      "first": {
+       "cy": 344.127,
+       "r": 28.983
+      },
+      "last": {
+       "cy": 414.99,
+       "r": 28.249
+      },
+      "extreme_cy": 343.07,
+      "max_r": 29.18,
+      "position_fixed_onset": {
+       "response": 0.5,
+       "damping": 1.04,
+       "start": 335.9,
+       "rms": 1.23
+      },
+      "position_free_onset": {
+       "response": 0.22000000000000003,
+       "damping": 1.88,
+       "start": 342.4,
+       "rms": 0.98
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 0.16,
+       "start": 28.7,
+       "rms": 0.13
+      },
+      "sharp_ms_from_up": 365.0
+     },
+     "star": {
+      "first_ms": 81.7,
+      "last_ms": 1281.7,
+      "first": {
+       "cy": 342.993,
+       "r": 28.23
+      },
+      "last": {
+       "cy": 343.105,
+       "r": 28.184
+      },
+      "extreme_cy": 342.99,
+      "max_r": 28.27,
+      "position_fixed_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 343.3,
+       "rms": 0.05
+      },
+      "position_free_onset": {
+       "response": 1.3,
+       "damping": 2.0,
+       "start": 343.2,
+       "rms": 0.05
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 28.1,
+       "rms": 0.08
+      },
+      "sharp_ms_from_up": 365.0
+     },
+     "unknown": {
+      "first_ms": 98.3,
+      "last_ms": 265.0,
+      "first": {
+       "cy": 342.644,
+       "r": 27.997
+      },
+      "last": {
+       "cy": 457.001,
+       "r": 27.246
+      },
+      "sharp_ms_from_up": 98.3
+     },
+     "bolt": {
+      "first_ms": 265.0,
+      "last_ms": 1281.7,
+      "first": {
+       "cy": 460.643,
+       "r": 28.152
+      },
+      "last": {
+       "cy": 486.818,
+       "r": 28.194
+      },
+      "extreme_cy": 486.82,
+      "max_r": 28.33,
+      "position_fixed_onset": {
+       "response": 0.56,
+       "damping": 1.01,
+       "start": 358.1,
+       "rms": 0.15
+      },
+      "position_free_onset": {
+       "response": 0.21000000000000002,
+       "damping": 1.82,
+       "start": 460.2,
+       "rms": 0.12
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 28.1,
+       "rms": 0.09
+      },
+      "sharp_ms_from_up": 365.0
+     }
+    }
+   }
+  },
+  "collapse": {
+   "native": {
+    "onset_ms_from_up": 55.0,
+    "toggle": {
+     "start_cy": 558.82,
+     "end_cy": 450.88,
+     "t10_ms": 28.2,
+     "t90_ms": 284.9,
+     "fit": {
+      "response": 0.36,
+      "damping": 1.21,
+      "start": null,
+      "rms": 0.01
+     },
+     "overshoot_pct": 0.32,
+     "width": [
+      57.67,
+      68.33,
+      155.0,
+      54.67,
+      386.7
+     ],
+     "sharp_ms_from_up": 571.7
+    },
+    "counts": [
+     [
+      71.7,
+      4,
+      3
+     ],
+     [
+      111.7,
+      3,
+      2
+     ],
+     [
+      196.7,
+      2,
+      3
+     ],
+     [
+      226.7,
+      3,
+      2
+     ],
+     [
+      290.0,
+      2,
+      1
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": -133.3,
+      "last_ms": 175.0,
+      "first": {
+       "cy": 343.106,
+       "r": 28.264
+      },
+      "last": {
+       "cy": 342.973,
+       "r": 9.195
+      },
+      "sharp_ms_from_up": 90.0
+     },
+     "heart": {
+      "first_ms": -133.3,
+      "last_ms": 101.7,
+      "first": {
+       "cy": 415.015,
+       "r": 28.33
+      },
+      "last": {
+       "cy": 442.773,
+       "r": 16.864
+      },
+      "min_r": 16.86,
+      "toward_collapsed": {
+       "response": 0.39,
+       "damping": 0.37,
+       "start": 415.3,
+       "rms": 0.73
+      },
+      "sharp_ms_from_up": 90.0
+     },
+     "bolt": {
+      "first_ms": -133.3,
+      "last_ms": 101.7,
+      "first": {
+       "cy": 486.829,
+       "r": 28.256
+      },
+      "last": {
+       "cy": 477.284,
+       "r": 16.998
+      },
+      "min_r": 17.0,
+      "toward_collapsed": {
+       "response": 0.43,
+       "damping": 2.0,
+       "start": 486.7,
+       "rms": 0.39
+      },
+      "sharp_ms_from_up": 90.0
+     },
+     "unknown": {
+      "first_ms": 118.3,
+      "last_ms": 141.7,
+      "first": {
+       "cy": 321.171,
+       "r": 14.2
+      },
+      "last": {
+       "cy": 325.243,
+       "r": 9.729
+      },
+      "sharp_ms_from_up": 190.0
+     },
+     "heart+bolt": {
+      "first_ms": 118.3,
+      "last_ms": 141.7,
+      "first": {
+       "cy": 448.586,
+       "r": 15.066
+      },
+      "last": {
+       "cy": 453.197,
+       "r": 13.249
+      },
+      "min_r": 13.25,
+      "toward_collapsed": {
+       "response": 0.05,
+       "damping": 0.1,
+       "start": 467.6,
+       "rms": 0.96
+      },
+      "sharp_ms_from_up": 173.3
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": 0.0,
+    "toggle": {
+     "start_cy": 559.0,
+     "end_cy": 451.17,
+     "t10_ms": 0.0,
+     "t90_ms": 414.4,
+     "fit": {
+      "response": 1.05,
+      "damping": 0.73,
+      "start": null,
+      "rms": 0.19
+     },
+     "overshoot_pct": 0.01,
+     "width": [
+      57.0,
+      57.33,
+      83.3,
+      56.67,
+      100.0
+     ],
+     "sharp_ms_from_up": 116.7
+    },
+    "counts": [
+     [
+      0.0,
+      4,
+      3
+     ],
+     [
+      33.3,
+      3,
+      2
+     ],
+     [
+      66.7,
+      2,
+      3
+     ],
+     [
+      166.7,
+      3,
+      6
+     ],
+     [
+      183.3,
+      6,
+      2
+     ],
+     [
+      266.7,
+      2,
+      1
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": -71.7,
+      "last_ms": 133.3,
+      "first": {
+       "cy": 343.107,
+       "r": 28.185
+      },
+      "last": {
+       "cy": 342.373,
+       "r": 16.75
+      },
+      "sharp_ms_from_up": 33.3
+     },
+     "heart": {
+      "first_ms": -71.7,
+      "last_ms": 183.3,
+      "first": {
+       "cy": 414.992,
+       "r": 28.25
+      },
+      "last": {
+       "cy": 414.03,
+       "r": 39.626
+      },
+      "min_r": 14.15,
+      "toward_collapsed": {
+       "response": 0.19,
+       "damping": 2.0,
+       "start": 415.8,
+       "rms": 9.29
+      },
+      "sharp_ms_from_up": 33.3
+     },
+     "bolt": {
+      "first_ms": -71.7,
+      "last_ms": 150.0,
+      "first": {
+       "cy": 486.826,
+       "r": 28.196
+      },
+      "last": {
+       "cy": 456.773,
+       "r": 12.976
+      },
+      "min_r": 12.98,
+      "toward_collapsed": {
+       "response": 0.26,
+       "damping": 1.07,
+       "start": 486.8,
+       "rms": 0.23
+      },
+      "sharp_ms_from_up": 66.7
+     },
+     "unknown": {
+      "first_ms": 116.7,
+      "last_ms": 133.3,
+      "first": {
+       "cy": 331.747,
+       "r": 16.531
+      },
+      "last": {
+       "cy": 328.933,
+       "r": 13.358
+      },
+      "sharp_ms_from_up": 116.7
+     },
+     "heart+bolt": {
+      "first_ms": 166.7,
+      "last_ms": 250.0,
+      "first": {
+       "cy": 451.103,
+       "r": 13.717
+      },
+      "last": {
+       "cy": 455.256,
+       "r": 8.434
+      },
+      "min_r": 8.43,
+      "toward_collapsed": {
+       "response": 0.7000000000000001,
+       "damping": 0.1,
+       "start": 444.3,
+       "rms": 1.26
+      },
+      "sharp_ms_from_up": 200.0
+     }
+    }
+   }
+  }
+ },
+ "light-photo-rm": {
+  "expand": {
+   "native": {
+    "onset_ms_from_up": 30.0,
+    "toggle": {
+     "start_cy": 450.91,
+     "end_cy": 558.72,
+     "t10_ms": 30.2,
+     "t90_ms": 297.4,
+     "fit": {
+      "response": 0.44,
+      "damping": 1.09,
+      "start": null,
+      "rms": 0.02
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      57.33,
+      57.67,
+      35.0,
+      57.67,
+      50.0
+     ],
+     "sharp_ms_from_up": 65.0
+    },
+    "counts": [
+     [
+      346.7,
+      1,
+      4
+     ]
+    ],
+    "badges": {
+     "merged": {
+      "first_ms": 26.7,
+      "last_ms": 56.7,
+      "first": {
+       "cy": 444.67,
+       "r": 28.582
+      },
+      "last": {
+       "cy": 446.422,
+       "r": 28.527
+      },
+      "sharp_ms_from_up": 65.0
+     },
+     "star": {
+      "first_ms": 68.3,
+      "last_ms": 753.3,
+      "first": {
+       "cy": 421.174,
+       "r": 28.493
+      },
+      "last": {
+       "cy": 343.103,
+       "r": 28.147
+      },
+      "extreme_cy": 343.1,
+      "max_r": 28.49,
+      "position_fixed_onset": {
+       "response": 0.49,
+       "damping": 1.01,
+       "start": 445.6,
+       "rms": 1.7
+      },
+      "position_free_onset": {
+       "response": 0.39,
+       "damping": 1.14,
+       "start": 428.0,
+       "rms": 1.69
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 28.2,
+       "rms": 0.11
+      },
+      "sharp_ms_from_up": 130.0
+     },
+     "heart": {
+      "first_ms": 68.3,
+      "last_ms": 753.3,
+      "first": {
+       "cy": 440.897,
+       "r": 28.569
+      },
+      "last": {
+       "cy": 415.009,
+       "r": 28.327
+      },
+      "extreme_cy": 415.01,
+      "max_r": 28.57,
+      "position_fixed_onset": {
+       "response": 0.48,
+       "damping": 1.03,
+       "start": 449.4,
+       "rms": 0.56
+      },
+      "position_free_onset": {
+       "response": 0.4,
+       "damping": 1.12,
+       "start": 443.0,
+       "rms": 0.55
+      },
+      "radius_from_free_onset": {
+       "response": 1.31,
+       "damping": 0.1,
+       "start": 28.5,
+       "rms": 0.03
+      },
+      "sharp_ms_from_up": 153.3
+     },
+     "bolt": {
+      "first_ms": 68.3,
+      "last_ms": 753.3,
+      "first": {
+       "cy": 467.116,
+       "r": 28.391
+      },
+      "last": {
+       "cy": 486.833,
+       "r": 28.252
+      },
+      "extreme_cy": 486.83,
+      "max_r": 28.39,
+      "position_fixed_onset": {
+       "response": 0.65,
+       "damping": 0.91,
+       "start": 462.5,
+       "rms": 0.46
+      },
+      "position_free_onset": {
+       "response": 0.5,
+       "damping": 1.01,
+       "start": 466.8,
+       "rms": 0.4
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 28.3,
+       "rms": 0.05
+      },
+      "sharp_ms_from_up": 130.0
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": 0.0,
+    "toggle": {
+     "start_cy": 451.16,
+     "end_cy": 559.0,
+     "t10_ms": 159.8,
+     "t90_ms": 415.7,
+     "fit": {
+      "response": 1.11,
+      "damping": 0.7,
+      "start": null,
+      "rms": 0.25
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      56.67,
+      58.33,
+      50.0,
+      57.0,
+      150.0
+     ],
+     "sharp_ms_from_up": 33.3
+    },
+    "counts": [
+     [
+      366.7,
+      1,
+      4
+     ]
+    ],
+    "badges": {
+     "merged": {
+      "first_ms": 16.7,
+      "last_ms": 266.7,
+      "first": {
+       "cy": 342.111,
+       "r": 27.666
+      },
+      "last": {
+       "cy": 460.82,
+       "r": 28.048
+      },
+      "sharp_ms_from_up": 250.0
+     },
+     "star": {
+      "first_ms": 100.0,
+      "last_ms": 1300.0,
+      "first": {
+       "cy": 342.488,
+       "r": 27.903
+      },
+      "last": {
+       "cy": 343.107,
+       "r": 28.185
+      },
+      "extreme_cy": 342.49,
+      "max_r": 28.28,
+      "position_fixed_onset": {
+       "response": 0.52,
+       "damping": 0.39,
+       "start": 342.0,
+       "rms": 0.13
+      },
+      "position_free_onset": {
+       "response": 0.52,
+       "damping": 0.39,
+       "start": 342.0,
+       "rms": 0.13
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 28.0,
+       "rms": 0.09
+      },
+      "sharp_ms_from_up": 150.0
+     },
+     "heart": {
+      "first_ms": 100.0,
+      "last_ms": 1300.0,
+      "first": {
+       "cy": 365.636,
+       "r": 28.775
+      },
+      "last": {
+       "cy": 414.992,
+       "r": 28.25
+      },
+      "extreme_cy": 365.64,
+      "max_r": 28.77,
+      "position_fixed_onset": {
+       "response": 0.47,
+       "damping": 1.08,
+       "start": 333.1,
+       "rms": 0.58
+      },
+      "position_free_onset": {
+       "response": 0.21000000000000002,
+       "damping": 1.88,
+       "start": 364.6,
+       "rms": 0.44
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 28.2,
+       "rms": 0.1
+      },
+      "sharp_ms_from_up": 166.7
+     },
+     "bolt": {
+      "first_ms": 100.0,
+      "last_ms": 1300.0,
+      "first": {
+       "cy": 388.513,
+       "r": 28.47
+      },
+      "last": {
+       "cy": 486.818,
+       "r": 28.196
+      },
+      "extreme_cy": 486.82,
+      "max_r": 28.55,
+      "position_fixed_onset": {
+       "response": 0.55,
+       "damping": 1.0,
+       "start": 342.6,
+       "rms": 0.27
+      },
+      "position_free_onset": {
+       "response": 0.54,
+       "damping": 1.01,
+       "start": 349.1,
+       "rms": 0.26
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 28.2,
+       "rms": 0.14
+      },
+      "sharp_ms_from_up": 166.7
+     }
+    }
+   }
+  },
+  "collapse": {
+   "native": {
+    "onset_ms_from_up": 53.3,
+    "toggle": {
+     "start_cy": 558.76,
+     "end_cy": 450.83,
+     "t10_ms": 30.2,
+     "t90_ms": 299.1,
+     "fit": {
+      "response": 0.37,
+      "damping": 1.27,
+      "start": null,
+      "rms": 0.02
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      57.67,
+      57.67,
+      -140.0,
+      57.33,
+      353.3
+     ],
+     "sharp_ms_from_up": 86.7
+    },
+    "counts": [
+     [
+      86.7,
+      4,
+      2
+     ],
+     [
+      188.3,
+      2,
+      3
+     ],
+     [
+      206.7,
+      3,
+      8
+     ],
+     [
+      218.3,
+      8,
+      4
+     ],
+     [
+      236.7,
+      4,
+      2
+     ],
+     [
+      365.0,
+      2,
+      1
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": -140.0,
+      "last_ms": 178.3,
+      "first": {
+       "cy": 343.103,
+       "r": 28.147
+      },
+      "last": {
+       "cy": 340.873,
+       "r": 9.282
+      },
+      "sharp_ms_from_up": 86.6
+     },
+     "heart": {
+      "first_ms": -140.0,
+      "last_ms": 195.0,
+      "first": {
+       "cy": 415.009,
+       "r": 28.327
+      },
+      "last": {
+       "cy": 441.003,
+       "r": 28.522
+      },
+      "min_r": 28.32,
+      "toward_collapsed": {
+       "response": 0.33999999999999997,
+       "damping": 1.39,
+       "start": 415.2,
+       "rms": 0.92
+      },
+      "sharp_ms_from_up": 86.6
+     },
+     "bolt": {
+      "first_ms": -140.0,
+      "last_ms": 195.0,
+      "first": {
+       "cy": 486.833,
+       "r": 28.252
+      },
+      "last": {
+       "cy": 467.719,
+       "r": 28.37
+      },
+      "min_r": 28.16,
+      "toward_collapsed": {
+       "response": 0.33,
+       "damping": 2.0,
+       "start": 486.4,
+       "rms": 1.25
+      },
+      "sharp_ms_from_up": 86.6
+     },
+     "unknown": {
+      "first_ms": 111.7,
+      "last_ms": 128.3,
+      "first": {
+       "cy": 329.929,
+       "r": 12.386
+      },
+      "last": {
+       "cy": 359.41,
+       "r": 10.999
+      },
+      "sharp_ms_from_up": 165.0
+     },
+     "heart+bolt": {
+      "first_ms": 201.7,
+      "last_ms": 433.3,
+      "first": {
+       "cy": 443.148,
+       "r": 28.759
+      },
+      "last": {
+       "cy": 450.373,
+       "r": 28.489
+      },
+      "min_r": 28.43,
+      "toward_collapsed": {
+       "response": 0.64,
+       "damping": 0.88,
+       "start": 429.1,
+       "rms": 0.24
+      },
+      "sharp_ms_from_up": 365.0
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": 0.0,
+    "toggle": {
+     "start_cy": 559.0,
+     "end_cy": 451.18,
+     "t10_ms": 0.0,
+     "t90_ms": 413.3,
+     "fit": {
+      "response": 1.1700000000000002,
+      "damping": 0.58,
+      "start": null,
+      "rms": 0.23
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      57.0,
+      58.0,
+      333.3,
+      56.67,
+      500.0
+     ],
+     "sharp_ms_from_up": 33.3
+    },
+    "counts": [
+     [
+      0.0,
+      4,
+      3
+     ],
+     [
+      50.0,
+      3,
+      2
+     ],
+     [
+      66.7,
+      2,
+      3
+     ],
+     [
+      166.7,
+      3,
+      4
+     ],
+     [
+      183.3,
+      4,
+      2
+     ],
+     [
+      200.0,
+      2,
+      1
+     ],
+     [
+      833.3,
+      1,
+      2
+     ],
+     [
+      916.7,
+      2,
+      1
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": -33.3,
+      "last_ms": 133.3,
+      "first": {
+       "cy": 343.107,
+       "r": 28.185
+      },
+      "last": {
+       "cy": 342.242,
+       "r": 16.888
+      },
+      "sharp_ms_from_up": 33.3
+     },
+     "heart": {
+      "first_ms": -33.3,
+      "last_ms": 316.7,
+      "first": {
+       "cy": 414.993,
+       "r": 28.25
+      },
+      "last": {
+       "cy": 447.267,
+       "r": 28.704
+      },
+      "min_r": 28.25,
+      "toward_collapsed": {
+       "response": 0.54,
+       "damping": 1.0,
+       "start": 415.0,
+       "rms": 0.13
+      },
+      "sharp_ms_from_up": 33.3
+     },
+     "bolt": {
+      "first_ms": -33.3,
+      "last_ms": 316.7,
+      "first": {
+       "cy": 486.823,
+       "r": 28.196
+      },
+      "last": {
+       "cy": 473.798,
+       "r": 28.826
+      },
+      "min_r": 27.41,
+      "toward_collapsed": {
+       "response": 0.52,
+       "damping": 2.0,
+       "start": 482.6,
+       "rms": 5.07
+      },
+      "sharp_ms_from_up": 66.7
+     },
+     "unknown": {
+      "first_ms": 116.7,
+      "last_ms": 183.3,
+      "first": {
+       "cy": 329.022,
+       "r": 15.026
+      },
+      "last": {
+       "cy": 384.322,
+       "r": 33.642
+      },
+      "sharp_ms_from_up": 116.7
+     },
+     "heart+bolt": {
+      "first_ms": 183.3,
+      "last_ms": 748.3,
+      "first": {
+       "cy": 456.689,
+       "r": 32.348
+      },
+      "last": {
+       "cy": 450.207,
+       "r": 27.829
+      },
+      "min_r": 27.7,
+      "toward_collapsed": {
+       "response": 0.5,
+       "damping": 0.65,
+       "start": 491.2,
+       "rms": 0.57
+      },
+      "sharp_ms_from_up": 448.3
+     }
+    }
+   }
+  }
+ },
+ "light-stripes": {
+  "expand": {
+   "native": {
+    "onset_ms_from_up": 48.3,
+    "toggle": {
+     "start_cy": 450.9,
+     "end_cy": 558.9,
+     "t10_ms": 26.2,
+     "t90_ms": 390.3,
+     "fit": {
+      "response": 0.29,
+      "damping": 1.93,
+      "start": null,
+      "rms": 0.02
+     },
+     "overshoot_pct": 0.18,
+     "width": [
+      58.0,
+      71.67,
+      151.7,
+      56.33,
+      391.7
+     ],
+     "sharp_ms_from_up": 485.0
+    },
+    "counts": [
+     [
+      303.3,
+      1,
+      2
+     ],
+     [
+      333.3,
+      2,
+      3
+     ],
+     [
+      500.0,
+      3,
+      4
+     ]
+    ],
+    "badges": {
+     "heart": {
+      "first_ms": 85.0,
+      "last_ms": 1238.3,
+      "first": {
+       "cy": 440.866,
+       "r": 18.42
+      },
+      "last": {
+       "cy": 415.069,
+       "r": 28.829
+      },
+      "extreme_cy": 412.61,
+      "max_r": 32.59,
+      "position_fixed_onset": {
+       "response": 0.5800000000000001,
+       "damping": 0.67,
+       "start": 453.3,
+       "rms": 0.88
+      },
+      "position_free_onset": {
+       "response": 0.49,
+       "damping": 0.62,
+       "start": 442.5,
+       "rms": 0.77
+      },
+      "radius_from_free_onset": {
+       "response": 0.32,
+       "damping": 0.31,
+       "start": 18.6,
+       "rms": 0.85
+      },
+      "sharp_ms_from_up": 303.3
+     },
+     "bolt": {
+      "first_ms": 168.3,
+      "last_ms": 1238.3,
+      "first": {
+       "cy": 486.727,
+       "r": 30.896
+      },
+      "last": {
+       "cy": 487.071,
+       "r": 28.828
+      },
+      "extreme_cy": 489.73,
+      "max_r": 32.7,
+      "position_fixed_onset": {
+       "response": 0.37,
+       "damping": 0.64,
+       "start": 449.9,
+       "rms": 0.17
+      },
+      "position_free_onset": {
+       "response": 0.37,
+       "damping": 0.64,
+       "start": 449.9,
+       "rms": 0.17
+      },
+      "radius_from_free_onset": {
+       "response": 0.35,
+       "damping": 0.6,
+       "start": -17.3,
+       "rms": 0.38
+      },
+      "sharp_ms_from_up": 283.3
+     },
+     "star": {
+      "first_ms": 185.0,
+      "last_ms": 1238.3,
+      "first": {
+       "cy": 393.155,
+       "r": 22.474
+      },
+      "last": {
+       "cy": 343.084,
+       "r": 28.818
+      },
+      "extreme_cy": 332.38,
+      "max_r": 29.14,
+      "position_fixed_onset": {
+       "response": 0.55,
+       "damping": 0.7,
+       "start": 566.0,
+       "rms": 0.98
+      },
+      "position_free_onset": {
+       "response": 0.53,
+       "damping": 0.64,
+       "start": 486.4,
+       "rms": 0.87
+      },
+      "radius_from_free_onset": {
+       "response": 0.14,
+       "damping": 0.87,
+       "start": 1543.3,
+       "rms": 0.44
+      },
+      "sharp_ms_from_up": 376.6
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": 0.0,
+    "toggle": {
+     "start_cy": 451.02,
+     "end_cy": 559.03,
+     "t10_ms": 159.9,
+     "t90_ms": 413.8,
+     "fit": {
+      "response": 1.11,
+      "damping": 0.69,
+      "start": null,
+      "rms": 0.25
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      57.67,
+      58.67,
+      48.3,
+      57.67,
+      181.7
+     ],
+     "sharp_ms_from_up": 48.3
+    },
+    "counts": [
+     [
+      398.3,
+      1,
+      4
+     ]
+    ],
+    "badges": {
+     "heart": {
+      "first_ms": 48.3,
+      "last_ms": 1300.0,
+      "first": {
+       "cy": 343.934,
+       "r": 29.367
+      },
+      "last": {
+       "cy": 415.1,
+       "r": 28.816
+      },
+      "extreme_cy": 343.93,
+      "max_r": 29.37,
+      "position_fixed_onset": {
+       "response": 0.22000000000000003,
+       "damping": 1.94,
+       "start": 322.4,
+       "rms": 0.77
+      },
+      "position_free_onset": {
+       "response": 0.22000000000000003,
+       "damping": 1.94,
+       "start": 322.4,
+       "rms": 0.77
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.3,
+       "rms": 0.11
+      },
+      "sharp_ms_from_up": 365.0
+     },
+     "star": {
+      "first_ms": 65.0,
+      "last_ms": 1300.0,
+      "first": {
+       "cy": 343.652,
+       "r": 29.176
+      },
+      "last": {
+       "cy": 343.123,
+       "r": 28.805
+      },
+      "extreme_cy": 343.12,
+      "max_r": 29.18,
+      "position_fixed_onset": {
+       "response": 0.91,
+       "damping": 2.0,
+       "start": 343.5,
+       "rms": 0.05
+      },
+      "position_free_onset": {
+       "response": 0.91,
+       "damping": 2.0,
+       "start": 343.5,
+       "rms": 0.05
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.2,
+       "rms": 0.11
+      },
+      "sharp_ms_from_up": 365.0
+     },
+     "unknown": {
+      "first_ms": 98.3,
+      "last_ms": 265.0,
+      "first": {
+       "cy": 343.513,
+       "r": 29.062
+      },
+      "last": {
+       "cy": 459.39,
+       "r": 28.983
+      },
+      "sharp_ms_from_up": 98.3
+     },
+     "bolt": {
+      "first_ms": 281.7,
+      "last_ms": 1300.0,
+      "first": {
+       "cy": 463.095,
+       "r": 28.969
+      },
+      "last": {
+       "cy": 487.099,
+       "r": 28.813
+      },
+      "extreme_cy": 487.1,
+      "max_r": 28.97,
+      "position_fixed_onset": {
+       "response": 0.5900000000000001,
+       "damping": 0.97,
+       "start": 358.7,
+       "rms": 0.06
+      },
+      "position_free_onset": {
+       "response": 0.5700000000000001,
+       "damping": 0.98,
+       "start": 360.1,
+       "rms": 0.06
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.3,
+       "rms": 0.11
+      },
+      "sharp_ms_from_up": 365.0
+     }
+    }
+   }
+  },
+  "collapse": {
+   "native": {
+    "onset_ms_from_up": 56.7,
+    "toggle": {
+     "start_cy": 558.91,
+     "end_cy": 450.91,
+     "t10_ms": 9.6,
+     "t90_ms": 253.2,
+     "fit": {
+      "response": 0.22000000000000003,
+      "damping": 1.77,
+      "start": null,
+      "rms": 0.02
+     },
+     "overshoot_pct": 0.25,
+     "width": [
+      58.0,
+      71.67,
+      161.7,
+      54.67,
+      391.7
+     ],
+     "sharp_ms_from_up": 481.7
+    },
+    "counts": [
+     [
+      66.7,
+      4,
+      3
+     ],
+     [
+      81.7,
+      3,
+      2
+     ],
+     [
+      218.3,
+      2,
+      3
+     ],
+     [
+      233.3,
+      3,
+      2
+     ],
+     [
+      298.3,
+      2,
+      3
+     ],
+     [
+      315.0,
+      3,
+      1
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": -171.7,
+      "last_ms": 208.3,
+      "first": {
+       "cy": 343.087,
+       "r": 28.818
+      },
+      "last": {
+       "cy": 344.541,
+       "r": 9.215
+      },
+      "sharp_ms_from_up": 100.0
+     },
+     "heart": {
+      "first_ms": -171.7,
+      "last_ms": 66.7,
+      "first": {
+       "cy": 415.06,
+       "r": 28.831
+      },
+      "last": {
+       "cy": 434.986,
+       "r": 20.364
+      },
+      "min_r": 20.36,
+      "toward_collapsed": {
+       "response": 0.13,
+       "damping": 1.94,
+       "start": 415.4,
+       "rms": 0.85
+      },
+      "sharp_ms_from_up": 100.0
+     },
+     "bolt": {
+      "first_ms": -171.7,
+      "last_ms": 66.7,
+      "first": {
+       "cy": 487.065,
+       "r": 28.825
+      },
+      "last": {
+       "cy": 479.359,
+       "r": 20.384
+      },
+      "min_r": 20.38,
+      "toward_collapsed": {
+       "response": 0.32,
+       "damping": 2.0,
+       "start": 486.8,
+       "rms": 0.77
+      },
+      "sharp_ms_from_up": 100.0
+     },
+     "heart+bolt": {
+      "first_ms": 75.0,
+      "last_ms": 116.7,
+      "first": {
+       "cy": 449.112,
+       "r": 21.305
+      },
+      "last": {
+       "cy": 451.322,
+       "r": 14.412
+      },
+      "min_r": 14.41,
+      "toward_collapsed": {
+       "response": 0.16999999999999998,
+       "damping": 0.1,
+       "start": 454.2,
+       "rms": 0.9
+      },
+      "sharp_ms_from_up": 131.7
+     },
+     "unknown": {
+      "first_ms": 93.3,
+      "last_ms": 168.3,
+      "first": {
+       "cy": 326.023,
+       "r": 9.846
+      },
+      "last": {
+       "cy": 352.508,
+       "r": 11.201
+      },
+      "sharp_ms_from_up": 150.0
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": 0.0,
+    "toggle": {
+     "start_cy": 559.03,
+     "end_cy": 451.04,
+     "t10_ms": 0.0,
+     "t90_ms": 415.2,
+     "fit": {
+      "response": 1.07,
+      "damping": 0.72,
+      "start": null,
+      "rms": 0.2
+     },
+     "overshoot_pct": 0.01,
+     "width": [
+      57.67,
+      58.0,
+      100.0,
+      57.67,
+      133.3
+     ],
+     "sharp_ms_from_up": 83.3
+    },
+    "counts": [
+     [
+      0.0,
+      4,
+      3
+     ],
+     [
+      33.3,
+      3,
+      2
+     ],
+     [
+      66.7,
+      2,
+      3
+     ],
+     [
+      183.3,
+      3,
+      2
+     ],
+     [
+      268.3,
+      2,
+      1
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": -55.0,
+      "last_ms": 166.7,
+      "first": {
+       "cy": 343.123,
+       "r": 28.805
+      },
+      "last": {
+       "cy": 343.333,
+       "r": 16.219
+      },
+      "sharp_ms_from_up": 33.3
+     },
+     "heart": {
+      "first_ms": -55.0,
+      "last_ms": 133.3,
+      "first": {
+       "cy": 415.102,
+       "r": 28.817
+      },
+      "last": {
+       "cy": 445.963,
+       "r": 16.592
+      },
+      "min_r": 16.59,
+      "toward_collapsed": {
+       "response": 0.29,
+       "damping": 0.84,
+       "start": 415.0,
+       "rms": 0.15
+      },
+      "sharp_ms_from_up": 33.3
+     },
+     "bolt": {
+      "first_ms": -55.0,
+      "last_ms": 133.3,
+      "first": {
+       "cy": 487.101,
+       "r": 28.814
+      },
+      "last": {
+       "cy": 456.234,
+       "r": 16.613
+      },
+      "min_r": 16.61,
+      "toward_collapsed": {
+       "response": 0.29,
+       "damping": 0.85,
+       "start": 487.0,
+       "rms": 0.1
+      },
+      "sharp_ms_from_up": 66.7
+     },
+     "unknown": {
+      "first_ms": 100.0,
+      "last_ms": 100.0,
+      "first": {
+       "cy": 332.502,
+       "r": 16.277
+      },
+      "last": {
+       "cy": 356.58,
+       "r": 14.162
+      },
+      "sharp_ms_from_up": null
+     },
+     "heart+bolt": {
+      "first_ms": 150.0,
+      "last_ms": 283.3,
+      "first": {
+       "cy": 451.129,
+       "r": 16.449
+      },
+      "last": {
+       "cy": 448.399,
+       "r": 9.045
+      },
+      "min_r": 9.04,
+      "toward_collapsed": {
+       "response": 0.65,
+       "damping": 0.1,
+       "start": 453.2,
+       "rms": 0.81
+      },
+      "sharp_ms_from_up": 183.3
+     }
+    }
+   }
+  }
+ },
+ "light-stripes-rm": {
+  "expand": {
+   "native": {
+    "onset_ms_from_up": 35.0,
+    "toggle": {
+     "start_cy": 450.9,
+     "end_cy": 558.9,
+     "t10_ms": 63.7,
+     "t90_ms": 300.4,
+     "fit": {
+      "response": 0.45,
+      "damping": 1.04,
+      "start": null,
+      "rms": 0.03
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      58.0,
+      58.0,
+      -113.3,
+      58.0,
+      -111.7
+     ],
+     "sharp_ms_from_up": 118.3
+    },
+    "counts": [
+     [
+      370.0,
+      1,
+      4
+     ]
+    ],
+    "badges": {
+     "merged": {
+      "first_ms": 51.7,
+      "last_ms": 63.3,
+      "first": {
+       "cy": 429.489,
+       "r": 28.93
+      },
+      "last": {
+       "cy": 429.489,
+       "r": 28.93
+      },
+      "sharp_ms_from_up": null
+     },
+     "star": {
+      "first_ms": 66.7,
+      "last_ms": 745.0,
+      "first": {
+       "cy": 419.416,
+       "r": 28.907
+      },
+      "last": {
+       "cy": 343.089,
+       "r": 28.82
+      },
+      "extreme_cy": 343.09,
+      "max_r": 28.91,
+      "position_fixed_onset": {
+       "response": 0.45,
+       "damping": 1.07,
+       "start": 445.5,
+       "rms": 1.48
+      },
+      "position_free_onset": {
+       "response": 0.29,
+       "damping": 1.42,
+       "start": 421.2,
+       "rms": 1.46
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.0,
+       "rms": 0.05
+      },
+      "sharp_ms_from_up": 148.3
+     },
+     "heart": {
+      "first_ms": 66.7,
+      "last_ms": 745.0,
+      "first": {
+       "cy": 440.388,
+       "r": 28.891
+      },
+      "last": {
+       "cy": 415.065,
+       "r": 28.83
+      },
+      "extreme_cy": 415.06,
+      "max_r": 28.92,
+      "position_fixed_onset": {
+       "response": 0.45,
+       "damping": 1.07,
+       "start": 449.1,
+       "rms": 0.49
+      },
+      "position_free_onset": {
+       "response": 0.29,
+       "damping": 1.42,
+       "start": 441.0,
+       "rms": 0.49
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.0,
+       "rms": 0.06
+      },
+      "sharp_ms_from_up": 148.3
+     },
+     "bolt": {
+      "first_ms": 66.7,
+      "last_ms": 745.0,
+      "first": {
+       "cy": 461.633,
+       "r": 28.891
+      },
+      "last": {
+       "cy": 487.065,
+       "r": 28.825
+      },
+      "extreme_cy": 487.06,
+      "max_r": 28.92,
+      "position_fixed_onset": {
+       "response": 0.47,
+       "damping": 1.03,
+       "start": 453.6,
+       "rms": 0.49
+      },
+      "position_free_onset": {
+       "response": 0.43,
+       "damping": 1.08,
+       "start": 456.1,
+       "rms": 0.49
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.0,
+       "rms": 0.07
+      },
+      "sharp_ms_from_up": 148.3
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": 0.0,
+    "toggle": {
+     "start_cy": 451.01,
+     "end_cy": 559.0,
+     "t10_ms": 143.3,
+     "t90_ms": 397.0,
+     "fit": {
+      "response": 1.02,
+      "damping": 0.71,
+      "start": null,
+      "rms": 0.22
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      57.67,
+      58.67,
+      33.3,
+      57.67,
+      181.7
+     ],
+     "sharp_ms_from_up": 33.3
+    },
+    "counts": [
+     [
+      381.7,
+      1,
+      4
+     ]
+    ],
+    "badges": {
+     "merged": {
+      "first_ms": 33.3,
+      "last_ms": 65.0,
+      "first": {
+       "cy": 343.898,
+       "r": 29.365
+      },
+      "last": {
+       "cy": 360.702,
+       "r": 29.282
+      },
+      "sharp_ms_from_up": 33.3
+     },
+     "star": {
+      "first_ms": 81.7,
+      "last_ms": 1300.0,
+      "first": {
+       "cy": 343.543,
+       "r": 29.09
+      },
+      "last": {
+       "cy": 343.122,
+       "r": 28.805
+      },
+      "extreme_cy": 343.12,
+      "max_r": 29.09,
+      "position_fixed_onset": {
+       "response": 0.8300000000000001,
+       "damping": 2.0,
+       "start": 343.6,
+       "rms": 0.04
+      },
+      "position_free_onset": {
+       "response": 0.8300000000000001,
+       "damping": 2.0,
+       "start": 343.6,
+       "rms": 0.04
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.2,
+       "rms": 0.11
+      },
+      "sharp_ms_from_up": 131.7
+     },
+     "heart": {
+      "first_ms": 81.7,
+      "last_ms": 1300.0,
+      "first": {
+       "cy": 365.691,
+       "r": 29.319
+      },
+      "last": {
+       "cy": 415.091,
+       "r": 28.816
+      },
+      "extreme_cy": 365.69,
+      "max_r": 29.32,
+      "position_fixed_onset": {
+       "response": 0.52,
+       "damping": 1.02,
+       "start": 348.9,
+       "rms": 0.11
+      },
+      "position_free_onset": {
+       "response": 0.52,
+       "damping": 1.02,
+       "start": 348.9,
+       "rms": 0.11
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.2,
+       "rms": 0.1
+      },
+      "sharp_ms_from_up": 131.7
+     },
+     "bolt": {
+      "first_ms": 81.7,
+      "last_ms": 1300.0,
+      "first": {
+       "cy": 388.45,
+       "r": 29.118
+      },
+      "last": {
+       "cy": 487.08,
+       "r": 28.815
+      },
+      "extreme_cy": 487.08,
+      "max_r": 29.15,
+      "position_fixed_onset": {
+       "response": 0.53,
+       "damping": 1.01,
+       "start": 356.1,
+       "rms": 0.16
+      },
+      "position_free_onset": {
+       "response": 0.53,
+       "damping": 1.01,
+       "start": 356.1,
+       "rms": 0.16
+      },
+      "radius_from_free_onset": {
+       "response": 1.5,
+       "damping": 2.0,
+       "start": 29.2,
+       "rms": 0.1
+      },
+      "sharp_ms_from_up": 131.7
+     }
+    }
+   }
+  },
+  "collapse": {
+   "native": {
+    "onset_ms_from_up": 40.0,
+    "toggle": {
+     "start_cy": 558.91,
+     "end_cy": 450.88,
+     "t10_ms": 38.8,
+     "t90_ms": 271.8,
+     "fit": {
+      "response": 0.47,
+      "damping": 0.96,
+      "start": null,
+      "rms": 0.02
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      58.0,
+      58.0,
+      -123.3,
+      58.0,
+      -120.0
+     ],
+     "sharp_ms_from_up": 75.0
+    },
+    "counts": [
+     [
+      81.7,
+      4,
+      2
+     ],
+     [
+      206.7,
+      2,
+      3
+     ],
+     [
+      225.0,
+      3,
+      4
+     ],
+     [
+      230.0,
+      4,
+      2
+     ],
+     [
+      396.7,
+      2,
+      3
+     ],
+     [
+      413.3,
+      3,
+      1
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": -123.3,
+      "last_ms": 316.7,
+      "first": {
+       "cy": 343.089,
+       "r": 28.82
+      },
+      "last": {
+       "cy": 344.531,
+       "r": 8.827
+      },
+      "sharp_ms_from_up": 75.0
+     },
+     "heart": {
+      "first_ms": -123.3,
+      "last_ms": 203.3,
+      "first": {
+       "cy": 415.065,
+       "r": 28.83
+      },
+      "last": {
+       "cy": 440.915,
+       "r": 28.909
+      },
+      "min_r": 28.82,
+      "toward_collapsed": {
+       "response": 0.43,
+       "damping": 1.13,
+       "start": 415.1,
+       "rms": 0.83
+      },
+      "sharp_ms_from_up": 75.0
+     },
+     "bolt": {
+      "first_ms": -123.3,
+      "last_ms": 203.3,
+      "first": {
+       "cy": 487.065,
+       "r": 28.825
+      },
+      "last": {
+       "cy": 461.362,
+       "r": 28.891
+      },
+      "min_r": 28.82,
+      "toward_collapsed": {
+       "response": 0.43,
+       "damping": 1.15,
+       "start": 487.0,
+       "rms": 0.82
+      },
+      "sharp_ms_from_up": 75.0
+     },
+     "unknown": {
+      "first_ms": 133.3,
+      "last_ms": 155.0,
+      "first": {
+       "cy": 357.267,
+       "r": 8.67
+      },
+      "last": {
+       "cy": 357.363,
+       "r": 8.424
+      },
+      "sharp_ms_from_up": 173.3
+     },
+     "heart+bolt": {
+      "first_ms": 208.3,
+      "last_ms": 270.0,
+      "first": {
+       "cy": 442.363,
+       "r": 28.916
+      },
+      "last": {
+       "cy": 445.774,
+       "r": 28.978
+      },
+      "min_r": 28.92,
+      "toward_collapsed": {
+       "response": 0.28,
+       "damping": 1.56,
+       "start": 412.1,
+       "rms": 0.36
+      },
+      "sharp_ms_from_up": 248.3
+     }
+    }
+   },
+   "flutter": {
+    "onset_ms_from_up": 0.0,
+    "toggle": {
+     "start_cy": 559.02,
+     "end_cy": 451.03,
+     "t10_ms": 0.0,
+     "t90_ms": 384.5,
+     "fit": {
+      "response": 1.05,
+      "damping": 0.72,
+      "start": null,
+      "rms": 0.2
+     },
+     "overshoot_pct": 0.0,
+     "width": [
+      57.67,
+      58.67,
+      333.3,
+      57.67,
+      1050.0
+     ],
+     "sharp_ms_from_up": 33.3
+    },
+    "counts": [
+     [
+      0.0,
+      4,
+      3
+     ],
+     [
+      50.0,
+      3,
+      2
+     ],
+     [
+      66.7,
+      2,
+      3
+     ],
+     [
+      183.3,
+      3,
+      2
+     ],
+     [
+      200.0,
+      2,
+      1
+     ]
+    ],
+    "badges": {
+     "star": {
+      "first_ms": -35.0,
+      "last_ms": 83.3,
+      "first": {
+       "cy": 343.123,
+       "r": 28.805
+      },
+      "last": {
+       "cy": 343.077,
+       "r": 28.385
+      },
+      "sharp_ms_from_up": 33.3
+     },
+     "heart": {
+      "first_ms": -35.0,
+      "last_ms": 283.3,
+      "first": {
+       "cy": 415.103,
+       "r": 28.816
+      },
+      "last": {
+       "cy": 445.466,
+       "r": 29.05
+      },
+      "min_r": 28.82,
+      "toward_collapsed": {
+       "response": 0.54,
+       "damping": 0.99,
+       "start": 415.1,
+       "rms": 0.04
+      },
+      "sharp_ms_from_up": 33.3
+     },
+     "bolt": {
+      "first_ms": -35.0,
+      "last_ms": 283.3,
+      "first": {
+       "cy": 487.101,
+       "r": 28.813
+      },
+      "last": {
+       "cy": 457.669,
+       "r": 28.903
+      },
+      "min_r": 28.81,
+      "toward_collapsed": {
+       "response": 0.51,
+       "damping": 1.11,
+       "start": 487.2,
+       "rms": 0.14
+      },
+      "sharp_ms_from_up": 66.7
+     },
+     "unknown": {
+      "first_ms": 100.0,
+      "last_ms": 100.0,
+      "first": {
+       "cy": 357.236,
+       "r": 30.654
+      },
+      "last": {
+       "cy": 357.236,
+       "r": 30.654
+      },
+      "sharp_ms_from_up": null
+     },
+     "heart+bolt": {
+      "first_ms": 100.0,
+      "last_ms": 416.7,
+      "first": {
+       "cy": 456.756,
+       "r": 36.767
+      },
+      "last": {
+       "cy": 449.702,
+       "r": 29.082
+      },
+      "min_r": 29.06,
+      "toward_collapsed": {
+       "response": 0.55,
+       "damping": 0.34,
+       "start": 461.6,
+       "rms": 0.1
+      },
+      "sharp_ms_from_up": 301.7
+     }
+    }
+   }
+  }
+ }
+}

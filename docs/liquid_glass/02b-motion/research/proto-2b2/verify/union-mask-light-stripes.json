@@ -1,0 +1,110 @@
+{
+ "native.first": {
+  "count": 1.0,
+  "neck": 63.333333333333336,
+  "gap": NaN,
+  "component_boxes_pt": [
+   [
+    12,
+    12,
+    145,
+    64
+   ]
+  ],
+  "rim_px": 75100,
+  "grain_px": 2154,
+  "mask_px": 75379
+ },
+ "native.second": {
+  "count": 1.0,
+  "neck": 63.333333333333336,
+  "gap": NaN,
+  "component_boxes_pt": [
+   [
+    12,
+    12,
+    145,
+    64
+   ]
+  ],
+  "rim_px": 75257,
+  "grain_px": 2158,
+  "mask_px": 75407
+ },
+ "native.pair": {
+  "count": 2.0,
+  "neck": NaN,
+  "gap": 14.666666666666666,
+  "component_boxes_pt": [
+   [
+    172,
+    12,
+    145,
+    64
+   ],
+   [
+    12,
+    12,
+    145,
+    64
+   ]
+  ],
+  "rim_px": 150357,
+  "grain_px": 4312,
+  "mask_px": 150786
+ },
+ "flutter.first": {
+  "count": 1.0,
+  "neck": 64.0,
+  "gap": NaN,
+  "component_boxes_pt": [
+   [
+    12,
+    12,
+    145,
+    65
+   ]
+  ],
+  "rim_px": 75819,
+  "grain_px": 2157,
+  "mask_px": 75877
+ },
+ "flutter.second": {
+  "count": 1.0,
+  "neck": 64.0,
+  "gap": NaN,
+  "component_boxes_pt": [
+   [
+    12,
+    12,
+    145,
+    65
+   ]
+  ],
+  "rim_px": 75977,
+  "grain_px": 2161,
+  "mask_px": 76005
+ },
+ "flutter.pair": {
+  "count": 2.0,
+  "neck": NaN,
+  "gap": 14.666666666666666,
+  "component_boxes_pt": [
+   [
+    172,
+    12,
+    145,
+    65
+   ],
+   [
+    12,
+    12,
+    145,
+    65
+   ]
+  ],
+  "rim_px": 151796,
+  "grain_px": 4318,
+  "mask_px": 151882
+ }
+}

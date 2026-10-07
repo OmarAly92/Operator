@@ -1,0 +1,3530 @@
+[
+ {
+  "scene": "material.spacing.default.a",
+  "case": "dark-photo",
+  "take": "run",
+  "folder": "build/glass_lab/runs/20261004-003527/material.spacing.default.a/dark-photo/native",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 25.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 4.0,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "inner_left": 198.0,
+    "inner_right": 204.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 6.0
+   },
+   "g12": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "inner_left": 196.0,
+    "inner_right": 206.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 10.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.a",
+  "case": "dark-photo",
+  "take": "0",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.a/dark-photo/0",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 25.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 4.0,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "inner_left": 198.0,
+    "inner_right": 204.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 6.0
+   },
+   "g12": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "inner_left": 196.0,
+    "inner_right": 206.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 10.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.a",
+  "case": "dark-photo",
+  "take": "1",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.a/dark-photo/1",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 25.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 4.0,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "inner_left": 198.0,
+    "inner_right": 204.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 6.0
+   },
+   "g12": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "inner_left": 196.0,
+    "inner_right": 206.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 10.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.a",
+  "case": "dark-photo",
+  "take": "2",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.a/dark-photo/2",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 25.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 4.0,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "inner_left": 198.0,
+    "inner_right": 204.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 6.0
+   },
+   "g12": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "inner_left": 196.0,
+    "inner_right": 206.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 10.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.a",
+  "case": "dark-photo",
+  "take": "3",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.a/dark-photo/3",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 25.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 4.0,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "inner_left": 198.0,
+    "inner_right": 204.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 6.0
+   },
+   "g12": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "inner_left": 196.0,
+    "inner_right": 206.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 10.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.a",
+  "case": "dark-photo",
+  "take": "4",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.a/dark-photo/4",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 25.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 4.0,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "inner_left": 198.0,
+    "inner_right": 204.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 6.0
+   },
+   "g12": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "inner_left": 196.0,
+    "inner_right": 206.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 10.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.a",
+  "case": "light-photo",
+  "take": "run",
+  "folder": "build/glass_lab/runs/20261004-003527/material.spacing.default.a/light-photo/native",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 28.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 12.667,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "inner_left": 198.0,
+    "inner_right": 204.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 6.0
+   },
+   "g12": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "inner_left": 196.0,
+    "inner_right": 206.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 10.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.a",
+  "case": "light-photo",
+  "take": "0",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.a/light-photo/0",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 28.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 12.667,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "inner_left": 198.0,
+    "inner_right": 204.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 6.0
+   },
+   "g12": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "inner_left": 196.0,
+    "inner_right": 206.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 10.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.a",
+  "case": "light-photo",
+  "take": "1",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.a/light-photo/1",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 28.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 12.667,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "inner_left": 198.0,
+    "inner_right": 204.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 6.0
+   },
+   "g12": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "inner_left": 196.0,
+    "inner_right": 206.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 10.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.a",
+  "case": "light-photo",
+  "take": "2",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.a/light-photo/2",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 28.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 12.667,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "inner_left": 198.0,
+    "inner_right": 204.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 6.0
+   },
+   "g12": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "inner_left": 196.0,
+    "inner_right": 206.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 10.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.a",
+  "case": "light-photo",
+  "take": "3",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.a/light-photo/3",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 28.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 12.667,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "inner_left": 198.0,
+    "inner_right": 204.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 6.0
+   },
+   "g12": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "inner_left": 196.0,
+    "inner_right": 206.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 10.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.a",
+  "case": "light-photo",
+  "take": "4",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.a/light-photo/4",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 28.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 12.667,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "inner_left": 198.0,
+    "inner_right": 204.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 6.0
+   },
+   "g12": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "inner_left": 196.0,
+    "inner_right": 206.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 10.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.b",
+  "case": "dark-photo",
+  "take": "run",
+  "folder": "build/glass_lab/runs/20261004-003527/material.spacing.default.b/dark-photo/native",
+  "regions": {
+   "g16": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "inner_left": 194.0,
+    "inner_right": 208.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 14.0
+   },
+   "g20": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "inner_left": 192.0,
+    "inner_right": 210.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 18.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 190.0,
+    "inner_right": 212.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 22.0
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.0,
+    "inner_right": 216.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 30.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.b",
+  "case": "dark-photo",
+  "take": "0",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.b/dark-photo/0",
+  "regions": {
+   "g16": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "inner_left": 194.0,
+    "inner_right": 208.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 14.0
+   },
+   "g20": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "inner_left": 192.0,
+    "inner_right": 210.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 18.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 190.0,
+    "inner_right": 212.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 22.0
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.0,
+    "inner_right": 216.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 30.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.b",
+  "case": "dark-photo",
+  "take": "1",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.b/dark-photo/1",
+  "regions": {
+   "g16": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "inner_left": 194.0,
+    "inner_right": 208.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 14.0
+   },
+   "g20": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "inner_left": 192.0,
+    "inner_right": 210.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 18.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 190.0,
+    "inner_right": 212.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 22.0
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.0,
+    "inner_right": 216.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 30.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.b",
+  "case": "dark-photo",
+  "take": "2",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.b/dark-photo/2",
+  "regions": {
+   "g16": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "inner_left": 194.0,
+    "inner_right": 208.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 14.0
+   },
+   "g20": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "inner_left": 192.0,
+    "inner_right": 210.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 18.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 190.0,
+    "inner_right": 212.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 22.0
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.0,
+    "inner_right": 216.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 30.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.b",
+  "case": "dark-photo",
+  "take": "3",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.b/dark-photo/3",
+  "regions": {
+   "g16": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "inner_left": 194.0,
+    "inner_right": 208.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 14.0
+   },
+   "g20": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "inner_left": 192.0,
+    "inner_right": 210.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 18.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 190.0,
+    "inner_right": 212.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 22.0
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.0,
+    "inner_right": 216.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 30.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.b",
+  "case": "dark-photo",
+  "take": "4",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.b/dark-photo/4",
+  "regions": {
+   "g16": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "inner_left": 194.0,
+    "inner_right": 208.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 14.0
+   },
+   "g20": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "inner_left": 192.0,
+    "inner_right": 210.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 18.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 190.0,
+    "inner_right": 212.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 22.0
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.0,
+    "inner_right": 216.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 30.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.b",
+  "case": "light-photo",
+  "take": "run",
+  "folder": "build/glass_lab/runs/20261004-003527/material.spacing.default.b/light-photo/native",
+  "regions": {
+   "g16": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "inner_left": 194.0,
+    "inner_right": 208.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 14.0
+   },
+   "g20": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "inner_left": 192.0,
+    "inner_right": 210.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 0.667,
+    "gap_seen": 18.333
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 190.0,
+    "inner_right": 212.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 22.0
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.0,
+    "inner_right": 216.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 30.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.b",
+  "case": "light-photo",
+  "take": "0",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.b/light-photo/0",
+  "regions": {
+   "g16": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "inner_left": 194.0,
+    "inner_right": 208.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 14.0
+   },
+   "g20": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "inner_left": 192.0,
+    "inner_right": 210.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 0.667,
+    "gap_seen": 18.333
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 190.0,
+    "inner_right": 212.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 22.0
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.0,
+    "inner_right": 216.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 30.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.b",
+  "case": "light-photo",
+  "take": "1",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.b/light-photo/1",
+  "regions": {
+   "g16": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "inner_left": 194.0,
+    "inner_right": 208.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 14.0
+   },
+   "g20": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "inner_left": 192.0,
+    "inner_right": 210.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 0.667,
+    "gap_seen": 18.333
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 190.0,
+    "inner_right": 212.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 22.0
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.0,
+    "inner_right": 216.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 30.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.b",
+  "case": "light-photo",
+  "take": "2",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.b/light-photo/2",
+  "regions": {
+   "g16": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "inner_left": 194.0,
+    "inner_right": 208.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 14.0
+   },
+   "g20": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "inner_left": 192.0,
+    "inner_right": 210.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 0.667,
+    "gap_seen": 18.333
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 190.0,
+    "inner_right": 212.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 22.0
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.0,
+    "inner_right": 216.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 30.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.b",
+  "case": "light-photo",
+  "take": "3",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.b/light-photo/3",
+  "regions": {
+   "g16": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "inner_left": 194.0,
+    "inner_right": 208.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 14.0
+   },
+   "g20": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "inner_left": 192.0,
+    "inner_right": 210.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 0.667,
+    "gap_seen": 18.333
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 190.0,
+    "inner_right": 212.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 22.0
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.0,
+    "inner_right": 216.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 30.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.b",
+  "case": "light-photo",
+  "take": "4",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.b/light-photo/4",
+  "regions": {
+   "g16": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "inner_left": 194.0,
+    "inner_right": 208.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 14.0
+   },
+   "g20": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "inner_left": 192.0,
+    "inner_right": 210.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 0.667,
+    "gap_seen": 18.333
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 190.0,
+    "inner_right": 212.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 22.0
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.0,
+    "inner_right": 216.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 30.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.c",
+  "case": "dark-photo",
+  "take": "run",
+  "folder": "build/glass_lab/runs/20261004-003527/material.spacing.default.c/dark-photo/native",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 238.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": -13.333,
+    "gap_seen": 60.333
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.c",
+  "case": "dark-photo",
+  "take": "0",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.c/dark-photo/0",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 238.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": -13.333,
+    "gap_seen": 60.333
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.c",
+  "case": "dark-photo",
+  "take": "1",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.c/dark-photo/1",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 238.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": -13.333,
+    "gap_seen": 60.333
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.c",
+  "case": "dark-photo",
+  "take": "2",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.c/dark-photo/2",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 238.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": -13.333,
+    "gap_seen": 60.333
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.c",
+  "case": "dark-photo",
+  "take": "3",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.c/dark-photo/3",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 238.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": -13.333,
+    "gap_seen": 60.333
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.c",
+  "case": "dark-photo",
+  "take": "4",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.c/dark-photo/4",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 238.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": -13.333,
+    "gap_seen": 60.333
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.c",
+  "case": "light-photo",
+  "take": "run",
+  "folder": "build/glass_lab/runs/20261004-003527/material.spacing.default.c/light-photo/native",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 224.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 46.0
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.c",
+  "case": "light-photo",
+  "take": "0",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.c/light-photo/0",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 224.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 46.0
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.c",
+  "case": "light-photo",
+  "take": "1",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.c/light-photo/1",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 224.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 46.0
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.c",
+  "case": "light-photo",
+  "take": "2",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.c/light-photo/2",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 224.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 46.0
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.c",
+  "case": "light-photo",
+  "take": "3",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.c/light-photo/3",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 224.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 46.0
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.default.c",
+  "case": "light-photo",
+  "take": "4",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.default.c/light-photo/4",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 224.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 46.0
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.a",
+  "case": "dark-photo",
+  "take": "run",
+  "folder": "build/glass_lab/runs/20261004-003527/material.spacing.40.a/dark-photo/native",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 50.667,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 38.333,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 1.0,
+    "neck": 40.667,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g12": {
+    "count": 1.0,
+    "neck": 34.0,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.a",
+  "case": "dark-photo",
+  "take": "0",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.a/dark-photo/0",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 50.667,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 38.333,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 1.0,
+    "neck": 40.667,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g12": {
+    "count": 1.0,
+    "neck": 34.0,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.a",
+  "case": "dark-photo",
+  "take": "1",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.a/dark-photo/1",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 50.667,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 38.333,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 1.0,
+    "neck": 40.667,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g12": {
+    "count": 1.0,
+    "neck": 34.0,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.a",
+  "case": "dark-photo",
+  "take": "2",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.a/dark-photo/2",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 50.667,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 38.333,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 1.0,
+    "neck": 40.667,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g12": {
+    "count": 1.0,
+    "neck": 34.0,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.a",
+  "case": "dark-photo",
+  "take": "3",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.a/dark-photo/3",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 50.667,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 38.333,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 1.0,
+    "neck": 40.667,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g12": {
+    "count": 1.0,
+    "neck": 34.0,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.a",
+  "case": "dark-photo",
+  "take": "4",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.a/dark-photo/4",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 50.667,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 38.333,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 1.0,
+    "neck": 40.667,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g12": {
+    "count": 1.0,
+    "neck": 34.0,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.a",
+  "case": "light-photo",
+  "take": "run",
+  "folder": "build/glass_lab/runs/20261004-003527/material.spacing.40.a/light-photo/native",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 52.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 47.333,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 1.0,
+    "neck": 42.333,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g12": {
+    "count": 1.0,
+    "neck": 36.0,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.a",
+  "case": "light-photo",
+  "take": "0",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.a/light-photo/0",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 52.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 47.333,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 1.0,
+    "neck": 42.333,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g12": {
+    "count": 1.0,
+    "neck": 36.0,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.a",
+  "case": "light-photo",
+  "take": "1",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.a/light-photo/1",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 52.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 47.333,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 1.0,
+    "neck": 42.333,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g12": {
+    "count": 1.0,
+    "neck": 36.0,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.a",
+  "case": "light-photo",
+  "take": "2",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.a/light-photo/2",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 52.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 47.333,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 1.0,
+    "neck": 42.333,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g12": {
+    "count": 1.0,
+    "neck": 36.0,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.a",
+  "case": "light-photo",
+  "take": "3",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.a/light-photo/3",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 52.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 47.333,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 1.0,
+    "neck": 42.333,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g12": {
+    "count": 1.0,
+    "neck": 36.0,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.a",
+  "case": "light-photo",
+  "take": "4",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.a/light-photo/4",
+  "regions": {
+   "g0": {
+    "count": 1.0,
+    "neck": 52.333,
+    "outer_left": 120.0,
+    "outer_right": 282.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g4": {
+    "count": 1.0,
+    "neck": 47.333,
+    "outer_left": 118.0,
+    "outer_right": 284.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g8": {
+    "count": 1.0,
+    "neck": 42.333,
+    "outer_left": 116.0,
+    "outer_right": 286.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g12": {
+    "count": 1.0,
+    "neck": 36.0,
+    "outer_left": 114.0,
+    "outer_right": 288.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.b",
+  "case": "dark-photo",
+  "take": "run",
+  "folder": "build/glass_lab/runs/20261004-003527/material.spacing.40.b/dark-photo/native",
+  "regions": {
+   "g16": {
+    "count": 1.0,
+    "neck": 24.667,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g20": {
+    "count": 1.0,
+    "neck": 2.0,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 193.333,
+    "inner_right": 208.667,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 4.333,
+    "tip_right": 4.333,
+    "gap_seen": 15.333
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.667,
+    "inner_right": 215.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.667,
+    "tip_right": 1.667,
+    "gap_seen": 28.667
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.b",
+  "case": "dark-photo",
+  "take": "0",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.b/dark-photo/0",
+  "regions": {
+   "g16": {
+    "count": 1.0,
+    "neck": 24.667,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g20": {
+    "count": 1.0,
+    "neck": 2.0,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 193.333,
+    "inner_right": 208.667,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 4.333,
+    "tip_right": 4.333,
+    "gap_seen": 15.333
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.667,
+    "inner_right": 215.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.667,
+    "tip_right": 1.667,
+    "gap_seen": 28.667
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.b",
+  "case": "dark-photo",
+  "take": "1",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.b/dark-photo/1",
+  "regions": {
+   "g16": {
+    "count": 1.0,
+    "neck": 24.667,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g20": {
+    "count": 1.0,
+    "neck": 2.0,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 193.333,
+    "inner_right": 208.667,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 4.333,
+    "tip_right": 4.333,
+    "gap_seen": 15.333
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.667,
+    "inner_right": 215.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.667,
+    "tip_right": 1.667,
+    "gap_seen": 28.667
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.b",
+  "case": "dark-photo",
+  "take": "2",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.b/dark-photo/2",
+  "regions": {
+   "g16": {
+    "count": 1.0,
+    "neck": 24.667,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g20": {
+    "count": 1.0,
+    "neck": 2.0,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 193.333,
+    "inner_right": 208.667,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 4.333,
+    "tip_right": 4.333,
+    "gap_seen": 15.333
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.667,
+    "inner_right": 215.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.667,
+    "tip_right": 1.667,
+    "gap_seen": 28.667
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.b",
+  "case": "dark-photo",
+  "take": "3",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.b/dark-photo/3",
+  "regions": {
+   "g16": {
+    "count": 1.0,
+    "neck": 24.667,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g20": {
+    "count": 1.0,
+    "neck": 2.0,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 193.333,
+    "inner_right": 208.667,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 4.333,
+    "tip_right": 4.333,
+    "gap_seen": 15.333
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.667,
+    "inner_right": 215.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.667,
+    "tip_right": 1.667,
+    "gap_seen": 28.667
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.b",
+  "case": "dark-photo",
+  "take": "4",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.b/dark-photo/4",
+  "regions": {
+   "g16": {
+    "count": 1.0,
+    "neck": 24.667,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g20": {
+    "count": 1.0,
+    "neck": 2.0,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 193.333,
+    "inner_right": 208.667,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 4.333,
+    "tip_right": 4.333,
+    "gap_seen": 15.333
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.667,
+    "inner_right": 215.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.667,
+    "tip_right": 1.667,
+    "gap_seen": 28.667
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.b",
+  "case": "light-photo",
+  "take": "run",
+  "folder": "build/glass_lab/runs/20261004-003527/material.spacing.40.b/light-photo/native",
+  "regions": {
+   "g16": {
+    "count": 1.0,
+    "neck": 27.333,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g20": {
+    "count": 1.0,
+    "neck": 12.333,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 193.667,
+    "inner_right": 208.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 4.667,
+    "tip_right": 4.667,
+    "gap_seen": 14.667
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.667,
+    "inner_right": 215.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.667,
+    "tip_right": 1.667,
+    "gap_seen": 28.667
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.b",
+  "case": "light-photo",
+  "take": "0",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.b/light-photo/0",
+  "regions": {
+   "g16": {
+    "count": 1.0,
+    "neck": 27.333,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g20": {
+    "count": 1.0,
+    "neck": 12.333,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 193.667,
+    "inner_right": 208.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 4.667,
+    "tip_right": 4.667,
+    "gap_seen": 14.667
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.667,
+    "inner_right": 215.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.667,
+    "tip_right": 1.667,
+    "gap_seen": 28.667
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.b",
+  "case": "light-photo",
+  "take": "1",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.b/light-photo/1",
+  "regions": {
+   "g16": {
+    "count": 1.0,
+    "neck": 27.333,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g20": {
+    "count": 1.0,
+    "neck": 12.333,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 193.667,
+    "inner_right": 208.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 4.667,
+    "tip_right": 4.667,
+    "gap_seen": 14.667
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.667,
+    "inner_right": 215.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.667,
+    "tip_right": 1.667,
+    "gap_seen": 28.667
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.b",
+  "case": "light-photo",
+  "take": "2",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.b/light-photo/2",
+  "regions": {
+   "g16": {
+    "count": 1.0,
+    "neck": 27.333,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g20": {
+    "count": 1.0,
+    "neck": 12.333,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 193.667,
+    "inner_right": 208.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 4.667,
+    "tip_right": 4.667,
+    "gap_seen": 14.667
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.667,
+    "inner_right": 215.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.667,
+    "tip_right": 1.667,
+    "gap_seen": 28.667
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.b",
+  "case": "light-photo",
+  "take": "3",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.b/light-photo/3",
+  "regions": {
+   "g16": {
+    "count": 1.0,
+    "neck": 27.333,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g20": {
+    "count": 1.0,
+    "neck": 12.333,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 193.667,
+    "inner_right": 208.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 4.667,
+    "tip_right": 4.667,
+    "gap_seen": 14.667
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.667,
+    "inner_right": 215.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.667,
+    "tip_right": 1.667,
+    "gap_seen": 28.667
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.b",
+  "case": "light-photo",
+  "take": "4",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.b/light-photo/4",
+  "regions": {
+   "g16": {
+    "count": 1.0,
+    "neck": 27.333,
+    "outer_left": 112.0,
+    "outer_right": 290.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g20": {
+    "count": 1.0,
+    "neck": 12.333,
+    "outer_left": 110.0,
+    "outer_right": 292.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0
+   },
+   "g24": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 108.0,
+    "outer_right": 294.0,
+    "inner_left": 193.667,
+    "inner_right": 208.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 4.667,
+    "tip_right": 4.667,
+    "gap_seen": 14.667
+   },
+   "g32": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 104.0,
+    "outer_right": 298.0,
+    "inner_left": 186.667,
+    "inner_right": 215.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.667,
+    "tip_right": 1.667,
+    "gap_seen": 28.667
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.c",
+  "case": "dark-photo",
+  "take": "run",
+  "folder": "build/glass_lab/runs/20261004-003527/material.spacing.40.c/dark-photo/native",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 238.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": -13.333,
+    "gap_seen": 60.333
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.c",
+  "case": "dark-photo",
+  "take": "0",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.c/dark-photo/0",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 238.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": -13.333,
+    "gap_seen": 60.333
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.c",
+  "case": "dark-photo",
+  "take": "1",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.c/dark-photo/1",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 238.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": -13.333,
+    "gap_seen": 60.333
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.c",
+  "case": "dark-photo",
+  "take": "2",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.c/dark-photo/2",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 238.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": -13.333,
+    "gap_seen": 60.333
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.c",
+  "case": "dark-photo",
+  "take": "3",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.c/dark-photo/3",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 238.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": -13.333,
+    "gap_seen": 60.333
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.c",
+  "case": "dark-photo",
+  "take": "4",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.c/dark-photo/4",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 238.333,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": -13.333,
+    "gap_seen": 60.333
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.c",
+  "case": "light-photo",
+  "take": "run",
+  "folder": "build/glass_lab/runs/20261004-003527/material.spacing.40.c/light-photo/native",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 224.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 46.0
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.c",
+  "case": "light-photo",
+  "take": "0",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.c/light-photo/0",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 224.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 46.0
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.c",
+  "case": "light-photo",
+  "take": "1",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.c/light-photo/1",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 224.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 46.0
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.c",
+  "case": "light-photo",
+  "take": "2",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.c/light-photo/2",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 224.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 46.0
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.c",
+  "case": "light-photo",
+  "take": "3",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.c/light-photo/3",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 224.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 46.0
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ },
+ {
+  "scene": "material.spacing.40.c",
+  "case": "light-photo",
+  "take": "4",
+  "folder": "build/glass_lab/runs/noise-2b1/takes/material.spacing.40.c/light-photo/4",
+  "regions": {
+   "g40": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 100.0,
+    "outer_right": 302.0,
+    "inner_left": 182.0,
+    "inner_right": 220.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 38.0
+   },
+   "g48": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 96.0,
+    "outer_right": 306.0,
+    "inner_left": 178.0,
+    "inner_right": 224.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 46.0
+   },
+   "g60": {
+    "count": 2.0,
+    "neck": null,
+    "outer_left": 90.0,
+    "outer_right": 312.0,
+    "inner_left": 172.0,
+    "inner_right": 230.0,
+    "pad_left": 1.0,
+    "pad_right": 1.0,
+    "tip_left": 1.0,
+    "tip_right": 1.0,
+    "gap_seen": 58.0
+   }
+  }
+ }
+]

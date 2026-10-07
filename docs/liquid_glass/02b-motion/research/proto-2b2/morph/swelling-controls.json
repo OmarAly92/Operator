@@ -1,0 +1,115 @@
+{
+ "runs": {
+  "material.tap": [
+   "20261007-053236 (stripes)",
+   "20261007-053517 (light-black)"
+  ],
+  "material.morph.plain": [
+   "20261007-053558 (stripes)",
+   "20261007-053848 (light-black)"
+  ]
+ },
+ "press": {
+  "tap-lb": {
+   "rest_diameter": 56.67,
+   "peak_diameter": 56.67,
+   "growth": 0.0,
+   "peak_from_down_ms": 0.0,
+   "peak_from_up_ms": -16.7,
+   "onset_from_down_ms": null,
+   "onset_from_up_ms": null,
+   "reach90_from_down_ms": 0.0,
+   "hold_ms": 16.7
+  },
+  "tap-ds": {
+   "rest_diameter": 58.0,
+   "peak_diameter": 58.0,
+   "growth": 0.0,
+   "peak_from_down_ms": 0.0,
+   "peak_from_up_ms": -28.3,
+   "onset_from_down_ms": null,
+   "onset_from_up_ms": null,
+   "reach90_from_down_ms": 0.0,
+   "hold_ms": 28.3
+  },
+  "tap-ls": {
+   "rest_diameter": 58.0,
+   "peak_diameter": 58.0,
+   "growth": 0.0,
+   "peak_from_down_ms": 0.0,
+   "peak_from_up_ms": -15.0,
+   "onset_from_down_ms": null,
+   "onset_from_up_ms": null,
+   "reach90_from_down_ms": 0.0,
+   "hold_ms": 15.0
+  }
+ },
+ "toggle": {
+  "plain-lb.expand": {
+   "rest_diameter": 56.67,
+   "peak_diameter": 70.67,
+   "growth": 14.0,
+   "peak_from_down_ms": 260.0,
+   "peak_from_up_ms": 176.7,
+   "onset_from_down_ms": 126.7,
+   "onset_from_up_ms": 43.3,
+   "reach90_from_down_ms": 245.0,
+   "hold_ms": 83.3
+  },
+  "plain-lb.collapse": {
+   "rest_diameter": 56.67,
+   "peak_diameter": 70.67,
+   "growth": 14.0,
+   "peak_from_down_ms": 270.0,
+   "peak_from_up_ms": 176.7,
+   "onset_from_down_ms": 135.0,
+   "onset_from_up_ms": 41.7,
+   "reach90_from_down_ms": 255.0,
+   "hold_ms": 93.3
+  },
+  "plain-ds.expand": {
+   "rest_diameter": 58.0,
+   "peak_diameter": 71.67,
+   "growth": 13.67,
+   "peak_from_down_ms": 280.0,
+   "peak_from_up_ms": 185.0,
+   "onset_from_down_ms": 138.3,
+   "onset_from_up_ms": 43.3,
+   "reach90_from_down_ms": 280.0,
+   "hold_ms": 95.0
+  },
+  "plain-ds.collapse": {
+   "rest_diameter": 58.0,
+   "peak_diameter": 71.67,
+   "growth": 13.67,
+   "peak_from_down_ms": 266.7,
+   "peak_from_up_ms": 180.0,
+   "onset_from_down_ms": 130.0,
+   "onset_from_up_ms": 43.3,
+   "reach90_from_down_ms": 250.0,
+   "hold_ms": 86.7
+  },
+  "plain-ls.expand": {
+   "rest_diameter": 58.0,
+   "peak_diameter": 71.67,
+   "growth": 13.67,
+   "peak_from_down_ms": 385.0,
+   "peak_from_up_ms": 191.7,
+   "onset_from_down_ms": 233.3,
+   "onset_from_up_ms": 40.0,
+   "reach90_from_down_ms": 348.3,
+   "hold_ms": 193.3
+  },
+  "plain-ls.collapse": {
+   "rest_diameter": 58.0,
+   "peak_diameter": 71.67,
+   "growth": 13.67,
+   "peak_from_down_ms": 281.7,
+   "peak_from_up_ms": 181.7,
+   "onset_from_down_ms": 150.0,
+   "onset_from_up_ms": 50.0,
+   "reach90_from_down_ms": 266.7,
+   "hold_ms": 100.0
+  }
+ }
+}

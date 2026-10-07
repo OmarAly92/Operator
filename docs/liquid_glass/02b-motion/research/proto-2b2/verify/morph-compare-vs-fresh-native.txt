@@ -1,0 +1,219 @@
+== dark-photo expand
+  native  onset None toggle 450.7->558.77 t10 138.1 t90 481.5 fit {'response': 1.1800000000000002, 'damping': 0.69, 'start': None, 'rms': 0.05} width [57.33, 71.33, 288.3, 55.67, 505.0] sharp 41.7
+          counts [(-58.3, 2, 1), (140.0, 1, 2), (176.7, 2, 3), (190.0, 3, 4), (195.0, 4, 6), (206.7, 6, 4), (230.0, 4, 3), (240.0, 3, 4), (300.0, 4, 5), (325.0, 5, 6), (330.0, 6, 5), (340.0, 5, 4), (363.3, 4, 5), (370.0, 5, 6), (408.3, 6, 5), (420.0, 5, 6), (446.7, 6, 7), (485.0, 7, 9), (508.3, 9, 8), (580.0, 8, 9), (611.7, 9, 8), (616.7, 8, 10), (631.7, 10, 9), (643.3, 9, 10), (650.0, 10, 9), (928.3, 9, 8), (1163.3, 8, 11), (1195.0, 11, 10)]
+          bolt       first 306.7 {'cy': 492.75, 'r': 27.793} last 1368.3 sharp 383.3 {'extreme_cy': 492.75, 'max_r': 27.79, 'position_fixed_onset': {'response': 0.8800000000000001, 'damping': 0.57, 'start': 530.1, 'rms': 2.3}}
+          heart      first 216.7 {'cy': 437.32, 'r': 13.605} last 1368.3 sharp 383.3 {'extreme_cy': 342.51, 'max_r': 44.97, 'position_fixed_onset': {'response': 1.5, 'damping': 0.24, 'start': 455.5, 'rms': 18.81}}
+          star       first 503.3 {'cy': 381.532, 'r': 19.281} last 1368.3 sharp 593.3 {'extreme_cy': 333.92, 'max_r': 37.84, 'position_fixed_onset': {'response': 0.25, 'damping': 0.1, 'start': 528.9, 'rms': 31.22}}
+  flutter onset 0.0 toggle 450.31->452.3 t10 147.4 t90 149.7 fit {'response': 1.5, 'damping': 2.0, 'start': None, 'rms': 33.83} width [57.33, 58.33, 33.3, 57.67, 133.3] sharp 133.3
+          counts [(0.0, 2, 1), (50.0, 1, 2), (66.7, 2, 1), (83.3, 1, 2), (116.7, 2, 1), (200.0, 1, 2), (270.0, 2, 3), (283.3, 3, 2), (341.7, 2, 5), (350.0, 5, 4), (383.3, 4, 5), (405.0, 5, 8), (416.7, 8, 7), (433.3, 7, 9), (466.7, 9, 7), (500.0, 7, 9), (516.7, 9, 8), (533.3, 8, 10), (550.0, 10, 8), (566.7, 8, 10), (583.3, 10, 8), (600.0, 8, 7), (616.7, 7, 10), (633.3, 10, 8), (666.7, 8, 10), (685.0, 10, 9), (735.0, 9, 8), (751.7, 8, 10), (768.3, 10, 9), (785.0, 9, 10), (818.3, 10, 8), (835.0, 8, 10), (868.3, 10, 9), (885.0, 9, 10), (901.7, 10, 11), (918.3, 11, 9), (933.3, 9, 10), (950.0, 10, 11), (966.7, 11, 9), (1016.7, 9, 10), (1135.0, 10, 9), (1151.7, 9, 10), (1168.3, 10, 9), (1233.3, 9, 10), (1283.3, 10, 11)]
+          bolt       first 250.0 {'cy': 460.042, 'r': 26.281} last 1283.3 sharp 383.3 {'extreme_cy': 556.57, 'max_r': 30.09, 'position_fixed_onset': {'response': 1.48, 'damping': 0.55, 'start': 448.6, 'rms': 12.2}}
+          heart      first 33.3 {'cy': 344.609, 'r': 29.305} last 1283.3 sharp 383.3 {'extreme_cy': 342.69, 'max_r': 29.3, 'position_fixed_onset': {'response': 0.37, 'damping': 1.3, 'start': 334.1, 'rms': 1.15}}
+          star       first 66.7 {'cy': 344.61, 'r': 29.294} last 1283.3 sharp 383.3 {'extreme_cy': 343.06, 'max_r': 29.29, 'position_fixed_onset': {'response': 0.33999999999999997, 'damping': 1.97, 'start': 345.1, 'rms': 0.05}}
+          unknown    first 100.0 {'cy': 341.985, 'r': 27.601} last 1151.7 sharp 918.3 {}
+== dark-photo collapse
+  native  onset None toggle 558.36->452.36 t10 138.7 t90 351.4 fit {'response': 1.01, 'damping': 0.7, 'start': None, 'rms': 0.08} width [57.67, 71.0, 273.3, 54.0, 513.3] sharp 41.7
+          counts [(-71.7, 10, 7), (46.7, 7, 6), (78.3, 6, 5), (110.0, 5, 6), (135.0, 6, 4), (143.3, 4, 3), (165.0, 3, 4), (183.3, 4, 2), (201.7, 2, 3), (215.0, 3, 2), (281.7, 2, 1), (608.3, 1, 2), (641.7, 2, 1), (665.0, 1, 2), (676.7, 2, 3), (978.3, 3, 2), (995.0, 2, 3), (1061.7, 3, 1)]
+          bolt       first 0.0 {'cy': 483.667, 'r': 22.62} last 268.3 sharp 35.0 {'min_r': 17.96, 'toward_collapsed': {'response': 1.5, 'damping': 2.0, 'start': 485.1, 'rms': 3.39}}
+          heart      first 0.0 {'cy': 414.698, 'r': 24.123} last 268.3 sharp 35.0 {'min_r': 11.56, 'toward_collapsed': {'response': 1.22, 'damping': 0.1, 'start': 411.1, 'rms': 3.43}}
+          heart+bolt first 200.0 {'cy': 453.072, 'r': 24.99} last 255.0 sharp None {'min_r': 11.83, 'toward_collapsed': {'response': 0.55, 'damping': 0.55, 'start': 476.1, 'rms': 0.0}}
+          star       first 0.0 {'cy': 340.916, 'r': 26.846} last 316.7 sharp 35.0 {}
+          unknown    first 220.0 {'cy': 363.947, 'r': 9.377} last 220.0 sharp None {}
+  flutter onset None toggle 606.36->450.28 t10 10.9 t90 296.8 fit {'response': 0.16999999999999998, 'damping': 2.0, 'start': None, 'rms': 0.01} width [57.67, 57.67, -133.3, 50.0, -35.0] sharp 116.7
+          counts [(0.0, 11, 7), (16.7, 7, 5), (33.3, 5, 3), (50.0, 3, 2), (66.7, 2, 4), (83.3, 4, 5), (116.7, 5, 4), (133.3, 4, 5), (158.3, 5, 6), (186.7, 6, 5), (253.3, 5, 4), (335.0, 4, 3), (351.7, 3, 1), (366.7, 1, 2), (386.7, 2, 1), (400.0, 1, 2), (483.3, 2, 3), (500.0, 3, 2), (533.3, 2, 1), (550.0, 1, 2), (583.3, 2, 1), (616.7, 1, 2), (666.7, 2, 3), (700.0, 3, 2), (733.3, 2, 3), (750.0, 3, 2), (766.7, 2, 1), (800.0, 1, 2), (833.3, 2, 1), (866.7, 1, 2), (900.0, 2, 3), (950.0, 3, 2), (1083.3, 2, 1), (1118.3, 1, 2)]
+          bolt       first 0.0 {'cy': 486.213, 'r': 28.055} last 398.3 sharp 98.3 {'min_r': 13.83, 'toward_collapsed': {'response': 0.25, 'damping': 2.0, 'start': 483.2, 'rms': 7.44}}
+          heart      first 0.0 {'cy': 415.126, 'r': 27.792} last 190.0 sharp 31.7 {'min_r': 14.57, 'toward_collapsed': {'response': 0.44, 'damping': 0.6, 'start': 412.3, 'rms': 1.5}}
+          heart+bolt first 218.3 {'cy': 451.47, 'r': 13.847} last 366.7 sharp 285.0 {'min_r': 10.31, 'toward_collapsed': {'response': 0.51, 'damping': 1.98, 'start': 451.8, 'rms': 0.05}}
+          star       first 0.0 {'cy': 343.069, 'r': 28.174} last 148.3 sharp 31.7 {}
+          unknown    first 98.3 {'cy': 333.021, 'r': 20.363} last 115.0 sharp 98.3 {}
+== dark-photo-rm expand
+  native  onset None toggle 450.66->560.33 t10 103.3 t90 382.5 fit {'response': 0.8700000000000001, 'damping': 0.77, 'start': None, 'rms': 0.04} width [57.33, 57.67, 96.7, 57.67, 115.0] sharp 148.3
+          counts [(-48.3, 2, 1), (48.3, 1, 2), (115.0, 2, 3), (138.3, 3, 6), (148.3, 6, 5), (188.3, 5, 7), (205.0, 7, 4), (215.0, 4, 5), (298.3, 5, 4), (350.0, 4, 7), (366.7, 7, 5), (383.3, 5, 7), (415.0, 7, 8), (431.7, 8, 6), (450.0, 6, 8), (488.3, 8, 7), (500.0, 7, 6), (515.0, 6, 7), (566.7, 7, 8), (583.3, 8, 9), (600.0, 9, 8), (616.7, 8, 9), (631.7, 9, 10), (690.0, 10, 9), (698.3, 9, 8), (736.7, 8, 10)]
+          bolt       first 241.7 {'cy': 473.51, 'r': 24.151} last 920.0 sharp 241.7 {'extreme_cy': 486.36, 'max_r': 24.21, 'position_fixed_onset': {'response': 0.37, 'damping': 1.84, 'start': 448.0, 'rms': 1.15}}
+          heart      first 241.7 {'cy': 428.848, 'r': 22.964} last 920.0 sharp 241.7 {'extreme_cy': 414.17, 'max_r': 28.04, 'position_fixed_onset': {'response': 0.32, 'damping': 1.64, 'start': 474.9, 'rms': 3.02}}
+          merged     first 120.0 {'cy': 442.174, 'r': 25.101} last 743.3 sharp 120.0 {}
+          star       first 241.7 {'cy': 383.93, 'r': 25.809} last 920.0 sharp 241.7 {'extreme_cy': 340.99, 'max_r': 28.01, 'position_fixed_onset': {'response': 0.5900000000000001, 'damping': 0.88, 'start': 539.6, 'rms': 1.55}}
+  flutter onset 0.0 toggle 450.33->452.62 t10 147.1 t90 149.7 fit {'response': 1.5, 'damping': 2.0, 'start': None, 'rms': 29.43} width [57.33, 58.33, 33.3, 57.67, 133.3] sharp 133.3
+          counts [(0.0, 2, 1), (81.7, 1, 2), (133.3, 2, 1), (201.7, 1, 2), (235.0, 2, 1), (250.0, 1, 2), (316.7, 2, 4), (335.0, 4, 2), (350.0, 2, 4), (366.7, 4, 5), (383.3, 5, 9), (400.0, 9, 11), (418.3, 11, 9), (450.0, 9, 11), (466.7, 11, 10), (483.3, 10, 8), (501.7, 8, 9), (516.7, 9, 8), (533.3, 8, 9), (583.3, 9, 8), (600.0, 8, 7), (620.0, 7, 10), (633.3, 10, 9), (653.3, 9, 8), (666.7, 8, 9), (681.7, 9, 11), (701.7, 11, 9), (718.3, 9, 8), (751.7, 8, 10), (766.7, 10, 9), (783.3, 9, 10), (798.3, 10, 9), (865.0, 9, 10), (883.3, 10, 11), (916.7, 11, 9), (935.0, 9, 10), (1201.7, 10, 9), (1215.0, 9, 10), (1285.0, 10, 9)]
+          bolt       first 115.0 {'cy': 397.273, 'r': 28.983} last 1285.0 sharp 133.3 {'extreme_cy': 486.44, 'max_r': 28.98, 'position_fixed_onset': {'response': 0.53, 'damping': 1.03, 'start': 339.8, 'rms': 0.57}}
+          heart      first 115.0 {'cy': 363.268, 'r': 28.087} last 1285.0 sharp 183.3 {'extreme_cy': 363.27, 'max_r': 28.77, 'position_fixed_onset': {'response': 0.19, 'damping': 2.0, 'start': 292.0, 'rms': 0.79}}
+          merged     first 33.3 {'cy': 344.646, 'r': 29.327} last 1250.0 sharp 266.7 {}
+          star       first 115.0 {'cy': 342.525, 'r': 27.915} last 1285.0 sharp 150.0 {'extreme_cy': 342.52, 'max_r': 28.39, 'position_fixed_onset': {'response': 0.47, 'damping': 0.4, 'start': 341.0, 'rms': 0.15}}
+== dark-photo-rm collapse
+  native  onset 41.7 toggle 558.54->452.51 t10 35.3 t90 286.5 fit {'response': 0.43, 'damping': 1.07, 'start': None, 'rms': 0.02} width [57.67, 57.67, -125.0, 57.33, 368.3] sharp 73.3
+          counts [(80.0, 7, 5), (110.0, 5, 6), (130.0, 6, 5), (160.0, 5, 6), (173.3, 6, 4), (195.0, 4, 5), (228.3, 5, 3), (255.0, 3, 4), (306.7, 4, 3), (360.0, 3, 2), (371.7, 2, 1), (375.0, 1, 2), (461.7, 2, 3), (478.3, 3, 2), (508.3, 2, 3), (523.3, 3, 4), (526.7, 4, 3)]
+          bolt       first -125.0 {'cy': 485.048, 'r': 22.746} last 165.0 sharp 73.4 {'min_r': 22.68, 'toward_collapsed': {'response': 0.5, 'damping': 2.0, 'start': 484.6, 'rms': 0.99}}
+          heart      first -125.0 {'cy': 414.586, 'r': 24.194} last 180.0 sharp 73.4 {'min_r': 23.42, 'toward_collapsed': {'response': 0.45, 'damping': 0.98, 'start': 414.8, 'rms': 1.7}}
+          heart+bolt first 0.0 {'cy': 449.883, 'r': 37.019} last 330.0 sharp 138.4 {'min_r': 24.75, 'toward_collapsed': {'response': 0.39, 'damping': 0.1, 'start': 457.3, 'rms': 3.49}}
+          star       first -125.0 {'cy': 340.991, 'r': 26.748} last 253.3 sharp 110.0 {}
+          unknown    first 88.3 {'cy': 384.034, 'r': 17.847} last 88.3 sharp None {}
+  flutter onset None toggle 605.93->450.2 t10 12.3 t90 297.0 fit {'response': 0.22999999999999998, 'damping': 2.0, 'start': None, 'rms': 0.04} width [57.67, 58.33, 100.0, 57.33, 416.7] sharp 98.3
+          counts [(0.0, 9, 7), (31.7, 7, 5), (48.3, 5, 3), (81.7, 3, 5), (98.3, 5, 4), (115.0, 4, 5), (165.0, 5, 6), (198.3, 6, 2), (215.0, 2, 3), (231.7, 3, 4), (265.0, 4, 3), (298.3, 3, 1), (316.7, 1, 2), (331.7, 2, 1), (348.3, 1, 2), (366.7, 2, 3), (383.3, 3, 2), (416.7, 2, 1), (466.7, 1, 2), (481.7, 2, 3), (533.3, 3, 2), (550.0, 2, 3), (600.0, 3, 2), (700.0, 2, 3), (715.0, 3, 2), (751.7, 2, 1), (783.3, 1, 3), (851.7, 3, 2), (866.7, 2, 3), (918.3, 3, 2), (1216.7, 2, 3), (1285.0, 3, 2), (1300.0, 2, 3)]
+          bolt       first 0.0 {'cy': 486.179, 'r': 28.026} last 320.0 sharp 121.7 {'min_r': 27.54, 'toward_collapsed': {'response': 0.76, 'damping': 1.05, 'start': 486.8, 'rms': 1.29}}
+          heart      first 0.0 {'cy': 414.804, 'r': 27.916} last 320.0 sharp 55.0 {'min_r': 27.81, 'toward_collapsed': {'response': 0.8200000000000001, 'damping': 0.64, 'start': 412.5, 'rms': 0.94}}
+          heart+bolt first 336.7 {'cy': 448.237, 'r': 29.311} last 1055.0 sharp 471.7 {'min_r': 28.12, 'toward_collapsed': {'response': 0.9, 'damping': 0.63, 'start': 424.1, 'rms': 0.52}}
+          star       first 0.0 {'cy': 343.073, 'r': 28.169} last 170.0 sharp 55.0 {}
+          unknown    first 136.7 {'cy': 334.266, 'r': 17.415} last 220.0 sharp 136.7 {}
+== dark-stripes expand
+  native  onset 56.7 toggle 450.66->558.61 t10 28.7 t90 384.8 fit {'response': 0.29, 'damping': 1.95, 'start': None, 'rms': 0.02} width [58.0, 71.67, 148.3, 56.0, 388.3] sharp 491.7
+          counts [(306.7, 1, 2), (335.0, 2, 1), (376.7, 1, 2), (491.7, 2, 4)]
+          bolt       first 166.7 {'cy': 487.374, 'r': 31.069} last 1231.7 sharp 295.0 {'extreme_cy': 490.39, 'max_r': 32.85, 'position_fixed_onset': {'response': 0.35, 'damping': 0.66, 'start': 437.8, 'rms': 0.35}}
+          heart      first 68.3 {'cy': 443.135, 'r': 16.081} last 1231.7 sharp 306.7 {'extreme_cy': 406.94, 'max_r': 32.5, 'position_fixed_onset': {'response': 0.63, 'damping': 0.64, 'start': 451.6, 'rms': 1.29}}
+          star       first 363.3 {'cy': 378.86, 'r': 22.702} last 1231.7 sharp 508.4 {'extreme_cy': 334.95, 'max_r': 29.45, 'position_fixed_onset': {'response': 0.44, 'damping': 0.58, 'start': -373.4, 'rms': 1.78}}
+  flutter onset 0.0 toggle 450.94->558.94 t10 159.9 t90 413.6 fit {'response': 1.12, 'damping': 0.69, 'start': None, 'rms': 0.26} width [58.33, 58.67, 31.7, 58.33, 131.7] sharp 98.3
+          counts [(398.3, 1, 4)]
+          bolt       first 281.7 {'cy': 463.121, 'r': 29.184} last 1281.7 sharp 365.0 {'extreme_cy': 487.11, 'max_r': 29.18, 'position_fixed_onset': {'response': 0.5700000000000001, 'damping': 0.98, 'start': 350.0, 'rms': 0.08}}
+          heart      first 65.0 {'cy': 343.596, 'r': 29.325} last 1281.7 sharp 365.0 {'extreme_cy': 343.6, 'max_r': 29.43, 'position_fixed_onset': {'response': 0.2, 'damping': 2.0, 'start': 306.4, 'rms': 0.79}}
+          star       first 81.7 {'cy': 343.609, 'r': 29.316} last 1281.7 sharp 365.0 {'extreme_cy': 343.13, 'max_r': 29.32, 'position_fixed_onset': {'response': 1.11, 'damping': 2.0, 'start': 343.5, 'rms': 0.05}}
+          unknown    first 98.3 {'cy': 343.602, 'r': 29.305} last 265.0 sharp 98.3 {}
+== dark-stripes collapse
+  native  onset 45.0 toggle 558.68->450.59 t10 31.6 t90 265.5 fit {'response': 0.35, 'damping': 1.23, 'start': None, 'rms': 0.02} width [58.0, 71.67, 168.3, 54.67, 413.3] sharp 496.7
+          counts [(80.0, 4, 3), (90.0, 3, 2), (296.7, 2, 1)]
+          bolt       first -141.7 {'cy': 487.161, 'r': 28.709} last 96.7 sharp 75.0 {'min_r': 19.1, 'toward_collapsed': {'response': 0.43, 'damping': 2.0, 'start': 486.9, 'rms': 0.64}}
+          heart      first -141.7 {'cy': 415.141, 'r': 28.709} last 96.7 sharp 75.0 {'min_r': 19.01, 'toward_collapsed': {'response': 0.27, 'damping': 1.01, 'start': 415.2, 'rms': 1.08}}
+          heart+bolt first 101.7 {'cy': 447.785, 'r': 18.219} last 128.3 sharp 146.7 {'min_r': 15.16, 'toward_collapsed': {'response': 0.07, 'damping': 0.94, 'start': 20060.9, 'rms': 0.42}}
+          star       first -141.7 {'cy': 343.141, 'r': 28.712} last 213.3 sharp 75.0 {}
+          unknown    first 153.3 {'cy': 326.913, 'r': 8.975} last 161.7 sharp 198.3 {}
+  flutter onset 0.0 toggle 558.94->450.94 t10 0.0 t90 415.5 fit {'response': 1.07, 'damping': 0.72, 'start': None, 'rms': 0.2} width [58.33, 58.33, -55.0, 58.0, 50.0] sharp 83.3
+          counts [(0.0, 4, 3), (33.3, 3, 2), (66.7, 2, 3), (200.0, 3, 2), (266.7, 2, 1)]
+          bolt       first -55.0 {'cy': 487.112, 'r': 29.017} last 150.0 sharp 66.7 {'min_r': 15.03, 'toward_collapsed': {'response': 0.28, 'damping': 0.89, 'start': 487.1, 'rms': 0.12}}
+          heart      first -55.0 {'cy': 415.115, 'r': 29.017} last 150.0 sharp 33.3 {'min_r': 15.0, 'toward_collapsed': {'response': 0.29, 'damping': 0.84, 'start': 415.0, 'rms': 0.18}}
+          heart+bolt first 166.7 {'cy': 451.218, 'r': 14.509} last 283.3 sharp 183.3 {'min_r': 8.29, 'toward_collapsed': {'response': 0.77, 'damping': 0.1, 'start': 452.6, 'rms': 0.89}}
+          star       first -55.0 {'cy': 343.143, 'r': 29.009} last 166.7 sharp 33.3 {}
+== dark-stripes-rm expand
+  native  onset 26.7 toggle 450.68->558.62 t10 69.0 t90 297.6 fit {'response': 0.46, 'damping': 1.02, 'start': None, 'rms': 0.02} width [58.0, 58.0, -86.7, 58.0, -81.7] sharp 126.7
+          counts [(345.0, 1, 4)]
+          bolt       first 73.3 {'cy': 461.034, 'r': 28.903} last 786.7 sharp 126.7 {'extreme_cy': 487.17, 'max_r': 28.92, 'position_fixed_onset': {'response': 0.48, 'damping': 1.0, 'start': 453.2, 'rms': 0.21}}
+          heart      first 73.3 {'cy': 440.926, 'r': 28.913} last 786.7 sharp 145.0 {'extreme_cy': 415.14, 'max_r': 28.91, 'position_fixed_onset': {'response': 0.43, 'damping': 1.11, 'start': 450.3, 'rms': 0.17}}
+          merged     first 31.7 {'cy': 438.393, 'r': 29.256} last 68.3 sharp 58.4 {}
+          star       first 73.3 {'cy': 421.673, 'r': 29.024} last 786.7 sharp 145.0 {'extreme_cy': 343.18, 'max_r': 29.02, 'position_fixed_onset': {'response': 0.44, 'damping': 1.08, 'start': 449.5, 'rms': 0.5}}
+  flutter onset 0.0 toggle 450.95->558.94 t10 173.0 t90 427.5 fit {'response': 1.1800000000000002, 'damping': 0.68, 'start': None, 'rms': 0.25} width [58.33, 58.67, 50.0, 58.33, 150.0] sharp 33.3
+          counts [(400.0, 1, 2), (418.3, 2, 4)]
+          bolt       first 100.0 {'cy': 381.585, 'r': 29.303} last 1285.0 sharp 150.0 {'extreme_cy': 487.11, 'max_r': 29.34, 'position_fixed_onset': {'response': 0.5700000000000001, 'damping': 0.98, 'start': 335.0, 'rms': 0.13}}
+          heart      first 100.0 {'cy': 362.406, 'r': 29.46} last 1285.0 sharp 150.0 {'extreme_cy': 362.41, 'max_r': 29.46, 'position_fixed_onset': {'response': 0.5700000000000001, 'damping': 0.98, 'start': 339.2, 'rms': 0.08}}
+          merged     first 33.3 {'cy': 343.525, 'r': 29.262} last 83.3 sharp None {}
+          star       first 100.0 {'cy': 343.612, 'r': 29.313} last 1285.0 sharp 150.0 {'extreme_cy': 343.13, 'max_r': 29.31, 'position_fixed_onset': {'response': 0.8, 'damping': 2.0, 'start': 343.7, 'rms': 0.05}}
+== dark-stripes-rm collapse
+  native  onset 46.7 toggle 558.66->450.61 t10 22.6 t90 255.5 fit {'response': 0.39, 'damping': 1.09, 'start': None, 'rms': 0.02} width [58.0, 58.0, -131.7, 58.0, -128.3] sharp 80.0
+          counts [(75.0, 4, 2), (225.0, 2, 3), (243.3, 3, 2), (363.3, 2, 4), (368.3, 4, 2), (378.3, 2, 1)]
+          bolt       first -131.7 {'cy': 487.15, 'r': 28.72} last 178.3 sharp 80.0 {'min_r': 28.72, 'toward_collapsed': {'response': 0.31, 'damping': 1.53, 'start': 486.9, 'rms': 0.57}}
+          heart      first -131.7 {'cy': 415.139, 'r': 28.72} last 178.3 sharp 80.0 {'min_r': 28.71, 'toward_collapsed': {'response': 0.31, 'damping': 1.47, 'start': 415.4, 'rms': 0.6}}
+          heart+bolt first 196.7 {'cy': 443.155, 'r': 29.019} last 226.7 sharp 243.39999999999998 {'min_r': 29.02, 'toward_collapsed': {'response': 0.18, 'damping': 0.89, 'start': 4062.8, 'rms': 0.22}}
+          star       first -131.7 {'cy': 343.186, 'r': 28.707} last 271.7 sharp 80.0 {}
+          unknown    first 126.7 {'cy': 357.46, 'r': 8.548} last 168.3 sharp 173.4 {}
+  flutter onset 0.0 toggle 558.96->450.95 t10 0.0 t90 381.3 fit {'response': 1.0, 'damping': 0.81, 'start': None, 'rms': 0.2} width [58.33, 58.67, 205.0, 58.33, 283.3] sharp 33.3
+          counts [(0.0, 4, 3), (50.0, 3, 2), (66.7, 2, 3), (183.3, 3, 2), (205.0, 2, 1)]
+          bolt       first -33.3 {'cy': 487.112, 'r': 29.016} last 283.3 sharp 66.7 {'min_r': 29.02, 'toward_collapsed': {'response': 0.5, 'damping': 1.14, 'start': 487.3, 'rms': 0.19}}
+          heart      first -33.3 {'cy': 415.115, 'r': 29.017} last 283.3 sharp 33.3 {'min_r': 29.02, 'toward_collapsed': {'response': 0.54, 'damping': 0.99, 'start': 415.2, 'rms': 0.09}}
+          heart+bolt first 303.3 {'cy': 447.44, 'r': 29.871} last 1033.3 sharp 550.0 {'min_r': 29.09, 'toward_collapsed': {'response': 1.0, 'damping': 0.71, 'start': 439.4, 'rms': 0.1}}
+          star       first -33.3 {'cy': 343.142, 'r': 29.009} last 166.7 sharp 33.3 {}
+== light-photo expand
+  native  onset 51.7 toggle 451.1->558.72 t10 32.8 t90 383.1 fit {'response': 0.33, 'damping': 1.7, 'start': None, 'rms': 0.02} width [57.33, 71.33, 173.3, 55.33, 396.7] sharp 488.3
+          counts [(305.0, 1, 2), (338.3, 2, 1), (363.3, 1, 2), (488.3, 2, 4)]
+          bolt       first 113.3 {'cy': 479.24, 'r': 24.263} last 1248.3 sharp 285.0 {'extreme_cy': 497.09, 'max_r': 32.04, 'position_fixed_onset': {'response': 0.39, 'damping': 0.64, 'start': 459.8, 'rms': 1.5}}
+          heart      first 70.0 {'cy': 443.267, 'r': 14.898} last 1248.3 sharp 305.0 {'extreme_cy': 412.54, 'max_r': 32.15, 'position_fixed_onset': {'response': 0.6000000000000001, 'damping': 0.66, 'start': 450.8, 'rms': 0.71}}
+          star       first 353.3 {'cy': 393.708, 'r': 20.818} last 1248.3 sharp 496.7 {'extreme_cy': 334.92, 'max_r': 29.12, 'position_fixed_onset': {'response': 0.6100000000000001, 'damping': 0.84, 'start': 1329.4, 'rms': 2.06}}
+          unknown    first 413.3 {'cy': 486.26, 'r': 27.338} last 515.0 sharp 465.0 {}
+  flutter onset 0.0 toggle 451.16->559.0 t10 158.2 t90 414.0 fit {'response': 1.1, 'damping': 0.7, 'start': None, 'rms': 0.25} width [56.67, 58.33, 48.3, 57.0, 148.3] sharp 31.7
+          counts [(365.0, 1, 3), (381.7, 3, 4)]
+          bolt       first 265.0 {'cy': 460.643, 'r': 28.152} last 1281.7 sharp 365.0 {'extreme_cy': 486.82, 'max_r': 28.33, 'position_fixed_onset': {'response': 0.56, 'damping': 1.01, 'start': 358.1, 'rms': 0.15}}
+          heart      first 31.7 {'cy': 344.127, 'r': 28.983} last 1281.7 sharp 365.0 {'extreme_cy': 343.07, 'max_r': 29.18, 'position_fixed_onset': {'response': 0.5, 'damping': 1.04, 'start': 335.9, 'rms': 1.23}}
+          star       first 81.7 {'cy': 342.993, 'r': 28.23} last 1281.7 sharp 365.0 {'extreme_cy': 342.99, 'max_r': 28.27, 'position_fixed_onset': {'response': 1.5, 'damping': 2.0, 'start': 343.3, 'rms': 0.05}}
+          unknown    first 98.3 {'cy': 342.644, 'r': 27.997} last 265.0 sharp 98.3 {}
+== light-photo collapse
+  native  onset 46.7 toggle 558.78->450.86 t10 14.9 t90 249.2 fit {'response': 0.32, 'damping': 1.25, 'start': None, 'rms': 0.02} width [57.67, 71.0, 166.7, 53.67, 410.0] sharp 473.3
+          counts [(83.3, 4, 3), (100.0, 3, 2), (156.7, 2, 4), (175.0, 4, 3), (200.0, 3, 2), (301.7, 2, 1)]
+          bolt       first -133.3 {'cy': 486.829, 'r': 28.251} last 96.7 sharp 76.7 {'min_r': 18.06, 'toward_collapsed': {'response': 0.4, 'damping': 2.0, 'start': 486.4, 'rms': 0.85}}
+          heart      first -133.3 {'cy': 415.01, 'r': 28.332} last 96.7 sharp 76.7 {'min_r': 17.72, 'toward_collapsed': {'response': 0.27, 'damping': 0.85, 'start': 415.4, 'rms': 1.38}}
+          heart+bolt first 101.7 {'cy': 446.053, 'r': 15.689} last 110.0 sharp None {'min_r': 13.77, 'toward_collapsed': {'response': 0.37, 'damping': 0.24, 'start': 397.8, 'rms': 0.0}}
+          star       first -133.3 {'cy': 343.113, 'r': 28.257} last 160.0 sharp 76.7 {}
+          unknown    first 101.7 {'cy': 331.277, 'r': 19.399} last 110.0 sharp 156.7 {}
+  flutter onset 0.0 toggle 559.0->451.17 t10 0.0 t90 414.4 fit {'response': 1.05, 'damping': 0.73, 'start': None, 'rms': 0.19} width [57.0, 57.33, 83.3, 56.67, 100.0] sharp 116.7
+          counts [(0.0, 4, 3), (33.3, 3, 2), (66.7, 2, 3), (166.7, 3, 6), (183.3, 6, 2), (266.7, 2, 1)]
+          bolt       first -71.7 {'cy': 486.826, 'r': 28.196} last 150.0 sharp 66.7 {'min_r': 12.98, 'toward_collapsed': {'response': 0.26, 'damping': 1.07, 'start': 486.8, 'rms': 0.23}}
+          heart      first -71.7 {'cy': 414.992, 'r': 28.25} last 183.3 sharp 33.3 {'min_r': 14.15, 'toward_collapsed': {'response': 0.19, 'damping': 2.0, 'start': 415.8, 'rms': 9.29}}
+          heart+bolt first 166.7 {'cy': 451.103, 'r': 13.717} last 250.0 sharp 200.0 {'min_r': 8.43, 'toward_collapsed': {'response': 0.7000000000000001, 'damping': 0.1, 'start': 444.3, 'rms': 1.26}}
+          star       first -71.7 {'cy': 343.107, 'r': 28.185} last 133.3 sharp 33.3 {}
+          unknown    first 116.7 {'cy': 331.747, 'r': 16.531} last 133.3 sharp 116.7 {}
+== light-photo-rm expand
+  native  onset 25.0 toggle 450.91->558.72 t10 23.0 t90 297.7 fit {'response': 0.4, 'damping': 1.17, 'start': None, 'rms': 0.01} width [57.33, 57.67, 16.7, 57.67, 35.0] sharp 60.0
+          counts [(341.7, 1, 4)]
+          bolt       first 75.0 {'cy': 468.062, 'r': 28.266} last 890.0 sharp 128.3 {'extreme_cy': 486.83, 'max_r': 28.34, 'position_fixed_onset': {'response': 0.64, 'damping': 0.93, 'start': 463.2, 'rms': 0.35}}
+          heart      first 75.0 {'cy': 440.302, 'r': 28.53} last 890.0 sharp 141.7 {'extreme_cy': 415.01, 'max_r': 28.53, 'position_fixed_onset': {'response': 0.45, 'damping': 1.08, 'start': 449.0, 'rms': 0.29}}
+          merged     first 16.7 {'cy': 443.436, 'r': 28.63} last 70.0 sharp 60.0 {}
+          star       first 75.0 {'cy': 419.52, 'r': 28.485} last 890.0 sharp 128.3 {'extreme_cy': 343.11, 'max_r': 28.48, 'position_fixed_onset': {'response': 0.45, 'damping': 1.08, 'start': 445.1, 'rms': 0.87}}
+  flutter onset 0.0 toggle 451.16->559.0 t10 159.8 t90 415.7 fit {'response': 1.11, 'damping': 0.7, 'start': None, 'rms': 0.25} width [56.67, 58.33, 50.0, 57.0, 150.0] sharp 33.3
+          counts [(366.7, 1, 4)]
+          bolt       first 100.0 {'cy': 388.513, 'r': 28.47} last 1300.0 sharp 166.7 {'extreme_cy': 486.82, 'max_r': 28.55, 'position_fixed_onset': {'response': 0.55, 'damping': 1.0, 'start': 342.6, 'rms': 0.27}}
+          heart      first 100.0 {'cy': 365.636, 'r': 28.775} last 1300.0 sharp 166.7 {'extreme_cy': 365.64, 'max_r': 28.77, 'position_fixed_onset': {'response': 0.47, 'damping': 1.08, 'start': 333.1, 'rms': 0.58}}
+          merged     first 16.7 {'cy': 342.111, 'r': 27.666} last 266.7 sharp 250.0 {}
+          star       first 100.0 {'cy': 342.488, 'r': 27.903} last 1300.0 sharp 150.0 {'extreme_cy': 342.49, 'max_r': 28.28, 'position_fixed_onset': {'response': 0.52, 'damping': 0.39, 'start': 342.0, 'rms': 0.13}}
+== light-photo-rm collapse
+  native  onset 43.3 toggle 558.77->450.84 t10 30.2 t90 299.1 fit {'response': 0.4, 'damping': 1.18, 'start': None, 'rms': 0.02} width [57.67, 57.67, -135.0, 57.33, 353.3] sharp 76.7
+          counts [(76.7, 4, 2), (176.7, 2, 5), (190.0, 5, 4), (193.3, 4, 6), (210.0, 6, 4), (221.7, 4, 3), (225.0, 3, 2), (363.3, 2, 1)]
+          bolt       first -135.0 {'cy': 486.832, 'r': 28.25} last 211.7 sharp 76.6 {'min_r': 28.14, 'toward_collapsed': {'response': 0.33999999999999997, 'damping': 2.0, 'start': 486.4, 'rms': 1.26}}
+          heart      first -135.0 {'cy': 415.013, 'r': 28.329} last 211.7 sharp 76.6 {'min_r': 28.32, 'toward_collapsed': {'response': 0.38, 'damping': 1.26, 'start': 415.2, 'rms': 0.73}}
+          heart+bolt first 150.0 {'cy': 440.121, 'r': 29.52} last 438.3 sharp 380.0 {'min_r': 28.43, 'toward_collapsed': {'response': 0.7100000000000001, 'damping': 0.84, 'start': 432.1, 'rms': 0.23}}
+          star       first -135.0 {'cy': 343.108, 'r': 28.15} last 178.3 sharp 76.6 {}
+          unknown    first 116.7 {'cy': 326.15, 'r': 9.795} last 128.3 sharp 160.0 {}
+  flutter onset 0.0 toggle 559.0->451.18 t10 0.0 t90 413.3 fit {'response': 1.1700000000000002, 'damping': 0.58, 'start': None, 'rms': 0.23} width [57.0, 58.0, 333.3, 56.67, 500.0] sharp 33.3
+          counts [(0.0, 4, 3), (50.0, 3, 2), (66.7, 2, 3), (166.7, 3, 4), (183.3, 4, 2), (200.0, 2, 1), (833.3, 1, 2), (916.7, 2, 1)]
+          bolt       first -33.3 {'cy': 486.823, 'r': 28.196} last 316.7 sharp 66.7 {'min_r': 27.41, 'toward_collapsed': {'response': 0.52, 'damping': 2.0, 'start': 482.6, 'rms': 5.07}}
+          heart      first -33.3 {'cy': 414.993, 'r': 28.25} last 316.7 sharp 33.3 {'min_r': 28.25, 'toward_collapsed': {'response': 0.54, 'damping': 1.0, 'start': 415.0, 'rms': 0.13}}
+          heart+bolt first 183.3 {'cy': 456.689, 'r': 32.348} last 748.3 sharp 448.3 {'min_r': 27.7, 'toward_collapsed': {'response': 0.5, 'damping': 0.65, 'start': 491.2, 'rms': 0.57}}
+          star       first -33.3 {'cy': 343.107, 'r': 28.185} last 133.3 sharp 33.3 {}
+          unknown    first 116.7 {'cy': 329.022, 'r': 15.026} last 183.3 sharp 116.7 {}
+== light-stripes expand
+  native  onset 68.3 toggle 450.91->558.9 t10 31.1 t90 374.0 fit {'response': 0.28, 'damping': 1.98, 'start': None, 'rms': 0.02} width [58.0, 71.67, 143.3, 56.0, 398.3] sharp 495.0
+          counts [(363.3, 1, 2), (483.3, 2, 3), (495.0, 3, 4)]
+          bolt       first 168.3 {'cy': 487.245, 'r': 31.02} last 1225.0 sharp 301.6 {'extreme_cy': 489.92, 'max_r': 32.82, 'position_fixed_onset': {'response': 0.33, 'damping': 0.69, 'start': 432.0, 'rms': 0.24}}
+          heart      first 78.3 {'cy': 440.865, 'r': 18.416} last 1225.0 sharp 316.6 {'extreme_cy': 407.4, 'max_r': 32.61, 'position_fixed_onset': {'response': 0.6000000000000001, 'damping': 0.65, 'start': 452.8, 'rms': 1.18}}
+          star       first 343.3 {'cy': 378.794, 'r': 22.644} last 1225.0 sharp 495.0 {'extreme_cy': 334.78, 'max_r': 29.64, 'position_fixed_onset': {'response': 0.43, 'damping': 0.55, 'start': -219.6, 'rms': 1.79}}
+  flutter onset 0.0 toggle 451.02->559.03 t10 159.9 t90 413.8 fit {'response': 1.11, 'damping': 0.69, 'start': None, 'rms': 0.25} width [57.67, 58.67, 48.3, 57.67, 181.7] sharp 48.3
+          counts [(398.3, 1, 4)]
+          bolt       first 281.7 {'cy': 463.095, 'r': 28.969} last 1300.0 sharp 365.0 {'extreme_cy': 487.1, 'max_r': 28.97, 'position_fixed_onset': {'response': 0.5900000000000001, 'damping': 0.97, 'start': 358.7, 'rms': 0.06}}
+          heart      first 48.3 {'cy': 343.934, 'r': 29.367} last 1300.0 sharp 365.0 {'extreme_cy': 343.93, 'max_r': 29.37, 'position_fixed_onset': {'response': 0.22000000000000003, 'damping': 1.94, 'start': 322.4, 'rms': 0.77}}
+          star       first 65.0 {'cy': 343.652, 'r': 29.176} last 1300.0 sharp 365.0 {'extreme_cy': 343.12, 'max_r': 29.18, 'position_fixed_onset': {'response': 0.91, 'damping': 2.0, 'start': 343.5, 'rms': 0.05}}
+          unknown    first 98.3 {'cy': 343.513, 'r': 29.062} last 265.0 sharp 98.3 {}
+== light-stripes collapse
+  native  onset 55.0 toggle 558.92->450.9 t10 6.4 t90 262.0 fit {'response': 0.24, 'damping': 1.6, 'start': None, 'rms': 0.02} width [58.0, 71.67, 156.7, 54.67, 398.3] sharp 476.7
+          counts [(61.7, 4, 3), (85.0, 3, 2), (211.7, 2, 3), (228.3, 3, 2), (318.3, 2, 1)]
+          bolt       first -136.7 {'cy': 487.065, 'r': 28.826} last 75.0 sharp 85.0 {'min_r': 20.38, 'toward_collapsed': {'response': 0.33999999999999997, 'damping': 2.0, 'start': 486.7, 'rms': 0.85}}
+          heart      first -136.7 {'cy': 415.06, 'r': 28.831} last 75.0 sharp 85.0 {'min_r': 20.34, 'toward_collapsed': {'response': 0.19, 'damping': 1.33, 'start': 415.4, 'rms': 1.46}}
+          heart+bolt first 81.7 {'cy': 449.109, 'r': 21.303} last 113.3 sharp 136.7 {'min_r': 14.42, 'toward_collapsed': {'response': 0.05, 'damping': 0.51, 'start': 1196.2, 'rms': 0.11}}
+          star       first -136.7 {'cy': 343.078, 'r': 28.824} last 208.3 sharp 85.0 {}
+          unknown    first 90.0 {'cy': 325.471, 'r': 9.584} last 130.0 sharp 145.0 {}
+  flutter onset 0.0 toggle 559.03->451.04 t10 0.0 t90 415.2 fit {'response': 1.07, 'damping': 0.72, 'start': None, 'rms': 0.2} width [57.67, 58.0, 100.0, 57.67, 133.3] sharp 83.3
+          counts [(0.0, 4, 3), (33.3, 3, 2), (66.7, 2, 3), (183.3, 3, 2), (268.3, 2, 1)]
+          bolt       first -55.0 {'cy': 487.101, 'r': 28.814} last 133.3 sharp 66.7 {'min_r': 16.61, 'toward_collapsed': {'response': 0.29, 'damping': 0.85, 'start': 487.0, 'rms': 0.1}}
+          heart      first -55.0 {'cy': 415.102, 'r': 28.817} last 133.3 sharp 33.3 {'min_r': 16.59, 'toward_collapsed': {'response': 0.29, 'damping': 0.84, 'start': 415.0, 'rms': 0.15}}
+          heart+bolt first 150.0 {'cy': 451.129, 'r': 16.449} last 283.3 sharp 183.3 {'min_r': 9.04, 'toward_collapsed': {'response': 0.65, 'damping': 0.1, 'start': 453.2, 'rms': 0.81}}
+          star       first -55.0 {'cy': 343.123, 'r': 28.805} last 166.7 sharp 33.3 {}
+          unknown    first 100.0 {'cy': 332.502, 'r': 16.277} last 100.0 sharp None {}
+== light-stripes-rm expand
+  native  onset 33.3 toggle 450.9->558.91 t10 39.7 t90 293.8 fit {'response': 0.31, 'damping': 1.41, 'start': None, 'rms': 0.02} width [58.0, 58.0, -111.7, 58.0, -110.0] sharp 100.0
+          counts [(366.7, 1, 4)]
+          bolt       first 50.0 {'cy': 461.678, 'r': 28.892} last 848.3 sharp 116.6 {'extreme_cy': 487.08, 'max_r': 28.92, 'position_fixed_onset': {'response': 0.52, 'damping': 0.97, 'start': 458.2, 'rms': 0.35}}
+          heart      first 50.0 {'cy': 440.428, 'r': 28.895} last 848.3 sharp 155.0 {'extreme_cy': 415.06, 'max_r': 28.92, 'position_fixed_onset': {'response': 0.51, 'damping': 1.0, 'start': 444.1, 'rms': 0.35}}
+          merged     first 33.3 {'cy': 427.805, 'r': 28.924} last 38.3 sharp None {}
+          star       first 50.0 {'cy': 419.398, 'r': 28.897} last 848.3 sharp 116.6 {'extreme_cy': 343.09, 'max_r': 28.9, 'position_fixed_onset': {'response': 0.51, 'damping': 1.0, 'start': 430.2, 'rms': 1.03}}
+  flutter onset 0.0 toggle 451.01->559.0 t10 143.3 t90 397.0 fit {'response': 1.02, 'damping': 0.71, 'start': None, 'rms': 0.22} width [57.67, 58.67, 33.3, 57.67, 181.7] sharp 33.3
+          counts [(381.7, 1, 4)]
+          bolt       first 81.7 {'cy': 388.45, 'r': 29.118} last 1300.0 sharp 131.7 {'extreme_cy': 487.08, 'max_r': 29.15, 'position_fixed_onset': {'response': 0.53, 'damping': 1.01, 'start': 356.1, 'rms': 0.16}}
+          heart      first 81.7 {'cy': 365.691, 'r': 29.319} last 1300.0 sharp 131.7 {'extreme_cy': 365.69, 'max_r': 29.32, 'position_fixed_onset': {'response': 0.52, 'damping': 1.02, 'start': 348.9, 'rms': 0.11}}
+          merged     first 33.3 {'cy': 343.898, 'r': 29.365} last 65.0 sharp 33.3 {}
+          star       first 81.7 {'cy': 343.543, 'r': 29.09} last 1300.0 sharp 131.7 {'extreme_cy': 343.12, 'max_r': 29.09, 'position_fixed_onset': {'response': 0.8300000000000001, 'damping': 2.0, 'start': 343.6, 'rms': 0.04}}
+== light-stripes-rm collapse
+  native  onset 33.3 toggle 558.9->450.88 t10 26.0 t90 259.6 fit {'response': 0.47, 'damping': 0.96, 'start': None, 'rms': 0.02} width [58.0, 58.0, -125.0, 58.0, -121.7] sharp 66.7
+          counts [(50.0, 4, 2), (206.7, 2, 3), (220.0, 3, 2), (393.3, 2, 3), (403.3, 3, 1)]
+          bolt       first -125.0 {'cy': 487.06, 'r': 28.827} last 191.7 sharp 66.6 {'min_r': 28.83, 'toward_collapsed': {'response': 0.42, 'damping': 1.23, 'start': 486.7, 'rms': 0.81}}
+          heart      first -125.0 {'cy': 415.062, 'r': 28.83} last 191.7 sharp 66.6 {'min_r': 28.82, 'toward_collapsed': {'response': 0.41, 'damping': 1.25, 'start': 415.4, 'rms': 0.84}}
+          heart+bolt first 200.0 {'cy': 442.657, 'r': 28.916} last 253.3 sharp 233.3 {'min_r': 28.91, 'toward_collapsed': {'response': 0.76, 'damping': 0.83, 'start': 432.2, 'rms': 0.49}}
+          star       first -125.0 {'cy': 343.092, 'r': 28.818} last 325.0 sharp 66.6 {}
+          unknown    first 133.3 {'cy': 357.736, 'r': 9.017} last 150.0 sharp None {}
+  flutter onset 0.0 toggle 559.02->451.03 t10 0.0 t90 384.5 fit {'response': 1.05, 'damping': 0.72, 'start': None, 'rms': 0.2} width [57.67, 58.67, 333.3, 57.67, 1050.0] sharp 33.3
+          counts [(0.0, 4, 3), (50.0, 3, 2), (66.7, 2, 3), (183.3, 3, 2), (200.0, 2, 1)]
+          bolt       first -35.0 {'cy': 487.101, 'r': 28.813} last 283.3 sharp 66.7 {'min_r': 28.81, 'toward_collapsed': {'response': 0.51, 'damping': 1.11, 'start': 487.2, 'rms': 0.14}}
+          heart      first -35.0 {'cy': 415.103, 'r': 28.816} last 283.3 sharp 33.3 {'min_r': 28.82, 'toward_collapsed': {'response': 0.54, 'damping': 0.99, 'start': 415.1, 'rms': 0.04}}
+          heart+bolt first 100.0 {'cy': 456.756, 'r': 36.767} last 416.7 sharp 301.7 {'min_r': 29.06, 'toward_collapsed': {'response': 0.55, 'damping': 0.34, 'start': 461.6, 'rms': 0.1}}
+          star       first -35.0 {'cy': 343.123, 'r': 28.805} last 83.3 sharp 33.3 {}
+          unknown    first 100.0 {'cy': 357.236, 'r': 30.654} last 100.0 sharp None {}

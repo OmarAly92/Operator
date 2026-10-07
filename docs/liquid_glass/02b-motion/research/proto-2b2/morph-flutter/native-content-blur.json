@@ -1,0 +1,863 @@
+{
+ "heart-expand-lb": {
+  "spec": "heart-expand-lb=/private/tmp/claude-501/-Users-omaraly-development-AI-Operator/bef75372-7901-417c-9118-4f19c37b5461/scratchpad/M/cache/native/light-black:0:1100:415:170:300:201:438:420.4",
+  "rest_frame": 227,
+  "rows": [
+   {
+    "i": 168,
+    "ms": 180.0,
+    "blur": 3.5,
+    "scale": 0.85,
+    "ncc": 0.998
+   },
+   {
+    "i": 169,
+    "ms": 198.3,
+    "blur": 3.5,
+    "scale": 0.85,
+    "ncc": 0.998
+   },
+   {
+    "i": 170,
+    "ms": 203.3,
+    "blur": 3.0,
+    "scale": 0.9,
+    "ncc": 0.998
+   },
+   {
+    "i": 171,
+    "ms": 213.3,
+    "blur": 3.0,
+    "scale": 0.9,
+    "ncc": 0.998
+   },
+   {
+    "i": 172,
+    "ms": 218.3,
+    "blur": 2.5,
+    "scale": 1.0,
+    "ncc": 0.999
+   },
+   {
+    "i": 173,
+    "ms": 230.0,
+    "blur": 1.5,
+    "scale": 1.05,
+    "ncc": 0.998
+   },
+   {
+    "i": 174,
+    "ms": 248.3,
+    "blur": 1.5,
+    "scale": 1.05,
+    "ncc": 0.998
+   },
+   {
+    "i": 175,
+    "ms": 256.7,
+    "blur": 1.5,
+    "scale": 1.1,
+    "ncc": 0.999
+   },
+   {
+    "i": 176,
+    "ms": 263.3,
+    "blur": 1.0,
+    "scale": 1.1,
+    "ncc": 0.997
+   },
+   {
+    "i": 177,
+    "ms": 280.0,
+    "blur": 0.5,
+    "scale": 1.1,
+    "ncc": 0.993
+   },
+   {
+    "i": 178,
+    "ms": 298.3,
+    "blur": 0.5,
+    "scale": 1.1,
+    "ncc": 0.993
+   }
+  ],
+  "median_blur": 1.5,
+  "frames": 11
+ },
+ "heart-expand-lp": {
+  "spec": "heart-expand-lp=/private/tmp/claude-501/-Users-omaraly-development-AI-Operator/bef75372-7901-417c-9118-4f19c37b5461/scratchpad/M/cache/native/light-photo:0:1100:415:170:300:201:438:420.4",
+  "rest_frame": 249,
+  "rows": [
+   {
+    "i": 207,
+    "ms": 185.0,
+    "blur": 3.5,
+    "scale": 0.85,
+    "ncc": 0.998
+   },
+   {
+    "i": 208,
+    "ms": 198.3,
+    "blur": 3.0,
+    "scale": 0.95,
+    "ncc": 0.999
+   },
+   {
+    "i": 209,
+    "ms": 205.0,
+    "blur": 3.0,
+    "scale": 0.95,
+    "ncc": 0.999
+   },
+   {
+    "i": 210,
+    "ms": 213.3,
+    "blur": 2.5,
+    "scale": 1.0,
+    "ncc": 0.999
+   },
+   {
+    "i": 211,
+    "ms": 231.7,
+    "blur": 1.5,
+    "scale": 1.05,
+    "ncc": 0.998
+   },
+   {
+    "i": 212,
+    "ms": 238.3,
+    "blur": 1.5,
+    "scale": 1.05,
+    "ncc": 0.998
+   },
+   {
+    "i": 213,
+    "ms": 246.7,
+    "blur": 1.5,
+    "scale": 1.1,
+    "ncc": 0.999
+   },
+   {
+    "i": 214,
+    "ms": 266.7,
+    "blur": 1.5,
+    "scale": 1.1,
+    "ncc": 0.999
+   },
+   {
+    "i": 215,
+    "ms": 271.7,
+    "blur": 1.0,
+    "scale": 1.1,
+    "ncc": 0.996
+   },
+   {
+    "i": 216,
+    "ms": 281.7,
+    "blur": 0.5,
+    "scale": 1.1,
+    "ncc": 0.992
+   },
+   {
+    "i": 217,
+    "ms": 300.0,
+    "blur": 0.5,
+    "scale": 1.1,
+    "ncc": 0.992
+   }
+  ],
+  "median_blur": 1.5,
+  "frames": 11
+ },
+ "bolt-expand-lb": {
+  "spec": "bolt-expand-lb=/private/tmp/claude-501/-Users-omaraly-development-AI-Operator/bef75372-7901-417c-9118-4f19c37b5461/scratchpad/M/cache/native/light-black:0:1100:487:230:300:201:487:489",
+  "rest_frame": 227,
+  "rows": [
+   {
+    "i": 173,
+    "ms": 230.0,
+    "blur": 1.5,
+    "scale": 1.05,
+    "ncc": 0.981
+   },
+   {
+    "i": 174,
+    "ms": 248.3,
+    "blur": 1.5,
+    "scale": 1.05,
+    "ncc": 0.986
+   },
+   {
+    "i": 175,
+    "ms": 256.7,
+    "blur": 1.5,
+    "scale": 1.05,
+    "ncc": 0.986
+   },
+   {
+    "i": 176,
+    "ms": 263.3,
+    "blur": 1.0,
+    "scale": 1.1,
+    "ncc": 0.99
+   },
+   {
+    "i": 177,
+    "ms": 280.0,
+    "blur": 0.5,
+    "scale": 1.1,
+    "ncc": 0.989
+   },
+   {
+    "i": 178,
+    "ms": 298.3,
+    "blur": 0.5,
+    "scale": 1.1,
+    "ncc": 0.99
+   }
+  ],
+  "median_blur": 1.25,
+  "frames": 6
+ },
+ "bolt-expand-lp": {
+  "spec": "bolt-expand-lp=/private/tmp/claude-501/-Users-omaraly-development-AI-Operator/bef75372-7901-417c-9118-4f19c37b5461/scratchpad/M/cache/native/light-photo:0:1100:487:230:300:201:487:489",
+  "rest_frame": 249,
+  "rows": [
+   {
+    "i": 211,
+    "ms": 231.7,
+    "blur": 1.5,
+    "scale": 1.05,
+    "ncc": 0.996
+   },
+   {
+    "i": 212,
+    "ms": 238.3,
+    "blur": 1.5,
+    "scale": 1.05,
+    "ncc": 0.996
+   },
+   {
+    "i": 213,
+    "ms": 246.7,
+    "blur": 1.5,
+    "scale": 1.1,
+    "ncc": 0.995
+   },
+   {
+    "i": 214,
+    "ms": 266.7,
+    "blur": 1.5,
+    "scale": 1.1,
+    "ncc": 0.995
+   },
+   {
+    "i": 215,
+    "ms": 271.7,
+    "blur": 1.0,
+    "scale": 1.1,
+    "ncc": 0.994
+   },
+   {
+    "i": 216,
+    "ms": 281.7,
+    "blur": 0.5,
+    "scale": 1.1,
+    "ncc": 0.993
+   },
+   {
+    "i": 217,
+    "ms": 300.0,
+    "blur": 0.5,
+    "scale": 1.1,
+    "ncc": 0.993
+   }
+  ],
+  "median_blur": 1.5,
+  "frames": 7
+ },
+ "toggle-expand-lb": {
+  "spec": "toggle-expand-lb=/private/tmp/claude-501/-Users-omaraly-development-AI-Operator/bef75372-7901-417c-9118-4f19c37b5461/scratchpad/M/cache/native/light-black:0:1100:559:400:520:201:543.5:552",
+  "rest_frame": 227,
+  "rows": [
+   {
+    "i": 188,
+    "ms": 403.3,
+    "blur": 2.0,
+    "scale": 0.95,
+    "ncc": 0.997
+   },
+   {
+    "i": 189,
+    "ms": 416.7,
+    "blur": 1.5,
+    "scale": 0.95,
+    "ncc": 0.998
+   },
+   {
+    "i": 190,
+    "ms": 431.7,
+    "blur": 1.5,
+    "scale": 0.95,
+    "ncc": 0.993
+   },
+   {
+    "i": 191,
+    "ms": 448.3,
+    "blur": 1.5,
+    "scale": 0.95,
+    "ncc": 0.993
+   },
+   {
+    "i": 192,
+    "ms": 460.0,
+    "blur": 1.0,
+    "scale": 0.95,
+    "ncc": 0.998
+   },
+   {
+    "i": 193,
+    "ms": 465.0,
+    "blur": 0.5,
+    "scale": 0.95,
+    "ncc": 0.996
+   },
+   {
+    "i": 194,
+    "ms": 468.3,
+    "blur": 0.5,
+    "scale": 0.95,
+    "ncc": 0.997
+   },
+   {
+    "i": 195,
+    "ms": 480.0,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.99
+   },
+   {
+    "i": 196,
+    "ms": 496.7,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.994
+   },
+   {
+    "i": 197,
+    "ms": 513.3,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.994
+   },
+   {
+    "i": 198,
+    "ms": 518.3,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.987
+   }
+  ],
+  "median_blur": 0.5,
+  "frames": 11
+ },
+ "toggle-expand-lp": {
+  "spec": "toggle-expand-lp=/private/tmp/claude-501/-Users-omaraly-development-AI-Operator/bef75372-7901-417c-9118-4f19c37b5461/scratchpad/M/cache/native/light-photo:0:1100:559:400:520:201:543.5:552",
+  "rest_frame": 249,
+  "rows": [
+   {
+    "i": 229,
+    "ms": 420.0,
+    "blur": 1.5,
+    "scale": 0.95,
+    "ncc": 0.998
+   },
+   {
+    "i": 230,
+    "ms": 425.0,
+    "blur": 1.5,
+    "scale": 0.95,
+    "ncc": 0.998
+   },
+   {
+    "i": 231,
+    "ms": 431.7,
+    "blur": 1.0,
+    "scale": 0.95,
+    "ncc": 0.993
+   },
+   {
+    "i": 232,
+    "ms": 453.3,
+    "blur": 1.0,
+    "scale": 0.95,
+    "ncc": 0.997
+   },
+   {
+    "i": 233,
+    "ms": 460.0,
+    "blur": 1.0,
+    "scale": 0.95,
+    "ncc": 0.997
+   },
+   {
+    "i": 234,
+    "ms": 463.3,
+    "blur": 1.0,
+    "scale": 0.95,
+    "ncc": 0.997
+   },
+   {
+    "i": 235,
+    "ms": 470.0,
+    "blur": 0.5,
+    "scale": 0.95,
+    "ncc": 0.997
+   },
+   {
+    "i": 236,
+    "ms": 481.7,
+    "blur": 0.5,
+    "scale": 0.95,
+    "ncc": 0.997
+   },
+   {
+    "i": 237,
+    "ms": 486.7,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.99
+   },
+   {
+    "i": 238,
+    "ms": 498.3,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.99
+   },
+   {
+    "i": 239,
+    "ms": 505.0,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.995
+   },
+   {
+    "i": 240,
+    "ms": 515.0,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.995
+   },
+   {
+    "i": 241,
+    "ms": 520.0,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.996
+   }
+  ],
+  "median_blur": 0.5,
+  "frames": 13
+ },
+ "toggle-collapse-lb": {
+  "spec": "toggle-collapse-lb=/private/tmp/claude-501/-Users-omaraly-development-AI-Operator/bef75372-7901-417c-9118-4f19c37b5461/scratchpad/M/cache/native/light-black:1:1100:451:300:560:201:455:451",
+  "rest_frame": 345,
+  "rows": [
+   {
+    "i": 274,
+    "ms": 303.3,
+    "blur": 6.0,
+    "scale": 1.15,
+    "ncc": 0.996
+   },
+   {
+    "i": 275,
+    "ms": 315.0,
+    "blur": 6.0,
+    "scale": 1.15,
+    "ncc": 0.996
+   },
+   {
+    "i": 276,
+    "ms": 321.7,
+    "blur": 6.0,
+    "scale": 1.05,
+    "ncc": 0.997
+   },
+   {
+    "i": 277,
+    "ms": 331.7,
+    "blur": 5.0,
+    "scale": 1.1,
+    "ncc": 0.998
+   },
+   {
+    "i": 278,
+    "ms": 353.3,
+    "blur": 5.5,
+    "scale": 1.0,
+    "ncc": 0.998
+   },
+   {
+    "i": 279,
+    "ms": 358.3,
+    "blur": 4.0,
+    "scale": 1.05,
+    "ncc": 0.998
+   },
+   {
+    "i": 280,
+    "ms": 363.3,
+    "blur": 3.5,
+    "scale": 1.0,
+    "ncc": 0.999
+   },
+   {
+    "i": 281,
+    "ms": 380.0,
+    "blur": 3.5,
+    "scale": 1.0,
+    "ncc": 0.999
+   },
+   {
+    "i": 282,
+    "ms": 385.0,
+    "blur": 3.0,
+    "scale": 1.0,
+    "ncc": 0.999
+   },
+   {
+    "i": 283,
+    "ms": 396.7,
+    "blur": 3.0,
+    "scale": 1.0,
+    "ncc": 0.999
+   },
+   {
+    "i": 284,
+    "ms": 401.7,
+    "blur": 2.0,
+    "scale": 0.95,
+    "ncc": 0.998
+   },
+   {
+    "i": 285,
+    "ms": 415.0,
+    "blur": 2.0,
+    "scale": 0.95,
+    "ncc": 0.998
+   },
+   {
+    "i": 286,
+    "ms": 426.7,
+    "blur": 1.5,
+    "scale": 0.95,
+    "ncc": 0.998
+   },
+   {
+    "i": 287,
+    "ms": 431.7,
+    "blur": 1.5,
+    "scale": 0.95,
+    "ncc": 0.994
+   },
+   {
+    "i": 288,
+    "ms": 446.7,
+    "blur": 1.5,
+    "scale": 0.95,
+    "ncc": 0.994
+   },
+   {
+    "i": 289,
+    "ms": 451.7,
+    "blur": 1.0,
+    "scale": 0.95,
+    "ncc": 0.997
+   },
+   {
+    "i": 290,
+    "ms": 463.3,
+    "blur": 1.0,
+    "scale": 0.95,
+    "ncc": 0.997
+   },
+   {
+    "i": 291,
+    "ms": 470.0,
+    "blur": 0.5,
+    "scale": 0.95,
+    "ncc": 0.999
+   },
+   {
+    "i": 292,
+    "ms": 481.7,
+    "blur": 0.5,
+    "scale": 0.95,
+    "ncc": 0.999
+   },
+   {
+    "i": 293,
+    "ms": 488.3,
+    "blur": 0.5,
+    "scale": 0.95,
+    "ncc": 0.987
+   },
+   {
+    "i": 294,
+    "ms": 496.7,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.997
+   },
+   {
+    "i": 295,
+    "ms": 516.7,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.997
+   },
+   {
+    "i": 296,
+    "ms": 521.7,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.997
+   },
+   {
+    "i": 297,
+    "ms": 533.3,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.997
+   },
+   {
+    "i": 298,
+    "ms": 538.3,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.989
+   },
+   {
+    "i": 299,
+    "ms": 546.7,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.988
+   },
+   {
+    "i": 300,
+    "ms": 551.7,
+    "blur": 0.0,
+    "scale": 0.95,
+    "ncc": 0.988
+   }
+  ],
+  "median_blur": 1.5,
+  "frames": 27
+ },
+ "toggle-collapse-lp": {
+  "spec": "toggle-collapse-lp=/private/tmp/claude-501/-Users-omaraly-development-AI-Operator/bef75372-7901-417c-9118-4f19c37b5461/scratchpad/M/cache/native/light-photo:1:1100:451:300:560:201:455:451",
+  "rest_frame": 351,
+  "rows": [
+   {
+    "i": 302,
+    "ms": 308.3,
+    "blur": 5.5,
+    "scale": 0.9,
+    "ncc": 0.988
+   },
+   {
+    "i": 303,
+    "ms": 313.3,
+    "blur": 5.5,
+    "scale": 0.9,
+    "ncc": 0.988
+   },
+   {
+    "i": 304,
+    "ms": 323.3,
+    "blur": 5.0,
+    "scale": 0.9,
+    "ncc": 0.992
+   },
+   {
+    "i": 305,
+    "ms": 328.3,
+    "blur": 5.0,
+    "scale": 0.9,
+    "ncc": 0.992
+   },
+   {
+    "i": 306,
+    "ms": 340.0,
+    "blur": 4.0,
+    "scale": 0.95,
+    "ncc": 0.994
+   },
+   {
+    "i": 307,
+    "ms": 345.0,
+    "blur": 4.0,
+    "scale": 0.95,
+    "ncc": 0.994
+   },
+   {
+    "i": 308,
+    "ms": 356.7,
+    "blur": 3.5,
+    "scale": 0.95,
+    "ncc": 0.995
+   },
+   {
+    "i": 309,
+    "ms": 363.3,
+    "blur": 3.5,
+    "scale": 0.95,
+    "ncc": 0.995
+   },
+   {
+    "i": 310,
+    "ms": 373.3,
+    "blur": 3.0,
+    "scale": 0.9,
+    "ncc": 0.995
+   },
+   {
+    "i": 311,
+    "ms": 380.0,
+    "blur": 3.0,
+    "scale": 0.9,
+    "ncc": 0.995
+   },
+   {
+    "i": 312,
+    "ms": 390.0,
+    "blur": 2.5,
+    "scale": 0.95,
+    "ncc": 0.993
+   },
+   {
+    "i": 313,
+    "ms": 396.7,
+    "blur": 2.5,
+    "scale": 0.95,
+    "ncc": 0.993
+   },
+   {
+    "i": 314,
+    "ms": 406.7,
+    "blur": 1.5,
+    "scale": 0.95,
+    "ncc": 0.991
+   },
+   {
+    "i": 315,
+    "ms": 413.3,
+    "blur": 1.5,
+    "scale": 0.95,
+    "ncc": 0.991
+   },
+   {
+    "i": 316,
+    "ms": 425.0,
+    "blur": 1.5,
+    "scale": 0.95,
+    "ncc": 0.989
+   },
+   {
+    "i": 317,
+    "ms": 430.0,
+    "blur": 1.5,
+    "scale": 0.95,
+    "ncc": 0.989
+   },
+   {
+    "i": 318,
+    "ms": 441.7,
+    "blur": 1.0,
+    "scale": 0.95,
+    "ncc": 0.995
+   },
+   {
+    "i": 319,
+    "ms": 446.7,
+    "blur": 1.0,
+    "scale": 0.95,
+    "ncc": 0.995
+   },
+   {
+    "i": 320,
+    "ms": 456.7,
+    "blur": 0.5,
+    "scale": 0.95,
+    "ncc": 0.995
+   }
+  ],
+  "median_blur": 3.0,
+  "frames": 19
+ },
+ "star-collapse-lb": {
+  "spec": "star-collapse-lb=/private/tmp/claude-501/-Users-omaraly-development-AI-Operator/bef75372-7901-417c-9118-4f19c37b5461/scratchpad/M/cache/native/light-black:1:-150:343:55:125:201:343",
+  "rest_frame": 239,
+  "rows": [
+   {
+    "i": 250,
+    "ms": 65.0,
+    "blur": 0.5,
+    "scale": 1.0,
+    "ncc": 0.999
+   },
+   {
+    "i": 251,
+    "ms": 70.0,
+    "blur": 1.0,
+    "scale": 1.0,
+    "ncc": 0.997
+   },
+   {
+    "i": 252,
+    "ms": 81.7,
+    "blur": 1.0,
+    "scale": 1.05,
+    "ncc": 0.998
+   },
+   {
+    "i": 253,
+    "ms": 86.7,
+    "blur": 2.0,
+    "scale": 1.05,
+    "ncc": 0.999
+   },
+   {
+    "i": 254,
+    "ms": 96.7,
+    "blur": 2.0,
+    "scale": 1.05,
+    "ncc": 0.999
+   },
+   {
+    "i": 255,
+    "ms": 103.3,
+    "blur": 2.5,
+    "scale": 1.05,
+    "ncc": 0.998
+   },
+   {
+    "i": 256,
+    "ms": 115.0,
+    "blur": 3.5,
+    "scale": 1.1,
+    "ncc": 0.996
+   }
+  ],
+  "median_blur": 2.0,
+  "frames": 7
+ },
+ "pooled": {
+  "median_blur": 1.5,
+  "frames": 93,
+  "rule": "frames of every span with ncc >= min_ncc and a blur inside the search grid, excluding 0 (sharp)"
+ }
+}

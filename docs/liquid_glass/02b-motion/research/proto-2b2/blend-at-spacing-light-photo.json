@@ -1,0 +1,1148 @@
+{
+ "S4": {
+  "quadratic": {
+   "rms": 0.165,
+   "max_abs": 0.33,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 18.0,
+     "model": 18.0
+    },
+    {
+     "gap": 4,
+     "measure": "tip",
+     "native": -0.33,
+     "model": 0.0
+    },
+    {
+     "gap": 8,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 12,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  },
+  "angle": {
+   "rms": 0.165,
+   "max_abs": 0.33,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 18.0,
+     "model": 18.0
+    },
+    {
+     "gap": 4,
+     "measure": "tip",
+     "native": -0.33,
+     "model": 0.0
+    },
+    {
+     "gap": 8,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 12,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  }
+ },
+ "S6": {
+  "quadratic": {
+   "rms": 0.332,
+   "max_abs": 0.663,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 22.0,
+     "model": 22.0
+    },
+    {
+     "gap": 4,
+     "measure": "tip",
+     "native": -0.33,
+     "model": 0.33
+    },
+    {
+     "gap": 8,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 12,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  },
+  "angle": {
+   "rms": 0.47,
+   "max_abs": 0.667,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 22.0,
+     "model": 21.33
+    },
+    {
+     "gap": 4,
+     "measure": "tip",
+     "native": -0.33,
+     "model": 0.33
+    },
+    {
+     "gap": 8,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 12,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  }
+ },
+ "S8": {
+  "quadratic": {
+   "rms": 0.226,
+   "max_abs": 0.663,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 25.667,
+     "model": 25.33
+    },
+    {
+     "gap": 2,
+     "measure": "neck",
+     "native": 18.0,
+     "model": 18.0
+    },
+    {
+     "gap": 4,
+     "measure": "neck",
+     "native": 1.333,
+     "model": 1.33
+    },
+    {
+     "gap": 5,
+     "measure": "tip",
+     "native": -0.33,
+     "model": 0.33
+    },
+    {
+     "gap": 6,
+     "measure": "tip",
+     "native": 0.33,
+     "model": 0.33
+    },
+    {
+     "gap": 7,
+     "measure": "tip",
+     "native": -0.33,
+     "model": 0.0
+    },
+    {
+     "gap": 8,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 12,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 16,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 20,
+     "measure": "tip",
+     "native": -0.33,
+     "model": 0.0
+    },
+    {
+     "gap": 24,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 32,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 40,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 48,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 60,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  },
+  "angle": {
+   "rms": 0.374,
+   "max_abs": 1.0,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 25.667,
+     "model": 24.67
+    },
+    {
+     "gap": 2,
+     "measure": "neck",
+     "native": 18.0,
+     "model": 17.33
+    },
+    {
+     "gap": 4,
+     "measure": "neck",
+     "native": 1.333,
+     "model": 1.33
+    },
+    {
+     "gap": 5,
+     "measure": "tip",
+     "native": -0.33,
+     "model": 0.33
+    },
+    {
+     "gap": 6,
+     "measure": "tip",
+     "native": 0.33,
+     "model": 0.33
+    },
+    {
+     "gap": 7,
+     "measure": "tip",
+     "native": -0.33,
+     "model": 0.0
+    },
+    {
+     "gap": 8,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 12,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 16,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 20,
+     "measure": "tip",
+     "native": -0.33,
+     "model": 0.0
+    },
+    {
+     "gap": 24,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 32,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 40,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 48,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 60,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  }
+ },
+ "S10": {
+  "quadratic": {
+   "rms": 0.373,
+   "max_abs": 0.666,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 28.333,
+     "model": 28.67
+    },
+    {
+     "gap": 4,
+     "measure": "neck",
+     "native": 12.667,
+     "model": 13.33
+    },
+    {
+     "gap": 8,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 12,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  },
+  "angle": {
+   "rms": 0.5,
+   "max_abs": 1.0,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 28.333,
+     "model": 27.33
+    },
+    {
+     "gap": 4,
+     "measure": "neck",
+     "native": 12.667,
+     "model": 12.67
+    },
+    {
+     "gap": 8,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 12,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  }
+ },
+ "S12": {
+  "quadratic": {
+   "rms": 0.834,
+   "max_abs": 1.334,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 30.333,
+     "model": 31.33
+    },
+    {
+     "gap": 4,
+     "measure": "neck",
+     "native": 17.333,
+     "model": 18.67
+    },
+    {
+     "gap": 8,
+     "measure": "tip",
+     "native": 0.67,
+     "model": 0.67
+    },
+    {
+     "gap": 12,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  },
+  "angle": {
+   "rms": 0.5,
+   "max_abs": 1.0,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 30.333,
+     "model": 29.33
+    },
+    {
+     "gap": 4,
+     "measure": "neck",
+     "native": 17.333,
+     "model": 17.33
+    },
+    {
+     "gap": 8,
+     "measure": "tip",
+     "native": 0.67,
+     "model": 0.67
+    },
+    {
+     "gap": 12,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  }
+ },
+ "S16": {
+  "quadratic": {
+   "rms": 1.414,
+   "max_abs": 2.0,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 34.667,
+     "model": 36.67
+    },
+    {
+     "gap": 4,
+     "measure": "neck",
+     "native": 24.0,
+     "model": 26.0
+    },
+    {
+     "gap": 8,
+     "measure": "neck",
+     "native": 0.667,
+     "model": 0.67
+    },
+    {
+     "gap": 12,
+     "measure": "tip",
+     "native": 0.33,
+     "model": 0.33
+    }
+   ]
+  },
+  "angle": {
+   "rms": 0.334,
+   "max_abs": 0.667,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 34.667,
+     "model": 34.0
+    },
+    {
+     "gap": 4,
+     "measure": "neck",
+     "native": 24.0,
+     "model": 24.0
+    },
+    {
+     "gap": 8,
+     "measure": "neck",
+     "native": 0.667,
+     "model": 0.67
+    },
+    {
+     "gap": 12,
+     "measure": "tip",
+     "native": 0.33,
+     "model": 0.33
+    }
+   ]
+  }
+ },
+ "S20": {
+  "quadratic": {
+   "rms": 1.398,
+   "max_abs": 3.333,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 38.0,
+     "model": 41.33
+    },
+    {
+     "gap": 4,
+     "measure": "neck",
+     "native": 29.333,
+     "model": 32.0
+    },
+    {
+     "gap": 8,
+     "measure": "neck",
+     "native": 17.333,
+     "model": 18.67
+    },
+    {
+     "gap": 9,
+     "measure": "neck",
+     "native": 12.0,
+     "model": 13.33
+    },
+    {
+     "gap": 10,
+     "measure": "neck",
+     "native": 0.667,
+     "model": 0.67
+    },
+    {
+     "gap": 11,
+     "measure": "tip",
+     "native": 1.33,
+     "model": 2.33
+    },
+    {
+     "gap": 12,
+     "measure": "tip",
+     "native": 2.0,
+     "model": 1.67
+    },
+    {
+     "gap": 14,
+     "measure": "tip",
+     "native": 1.0,
+     "model": 0.67
+    },
+    {
+     "gap": 16,
+     "measure": "tip",
+     "native": 0.33,
+     "model": 0.33
+    },
+    {
+     "gap": 18,
+     "measure": "tip",
+     "native": -0.67,
+     "model": 0.0
+    },
+    {
+     "gap": 24,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 32,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  },
+  "angle": {
+   "rms": 0.421,
+   "max_abs": 1.003,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 38.0,
+     "model": 37.33
+    },
+    {
+     "gap": 4,
+     "measure": "neck",
+     "native": 29.333,
+     "model": 29.33
+    },
+    {
+     "gap": 8,
+     "measure": "neck",
+     "native": 17.333,
+     "model": 17.33
+    },
+    {
+     "gap": 9,
+     "measure": "neck",
+     "native": 12.0,
+     "model": 12.0
+    },
+    {
+     "gap": 10,
+     "measure": "neck",
+     "native": 0.667,
+     "model": 0.67
+    },
+    {
+     "gap": 11,
+     "measure": "tip",
+     "native": 1.33,
+     "model": 2.33
+    },
+    {
+     "gap": 12,
+     "measure": "tip",
+     "native": 2.0,
+     "model": 1.67
+    },
+    {
+     "gap": 14,
+     "measure": "tip",
+     "native": 1.0,
+     "model": 0.67
+    },
+    {
+     "gap": 16,
+     "measure": "tip",
+     "native": 0.33,
+     "model": 0.33
+    },
+    {
+     "gap": 18,
+     "measure": "tip",
+     "native": -0.67,
+     "model": 0.0
+    },
+    {
+     "gap": 24,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 32,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  }
+ },
+ "S40": {
+  "quadratic": {
+   "rms": 3.926,
+   "max_abs": 10.0,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 50.0,
+     "model": 60.0
+    },
+    {
+     "gap": 4,
+     "measure": "neck",
+     "native": 45.333,
+     "model": 54.0
+    },
+    {
+     "gap": 8,
+     "measure": "neck",
+     "native": 40.0,
+     "model": 47.33
+    },
+    {
+     "gap": 12,
+     "measure": "neck",
+     "native": 33.333,
+     "model": 39.33
+    },
+    {
+     "gap": 16,
+     "measure": "neck",
+     "native": 24.667,
+     "model": 28.0
+    },
+    {
+     "gap": 18,
+     "measure": "neck",
+     "native": 16.667,
+     "model": 20.0
+    },
+    {
+     "gap": 19,
+     "measure": "neck",
+     "native": 12.0,
+     "model": 14.0
+    },
+    {
+     "gap": 20,
+     "measure": "neck",
+     "native": 0.667,
+     "model": 0.67
+    },
+    {
+     "gap": 21,
+     "measure": "tip",
+     "native": 5.0,
+     "model": 6.0
+    },
+    {
+     "gap": 22,
+     "measure": "tip",
+     "native": 4.33,
+     "model": 4.67
+    },
+    {
+     "gap": 24,
+     "measure": "tip",
+     "native": 3.33,
+     "model": 3.0
+    },
+    {
+     "gap": 28,
+     "measure": "tip",
+     "native": 1.33,
+     "model": 1.33
+    },
+    {
+     "gap": 32,
+     "measure": "tip",
+     "native": 0.67,
+     "model": 0.67
+    },
+    {
+     "gap": 36,
+     "measure": "tip",
+     "native": -0.67,
+     "model": 0.0
+    },
+    {
+     "gap": 40,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 44,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 48,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 52,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 60,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  },
+  "angle": {
+   "rms": 0.426,
+   "max_abs": 1.334,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 50.0,
+     "model": 50.0
+    },
+    {
+     "gap": 4,
+     "measure": "neck",
+     "native": 45.333,
+     "model": 45.33
+    },
+    {
+     "gap": 8,
+     "measure": "neck",
+     "native": 40.0,
+     "model": 40.0
+    },
+    {
+     "gap": 12,
+     "measure": "neck",
+     "native": 33.333,
+     "model": 33.33
+    },
+    {
+     "gap": 16,
+     "measure": "neck",
+     "native": 24.667,
+     "model": 23.33
+    },
+    {
+     "gap": 18,
+     "measure": "neck",
+     "native": 16.667,
+     "model": 16.67
+    },
+    {
+     "gap": 19,
+     "measure": "neck",
+     "native": 12.0,
+     "model": 12.0
+    },
+    {
+     "gap": 20,
+     "measure": "neck",
+     "native": 0.667,
+     "model": 0.67
+    },
+    {
+     "gap": 21,
+     "measure": "tip",
+     "native": 5.0,
+     "model": 6.0
+    },
+    {
+     "gap": 22,
+     "measure": "tip",
+     "native": 4.33,
+     "model": 4.67
+    },
+    {
+     "gap": 24,
+     "measure": "tip",
+     "native": 3.33,
+     "model": 3.0
+    },
+    {
+     "gap": 28,
+     "measure": "tip",
+     "native": 1.33,
+     "model": 1.33
+    },
+    {
+     "gap": 32,
+     "measure": "tip",
+     "native": 0.67,
+     "model": 0.67
+    },
+    {
+     "gap": 36,
+     "measure": "tip",
+     "native": -0.67,
+     "model": 0.0
+    },
+    {
+     "gap": 40,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 44,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 48,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 52,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 60,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  }
+ },
+ "S80": {
+  "quadratic": {
+   "rms": 11.489,
+   "max_abs": 23.333,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 66.0,
+     "model": 89.33
+    },
+    {
+     "gap": 4,
+     "measure": "neck",
+     "native": 64.0,
+     "model": 86.0
+    },
+    {
+     "gap": 8,
+     "measure": "neck",
+     "native": 60.667,
+     "model": 81.33
+    },
+    {
+     "gap": 12,
+     "measure": "neck",
+     "native": 58.0,
+     "model": 77.33
+    },
+    {
+     "gap": 16,
+     "measure": "neck",
+     "native": 54.667,
+     "model": 72.0
+    },
+    {
+     "gap": 24,
+     "measure": "neck",
+     "native": 45.667,
+     "model": 60.0
+    },
+    {
+     "gap": 32,
+     "measure": "neck",
+     "native": 33.333,
+     "model": 43.33
+    },
+    {
+     "gap": 36,
+     "measure": "neck",
+     "native": 24.0,
+     "model": 30.67
+    },
+    {
+     "gap": 38,
+     "measure": "neck",
+     "native": 17.0,
+     "model": 22.0
+    },
+    {
+     "gap": 40,
+     "measure": "tip",
+     "native": 18.67,
+     "model": 20.0
+    },
+    {
+     "gap": 42,
+     "measure": "tip",
+     "native": 11.33,
+     "model": 12.0
+    },
+    {
+     "gap": 44,
+     "measure": "tip",
+     "native": 9.67,
+     "model": 9.33
+    },
+    {
+     "gap": 48,
+     "measure": "tip",
+     "native": 6.67,
+     "model": 6.0
+    },
+    {
+     "gap": 56,
+     "measure": "tip",
+     "native": 2.0,
+     "model": 2.67
+    },
+    {
+     "gap": 64,
+     "measure": "tip",
+     "native": 1.0,
+     "model": 1.0
+    },
+    {
+     "gap": 72,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.33
+    },
+    {
+     "gap": 80,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 88,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 96,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  },
+  "angle": {
+   "rms": 0.412,
+   "max_abs": 0.997,
+   "rows": [
+    {
+     "gap": 0,
+     "measure": "neck",
+     "native": 66.0,
+     "model": 66.0
+    },
+    {
+     "gap": 4,
+     "measure": "neck",
+     "native": 64.0,
+     "model": 64.0
+    },
+    {
+     "gap": 8,
+     "measure": "neck",
+     "native": 60.667,
+     "model": 61.33
+    },
+    {
+     "gap": 12,
+     "measure": "neck",
+     "native": 58.0,
+     "model": 58.0
+    },
+    {
+     "gap": 16,
+     "measure": "neck",
+     "native": 54.667,
+     "model": 54.67
+    },
+    {
+     "gap": 24,
+     "measure": "neck",
+     "native": 45.667,
+     "model": 45.33
+    },
+    {
+     "gap": 32,
+     "measure": "neck",
+     "native": 33.333,
+     "model": 33.33
+    },
+    {
+     "gap": 36,
+     "measure": "neck",
+     "native": 24.0,
+     "model": 24.0
+    },
+    {
+     "gap": 38,
+     "measure": "neck",
+     "native": 17.0,
+     "model": 16.67
+    },
+    {
+     "gap": 40,
+     "measure": "tip",
+     "native": 18.67,
+     "model": 19.67
+    },
+    {
+     "gap": 42,
+     "measure": "tip",
+     "native": 11.33,
+     "model": 12.0
+    },
+    {
+     "gap": 44,
+     "measure": "tip",
+     "native": 9.67,
+     "model": 9.33
+    },
+    {
+     "gap": 48,
+     "measure": "tip",
+     "native": 6.67,
+     "model": 6.0
+    },
+    {
+     "gap": 56,
+     "measure": "tip",
+     "native": 2.0,
+     "model": 2.67
+    },
+    {
+     "gap": 64,
+     "measure": "tip",
+     "native": 1.0,
+     "model": 1.0
+    },
+    {
+     "gap": 72,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.33
+    },
+    {
+     "gap": 80,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 88,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    },
+    {
+     "gap": 96,
+     "measure": "tip",
+     "native": 0.0,
+     "model": 0.0
+    }
+   ]
+  }
+ }
+}

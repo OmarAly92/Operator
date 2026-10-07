@@ -1,0 +1,42 @@
+#### run build/glass_lab/runs/20261007-073538
+material.materialize dark-photo-reduce-motion: pass 26 / judged 29 / expected 29 (static+topology 8/10, motion 18/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL ready.bbox_pt 2 > 1
+   FAIL settled.bbox_pt 2 > 1
+   FAIL motion.block.step3e0.progress.sharpness 1.367 > 1
+material.materialize dark-stripes-reduce-motion: pass 28 / judged 29 / expected 29 (static+topology 10/10, motion 18/19); events [2, 2] touches [2, 2] stalls flutter [25] native []
+   FAIL motion.block.step3e0.progress.settle_ms 41.667 > 25
+material.materialize light-photo-reduce-motion: pass 28 / judged 29 / expected 29 (static+topology 10/10, motion 18/19); events [2, 2] touches [2, 2] stalls flutter [32] native [25]
+   FAIL motion.block.step3e0.progress.sharpness 1.038 > 1
+material.materialize light-stripes-reduce-motion: pass 29 / judged 29 / expected 29 (static+topology 10/10, motion 19/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+material.materialize.bouncy dark-photo-reduce-motion: pass 19 / judged 27 / expected 29 (static+topology 8/10, motion 11/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL ready.bbox_pt 2 > 1
+   FAIL settled.bbox_pt 2 > 1
+   FAIL motion.block.step1e0.progress.t10_90_ms 58.333 > 17
+   FAIL motion.block.step1e0.progress.settle_ms 83.333 > 25
+   FAIL motion.block.step1e0.progress.response_pct absent > 37.5 [ fit_invalid {'flutter': 'at the grid edge'}]
+   FAIL motion.block.step1e0.progress.damping absent > 0.18 [ fit_invalid {'flutter': 'at the grid edge'}]
+   FAIL motion.block.step1e0.progress.rms 0.078 > 0.05
+   FAIL motion.block.step1e0.progress.sharpness 1.966 > 1
+   FAIL motion.block.step3e0.progress.settle_ms 200 > 75
+   FAIL motion.block.step3e0.progress.sharpness 1.249 > 1
+material.materialize.bouncy dark-stripes-reduce-motion: pass 28 / judged 29 / expected 29 (static+topology 10/10, motion 18/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL motion.block.step3e0.progress.response_pct 12.195 > 7.5 []
+material.materialize.bouncy light-photo-reduce-motion: pass 28 / judged 29 / expected 29 (static+topology 10/10, motion 18/19); events [2, 2] touches [2, 2] stalls flutter [25] native []
+   FAIL motion.block.step3e0.progress.sharpness 1.071 > 1
+material.materialize.bouncy light-stripes-reduce-motion: pass 28 / judged 29 / expected 29 (static+topology 10/10, motion 18/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL motion.block.step3e0.progress.settle_ms 25 > 17
+material.materialize.snappy dark-photo-reduce-motion: pass 24 / judged 29 / expected 29 (static+topology 8/10, motion 16/19); events [2, 2] touches [2, 2] stalls flutter [25] native []
+   FAIL ready.bbox_pt 2 > 1
+   FAIL settled.bbox_pt 2 > 1
+   FAIL motion.block.step1e0.progress.settle_ms 25 > 17
+   FAIL motion.block.step1e0.progress.sharpness 1.34 > 1
+   FAIL motion.block.step3e0.progress.sharpness 1.606 > 1
+material.materialize.snappy dark-stripes-reduce-motion: pass 27 / judged 29 / expected 29 (static+topology 10/10, motion 17/19); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL motion.block.step1e0.progress.damping 0.08 > 0.06 []
+   FAIL motion.block.step3e0.progress.response_pct 10 > 8.654 []
+material.materialize.snappy light-photo-reduce-motion: pass 25 / judged 29 / expected 29 (static+topology 10/10, motion 15/19); events [2, 2] touches [2, 2] stalls flutter [] native [48]
+   FAIL motion.block.step1e0.progress.settle_ms 50 > 17
+   FAIL motion.block.step1e0.progress.response_pct 51.163 > 13.043 []
+   FAIL motion.block.step1e0.progress.damping 0.25 > 0.09 []
+   FAIL motion.block.step1e0.progress.sharpness 1.197 > 1
+material.materialize.snappy light-stripes-reduce-motion: pass 29 / judged 29 / expected 29 (static+topology 10/10, motion 19/19); events [2, 2] touches [2, 2] stalls flutter [] native []

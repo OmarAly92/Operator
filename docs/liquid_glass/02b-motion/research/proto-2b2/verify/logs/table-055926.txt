@@ -1,0 +1,23 @@
+#### run build/glass_lab/runs/20261007-055926
+material.union dark-stripes: pass 3 / judged 16 / expected 19 (static+topology 3/19, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.mad 11.128 > 4
+   FAIL ready.luminance 11.05 > 3
+   FAIL ready.rim_rms 12.137 > 6
+   FAIL ready.bbox_pt 8 > 1
+   FAIL ready.centre_pt 3.5 > 1
+   FAIL settled.mad 11.128 > 4
+   FAIL settled.luminance 11.05 > 3
+   FAIL settled.rim_rms 12.137 > 6
+   FAIL settled.bbox_pt 8 > 1
+   FAIL settled.centre_pt 3.5 > 1
+   FAIL ready.topology.first.count 2 > 0
+   FAIL ready.topology.first.neck_pt absent > 1
+   FAIL ready.topology.second.count 3 > 0
+   FAIL ready.topology.second.neck_pt absent > 1
+   FAIL ready.topology.pair.count 5 > 0
+   FAIL ready.topology.pair.gap_pt absent > 1
+material.union light-stripes: pass 15 / judged 19 / expected 19 (static+topology 15/19, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.mad 5.653 > 4
+   FAIL ready.luminance 4.477 > 3
+   FAIL settled.mad 5.653 > 4
+   FAIL settled.luminance 4.477 > 3

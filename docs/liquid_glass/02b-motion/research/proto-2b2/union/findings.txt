@@ -1,0 +1,7 @@
+Native material.union (light-black 20261007-011938, stripes 20261007-011723, photo 20261007-011829; numbers from union.json, union_measure.py).
+Members laid out at x 49-113, 129-193, 209-273, 289-353, centred on y 451 (HStack spacing 16, default container, spacing 8).
+1. Each union draws as one circle-ended capsule on the bounding rect of its members' layout rects: light-black boxes 49.0-193.0 and 209.0-353.0 x 419.0-483.0 pt (144.0 x 64.0); end arcs fit r 31.91 pt (RMS 0.12) centred x 80.74/161.26 and 240.74/321.26, y 451.0; the silhouette differs from a circle-ended capsule of that box at 3 px/pt by 37.3 pt2 of about 8,340 pt2 (at most 0.67 pt, top edge), and from the two member circles by 1,940 pt2.
+2. Top and bottom edges are straight between the arcs (range 0.33 pt light-black, 0.33-0.67 elsewhere); the flat top runs x 83.5-158.5 against 81.0-161.0 for a circle-ended capsule, within pixel quantisation.
+3. The two unions do not blend: 2 components in every case, 16.0 pt apart on light-black (14.66 on stripes and photo, outline and shadow add a pixel per side); facing ends have the outer ends' radius (31.90-32.32), no bulge.
+4. Content stays at the members' centres: glyph centres x 81.17, 161.0, 240.83, 321.0, y 451.0-451.33.
+5. No seam: light-black luma 20 pt above centre is 130.0 at both member centres and at the junction (x 121, 281).

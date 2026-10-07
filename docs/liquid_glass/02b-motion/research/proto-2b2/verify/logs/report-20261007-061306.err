@@ -1,0 +1,16 @@
+/Users/omaraly/development/AI/Operator-2b2-proto/packages/mobile/tool/glass_lab/harness/shapes.py:191: RuntimeWarning: All-NaN axis encountered
+  "residual_peak": float(np.nanmax(series["residual"])),
+/Users/omaraly/development/AI/Operator-2b2-proto/packages/mobile/tool/glass_lab/harness/shapes.py:191: RuntimeWarning: All-NaN axis encountered
+  "residual_peak": float(np.nanmax(series["residual"])),
+/Users/omaraly/development/AI/Operator-2b2-proto/packages/mobile/tool/glass_lab/harness/shapes.py:191: RuntimeWarning: All-NaN axis encountered
+  "residual_peak": float(np.nanmax(series["residual"])),
+/Users/omaraly/development/AI/Operator-2b2-proto/packages/mobile/tool/glass_lab/harness/shapes.py:191: RuntimeWarning: All-NaN axis encountered
+  "residual_peak": float(np.nanmax(series["residual"])),
+/Users/omaraly/development/AI/Operator-2b2-proto/packages/mobile/tool/glass_lab/harness/shapes.py:191: RuntimeWarning: All-NaN axis encountered
+  "residual_peak": float(np.nanmax(series["residual"])),
+/Users/omaraly/development/AI/Operator-2b2-proto/packages/mobile/tool/glass_lab/harness/shapes.py:191: RuntimeWarning: All-NaN axis encountered
+  "residual_peak": float(np.nanmax(series["residual"])),
+/Users/omaraly/development/AI/Operator-2b2-proto/packages/mobile/tool/glass_lab/harness/shapes.py:191: RuntimeWarning: All-NaN axis encountered
+  "residual_peak": float(np.nanmax(series["residual"])),
+/Users/omaraly/development/AI/Operator-2b2-proto/packages/mobile/tool/glass_lab/harness/shapes.py:191: RuntimeWarning: All-NaN axis encountered
+  "residual_peak": float(np.nanmax(series["residual"])),

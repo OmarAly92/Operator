@@ -1,0 +1,19 @@
+track.topology_mask with TOPOLOGY_LUMA = T (first column) and TOPOLOGY_CLOSE = k (second column) patched, over each material.merge case's analysed window (the same window merge_topology.py uses); per case [disagreements with the 24 hand labels of hand-labels.json, count transitions inside the window]. Pass is [0, 2] in every case. Evaluated by a throwaway scratch script on the same track.extract frames; merge_topology.py reproduces the chosen T = 8, k = 2.
+4.0 2 {"dark-stripes": [3, 2], "light-stripes": [3, 2], "dark-photo": [5, 2], "light-photo": [3, 2], "light-black": [0, 2]}
+5.0 2 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [1, 2], "light-photo": [0, 2], "light-black": [0, 2]}
+6.0 1 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [0, 2], "light-photo": [0, 2], "light-black": [0, 2]}
+8.0 1 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [0, 2], "light-photo": [0, 2], "light-black": [0, 2]}
+12.0 1 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [3, 9], "light-photo": [0, 2], "light-black": [0, 2]}
+14.0 1 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [10, 18], "light-photo": [0, 2], "light-black": [0, 2]}
+16.0 1 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [16, 23], "light-photo": [0, 2], "light-black": [0, 2]}
+6.0 2 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [0, 2], "light-photo": [0, 2], "light-black": [0, 2]}
+8.0 2 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [0, 2], "light-photo": [0, 2], "light-black": [0, 2]}
+12.0 2 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [1, 3], "light-photo": [0, 2], "light-black": [0, 2]}
+14.0 2 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [4, 5], "light-photo": [0, 2], "light-black": [0, 2]}
+16.0 2 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [11, 15], "light-photo": [0, 2], "light-black": [0, 2]}
+6.0 3 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [0, 2], "light-photo": [0, 2], "light-black": [0, 2]}
+8.0 3 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [0, 2], "light-photo": [0, 2], "light-black": [0, 2]}
+12.0 3 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [0, 2], "light-photo": [0, 2], "light-black": [0, 2]}
+14.0 3 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [3, 6], "light-photo": [0, 2], "light-black": [0, 2]}
+16.0 3 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [11, 14], "light-photo": [0, 2], "light-black": [0, 2]}
+10.0 2 {"dark-stripes": [0, 2], "light-stripes": [0, 2], "dark-photo": [0, 2], "light-photo": [0, 2], "light-black": [0, 2]}

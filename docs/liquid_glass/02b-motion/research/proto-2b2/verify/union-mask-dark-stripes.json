@@ -1,0 +1,170 @@
+{
+ "native.first": {
+  "count": 3.0,
+  "neck": NaN,
+  "gap": NaN,
+  "component_boxes_pt": [
+   [
+    113,
+    17,
+    44,
+    55
+   ],
+   [
+    96,
+    12,
+    16,
+    64
+   ],
+   [
+    21,
+    16,
+    37,
+    57
+   ]
+  ],
+  "rim_px": 25384,
+  "grain_px": 2149,
+  "mask_px": 26091
+ },
+ "native.second": {
+  "count": 4.0,
+  "neck": NaN,
+  "gap": NaN,
+  "component_boxes_pt": [
+   [
+    112,
+    15,
+    45,
+    59
+   ],
+   [
+    64,
+    12,
+    27,
+    64
+   ],
+   [
+    36,
+    31,
+    16,
+    27
+   ],
+   [
+    12,
+    28,
+    5,
+    29
+   ]
+  ],
+  "rim_px": 20962,
+  "grain_px": 2148,
+  "mask_px": 25349
+ },
+ "native.pair": {
+  "count": 7.0,
+  "neck": NaN,
+  "gap": NaN,
+  "component_boxes_pt": [
+   [
+    272,
+    15,
+    45,
+    59
+   ],
+   [
+    113,
+    17,
+    44,
+    55
+   ],
+   [
+    224,
+    12,
+    27,
+    64
+   ],
+   [
+    96,
+    12,
+    16,
+    64
+   ],
+   [
+    21,
+    16,
+    37,
+    57
+   ],
+   [
+    196,
+    31,
+    16,
+    27
+   ],
+   [
+    172,
+    28,
+    5,
+    29
+   ]
+  ],
+  "rim_px": 46346,
+  "grain_px": 4297,
+  "mask_px": 51440
+ },
+ "flutter.first": {
+  "count": 1.0,
+  "neck": 62.0,
+  "gap": NaN,
+  "component_boxes_pt": [
+   [
+    12,
+    12,
+    145,
+    64
+   ]
+  ],
+  "rim_px": 64026,
+  "grain_px": 2155,
+  "mask_px": 75382
+ },
+ "flutter.second": {
+  "count": 1.0,
+  "neck": 61.333333333333336,
+  "gap": NaN,
+  "component_boxes_pt": [
+   [
+    12,
+    12,
+    145,
+    64
+   ]
+  ],
+  "rim_px": 51860,
+  "grain_px": 2159,
+  "mask_px": 75128
+ },
+ "flutter.pair": {
+  "count": 2.0,
+  "neck": NaN,
+  "gap": 14.666666666666666,
+  "component_boxes_pt": [
+   [
+    12,
+    12,
+    145,
+    64
+   ],
+   [
+    172,
+    12,
+    145,
+    64
+   ]
+  ],
+  "rim_px": 115886,
+  "grain_px": 4314,
+  "mask_px": 150510
+ }
+}

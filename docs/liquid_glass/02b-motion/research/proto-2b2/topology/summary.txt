@@ -1,0 +1,18 @@
+Topology masks (brief T, 2B.2 prototype stage 2)
+
+Video (track.topology_mask, used only by track.topology_row; L1's glass_mask and shape_row are unchanged):
+  change = |luma(frame) - luma(bare)| > 8 (TOPOLOGY_LUMA); H.264 codes luma at full resolution and rings mostly in chroma (4:2:0), so the stripe-boundary ringing that forced L1's edge-aware threshold barely moves luma.
+  solid = holes filled in the 5 x 5 closing of change (TOPOLOGY_CLOSE = 2), so a glass seen only by its rim is solid.
+  mask = solid, minus closing additions within 2 px of the outside (cusps are not filled, rim breaks are not bridged).
+  material.merge native, 5 cases, 120 hand-labelled frames (hand-labels.json): tracker equals every label; counts in every analysed window are only 1 and 2 (merge-topology.json). The L1 mask disagreed with 96 of the 120 labels (all stripes and photo frames).
+  Pass band of the luma threshold at k = 2: 6 to 10 (5 and 12 fail on dark-photo); 8 is its centre (threshold-band.txt).
+
+Still (track.still_mask, used only by shapes.static_topology):
+  rim = max-channel |frame - bare| > 30 (STILL_RIM, the silhouette's ring);
+  grain = where the bare's own grain (3 x 3 high-pass) has energy > 4 per pixel over a 5 x 5 window, the frame has lost more than 0.8 of it (the glass blurs the backdrop; the cusp outline only darkens it and keeps the grain);
+  mask = holes filled in rim | grain.
+  141 native N7 takes, 531 regions: counts agree dark-photo = light-photo = light-black = light-photo silhouette on every fresh region and in every 2B.1 take; light-photo necks within 1 px of the silhouette (still-check.txt).
+  Limitation: on a backdrop with no grain (black, stripes, white) only the rim > 30 levels marks glass.
+
+Gap (track.gap, ready.topology.<region>.gap_pt, threshold 1.0 pt like neck_pt): empty pixels on the segment between the two components' centroids, NaN unless exactly two components.
+  Native dark-photo and light-photo gaps differ by up to 3.67 pt near the merge reach (80.c g44 26.00 against 22.33): on light the dark outline outside the silhouette exceeds 30 levels and joins the mask; on dark it is ~10 levels and the mask stops a pixel inside the bright edge pixel (still-check.json).
