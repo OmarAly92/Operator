@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:ios_liquid_glass_example/lab/glass_lab_launch.dart';
 import 'package:ios_liquid_glass_example/lab/glass_lab_screen.dart';
+import 'package:ios_liquid_glass_example/lab/scenes/material_scenes.dart';
 
 const Size _screen = Size(402, 874);
 
@@ -39,7 +40,7 @@ void main() {
     expect(glasses.map((glass) => glass.glass).toSet(), {Glass.regular});
     final icons = tester.widgetList<Icon>(find.byType(Icon)).toList();
     expect([for (final icon in icons) icon.icon], [Icons.star, Icons.favorite, Icons.bolt, Icons.eco]);
-    expect(icons.map((icon) => icon.size).toSet(), {24});
+    expect([for (final icon in icons) icon.size], UnionScene.glyphSizes);
     for (final (index, icon) in icons.indexed) {
       expect(tester.getCenter(find.byWidget(icon)), rects[index].center);
       expect(find.ancestor(of: find.byWidget(icon), matching: find.byType(GlassForeground)), findsOneWidget);

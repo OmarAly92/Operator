@@ -199,6 +199,7 @@ class UnionScene extends StatefulWidget {
   const UnionScene({super.key, required this.backdrop});
 
   static const List<IconData> symbols = [Icons.star, Icons.favorite, Icons.bolt, Icons.eco];
+  static const List<double> glyphSizes = [24, 24, 24, 24];
 
   final String backdrop;
 
@@ -222,7 +223,7 @@ class _UnionSceneState extends State<UnionScene> {
                 if (index > 0) const SizedBox(width: 16),
                 GlassEffect(
                   union: GlassEffectUnion(index < 2 ? 'first' : 'second', _namespace),
-                  child: SizedBox.square(dimension: 64, child: GlassForeground(child: Icon(icon, size: 24))),
+                  child: SizedBox.square(dimension: 64, child: GlassForeground(child: Icon(icon, size: UnionScene.glyphSizes[index]))),
                 ),
               ],
             ],
