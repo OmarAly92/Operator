@@ -155,6 +155,9 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
     return outline.shift(-MatrixUtils.transformPoint(shape.getTransformTo(space), Offset.zero));
   }
 
+  @override
+  bool get isTransient => false;
+
   void _unionMoved() => notifyListeners();
 
   void attachBox(RenderBox box) => _box = box;
@@ -522,6 +525,9 @@ class GlassGhost extends ChangeNotifier implements GlassShapeMotion {
 
   @override
   GlassUnionOutline? union(RenderBox shape) => null;
+
+  @override
+  bool get isTransient => true;
 
   @override
   void dispose() {

@@ -20,6 +20,9 @@ class _Motion extends ChangeNotifier implements GlassShapeMotion {
   Rect resolve(RenderBox shape) => drawn;
 
   @override
+  bool get isTransient => false;
+
+  @override
   GlassUnionOutline? union(RenderBox shape) => null;
 
   void move(Rect rect) {

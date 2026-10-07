@@ -7,6 +7,8 @@ abstract interface class GlassShapeMotion implements Listenable {
   Rect resolve(RenderBox shape);
 
   GlassUnionOutline? union(RenderBox shape);
+
+  bool get isTransient;
 }
 
 @internal
