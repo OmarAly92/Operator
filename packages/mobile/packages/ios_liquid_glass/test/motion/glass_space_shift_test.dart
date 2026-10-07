@@ -67,6 +67,48 @@ class _MergeState extends State<_Merge> {
   }
 }
 
+class _Grow extends StatefulWidget {
+  const _Grow();
+
+  @override
+  State<_Grow> createState() => _GrowState();
+}
+
+class _GrowState extends State<_Grow> {
+  bool grown = false;
+
+  void toggle() => withGlassAnimation(GlassAnimation.defaultSpring, () => setState(() => grown = !grown));
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: GlassTheme(
+        data: const GlassThemeData(brightness: Brightness.dark),
+        child: CustomSingleChildLayout(
+          delegate: const _Center(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GlassEffectContainer(
+                spacing: 20,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (grown) const SizedBox(height: 100, width: 56),
+                    const GlassEffect(key: ValueKey('g'), child: SizedBox.square(dimension: 56)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Rect _layout(WidgetTester tester, String key) => tester.getRect(find.descendant(of: find.byKey(ValueKey(key)), matching: find.byType(GlassMemberBox)).first);
+
 GlassMember _member(WidgetTester tester, String key) => tester
     .renderObject<RenderGlassMemberBox>(find.descendant(of: find.byKey(ValueKey(key)), matching: find.byType(GlassMemberBox)).first)
     .member;
@@ -116,5 +158,37 @@ void main() {
     expect(left.syncMoved(), isFalse);
     await tester.pump(const Duration(milliseconds: 100));
     expect(left.syncMoved(), isFalse);
+  });
+
+  testWidgets('glass in a space that re-centres as its container grows is drawn at its old place in the frame of the change and springs to the new', (tester) async {
+    await tester.pumpWidget(const _Grow());
+    await tester.pump(const Duration(seconds: 1));
+    final old = _layout(tester, 'g');
+    final member = _member(tester, 'g');
+    tester.state<_GrowState>(find.byType(_Grow)).toggle();
+    await tester.pump();
+    final target = _layout(tester, 'g');
+    expect(target.top - old.top, closeTo(50, 1e-6));
+    expect(_onScreen(member).top, closeTo(old.top, 1e-6));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(_onScreen(member).top, inExclusiveRange(old.top, target.top));
+    await tester.pumpAndSettle();
+    expect(_onScreen(member).top, closeTo(target.top, 1e-6));
+  });
+
+  testWidgets('glass in a space that re-centres as its container shrinks is drawn at its old place in the frame of the change', (tester) async {
+    await tester.pumpWidget(const _Grow());
+    final state = tester.state<_GrowState>(find.byType(_Grow));
+    state.toggle();
+    await tester.pumpAndSettle();
+    final old = _layout(tester, 'g');
+    final member = _member(tester, 'g');
+    state.toggle();
+    await tester.pump();
+    final target = _layout(tester, 'g');
+    expect(target.top - old.top, closeTo(-50, 1e-6));
+    expect(_onScreen(member).top, closeTo(old.top, 1e-6));
+    await tester.pumpAndSettle();
+    expect(_onScreen(member).top, closeTo(target.top, 1e-6));
   });
 }

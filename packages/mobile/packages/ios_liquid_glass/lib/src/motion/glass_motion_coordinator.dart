@@ -260,7 +260,6 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
     if (box == null || space == null || !box.attached || !space.attached || !box.hasSize) return;
     final live = MatrixUtils.transformPoint(box.getTransformTo(space), Offset.zero);
     final inner = _scrollShift(space);
-    final anchor = live - inner;
     _live = live;
     _liveSpace = space;
     _innerAtLive = inner;
@@ -269,6 +268,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
       _originFrame = frame;
       _readSpace(space, inner);
     }
+    final anchor = live - inner + _spaceOrigin! - _outerAtOrigin;
     final arrival = _arrival, size = _size;
     if (arrival != null && size != null) {
       _arrival = null;
