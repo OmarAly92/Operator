@@ -1,0 +1,2 @@
+material.materialize light-photo-reduce-motion: 5 takes, static mad 0.00, 0 values moved
+0 values moved, 0 limits moved

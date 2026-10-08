@@ -1,0 +1,31 @@
+20 scene, case and frame triples compared; 20 Flutter frames byte-identical to the 2A run
+identical flutter material.regular dark-black ready: native frame max difference 1.0
+identical flutter material.regular dark-black settled: native frame max difference 1.0
+identical flutter material.regular dark-photo ready: native frame max difference 0.0
+identical flutter material.regular dark-photo settled: native frame max difference 0.0
+identical flutter material.regular dark-stripes ready: native frame max difference 0.0
+identical flutter material.regular dark-stripes settled: native frame max difference 0.0
+identical flutter material.regular dark-text ready: native frame max difference 0.0
+identical flutter material.regular dark-text settled: native frame max difference 0.0
+identical flutter material.regular dark-white ready: native frame max difference 0.0
+identical flutter material.regular dark-white settled: native frame max difference 0.0
+identical flutter material.regular light-black ready: native frame max difference 0.0
+identical flutter material.regular light-black settled: native frame max difference 0.0
+identical flutter material.regular light-photo ready: native frame max difference 0.0
+identical flutter material.regular light-photo settled: native frame max difference 0.0
+identical flutter material.regular light-stripes ready: native frame max difference 0.0
+identical flutter material.regular light-stripes settled: native frame max difference 0.0
+identical flutter material.regular light-text ready: native frame max difference 0.0
+identical flutter material.regular light-text settled: native frame max difference 0.0
+identical flutter material.regular light-white ready: native frame max difference 0.0
+identical flutter material.regular light-white settled: native frame max difference 0.0
+material.regular dark-black ready mad: 0.39 -> 0.39 (pass -> pass), flutter frame max difference 0.0, native 1.0
+material.regular dark-black ready luminance: 0.09 -> 0.09 (pass -> pass), flutter frame max difference 0.0, native 1.0
+material.regular dark-black settled mad: 0.39 -> 0.39 (pass -> pass), flutter frame max difference 0.0, native 1.0
+material.regular dark-black settled luminance: 0.09 -> 0.09 (pass -> pass), flutter frame max difference 0.0, native 1.0
+material.regular dark-text ready rim_rms: 10.18 -> 10.18 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.regular dark-text settled rim_rms: 10.18 -> 10.18 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.regular light-photo ready bbox_pt: 2.00 -> 2.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.regular light-photo settled bbox_pt: 2.00 -> 2.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+missing: 0
+worse: 0
