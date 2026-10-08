@@ -67,12 +67,13 @@ Future<(_Group, List<RenderLiquidGlass>)> _group(List<_Motion> motions) async {
   return (group, glasses);
 }
 
-Future<(_Group, List<RenderLiquidGlass>)> _placed(List<(LiquidShape, Rect)> members) async {
+Future<(_Group, List<RenderLiquidGlass>)> _placed(List<(LiquidShape, Rect)> members, {Set<int> ghosts = const {}}) async {
   final program = await ui.FragmentProgram.fromAsset('lib/assets/shaders/liquid_glass_final_render.frag');
   final link = GlassGroupLink();
   final glasses = [
-    for (final (shape, rect) in members)
+    for (final (index, (shape, rect)) in members.indexed)
       RenderLiquidGlass(shape: shape, glassContainsChild: false, blendGroupLink: link)
+        ..motion = ghosts.contains(index) ? _Motion(transient: true) : null
         ..child = RenderConstrainedBox(additionalConstraints: BoxConstraints.tight(rect.size)),
   ];
   final stack = RenderStack(textDirection: TextDirection.ltr, children: glasses);
@@ -202,5 +203,19 @@ void main() {
     final (_, shapes, _) = group.gatherShapeData();
     expect(shapes, hasLength(16));
     expect(shapes.map((shape) => shape.renderObject), [for (var i = 0; i < 32; i += 2) glasses[i]]);
+  });
+
+  test('a ghost on the same rect as a member never stands in for the member', () async {
+    final (group, glasses) = await _placed([(_capsule, _first), (_capsule, _first)], ghosts: {0});
+    final (_, shapes, _) = group.gatherShapeData();
+    expect(shapes, hasLength(1));
+    expect(shapes.single.renderObject, glasses.last);
+  });
+
+  test('a member registered first keeps its place when a ghost sits on its rect', () async {
+    final (group, glasses) = await _placed([(_capsule, _first), (_capsule, _first)], ghosts: {1});
+    final (_, shapes, _) = group.gatherShapeData();
+    expect(shapes, hasLength(1));
+    expect(shapes.single.renderObject, glasses.first);
   });
 }

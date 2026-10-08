@@ -336,10 +336,15 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
           glassContainsChild,
           union?.rect ?? renderObject.drawnRect,
         );
-        if (candidates.any((candidate) => _coincident(candidate.$1, info))) {
-          continue;
+        final transient = renderObject.motion?.isTransient ?? false;
+        final twin = candidates.indexWhere(
+          (candidate) => _coincident(candidate.$1, info),
+        );
+        if (twin == -1) {
+          candidates.add((info, transient));
+        } else if (candidates[twin].$2 && !transient) {
+          candidates[twin] = (info, transient);
         }
-        candidates.add((info, renderObject.motion?.isTransient ?? false));
       } catch (e) {
         debugPrint('Failed to compute shape info: $e');
       }
