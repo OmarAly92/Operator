@@ -1,0 +1,9 @@
+navbar.inline dark-black ready.png, glass mask luma > 25 on black, height in pt of the glass column at x (3 px per pt), rows 150-400 px
+run                                          x=335   x=337.5  x=338.5  x=341
+2B.1 Flutter   20261006-175623                36.00   36.00    36.67    38.67
+seam (Step 9)  20261008-093137                22.00   20.67    16.00    17.33
+corrected      20261008-225125 (and -225900)  16.00   13.33    13.33    16.67
+native         20261008-225125                44.00   44.00    44.00    44.00
+Model (test/geometry/coincident_union_test.dart): 15.82 at x = 335, 12.41 at the bisector x = 338, equal on both sides; the frame quantises to 1/3 pt.
+Bisector x = 338 pt: the corrected frame reads 13.33 on both sides (the seam run read 20.67 left, 16.00 right).
+Crop: crops/navbar-inline-ruling33-dark-black.png (top left 2B.1, top right seam run, bottom left corrected, bottom right native).

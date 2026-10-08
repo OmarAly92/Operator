@@ -1,0 +1,208 @@
+#### run /Users/omaraly/development/AI/Operator-2b2/packages/mobile/build/glass_lab/runs/20261009-012639
+material.spacing.10.a dark-photo: pass 17 / judged 22 / expected 22 (static+topology 17/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+   FAIL ready.topology.g0.neck_pt 3 > 1
+material.spacing.10.a light-photo: pass 22 / judged 22 / expected 22 (static+topology 22/22, motion 0/0); events None touches None stalls flutter [] native []
+material.spacing.12.a dark-photo: pass 16 / judged 22 / expected 22 (static+topology 16/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+   FAIL ready.topology.g0.neck_pt 2.667 > 1
+   FAIL ready.topology.g8.gap_pt 3 > 1
+material.spacing.12.a light-photo: pass 21 / judged 22 / expected 22 (static+topology 21/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.topology.g0.neck_pt 1.333 > 1
+material.spacing.16.a dark-photo: pass 17 / judged 21 / expected 22 (static+topology 17/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+   FAIL ready.topology.g8.neck_pt absent > 1
+material.spacing.16.a light-photo: pass 22 / judged 22 / expected 22 (static+topology 22/22, motion 0/0); events None touches None stalls flutter [] native []
+material.spacing.20.a dark-photo: pass 15 / judged 22 / expected 22 (static+topology 15/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+   FAIL ready.topology.g0.neck_pt 2 > 1
+   FAIL ready.topology.g4.neck_pt 1.333 > 1
+   FAIL ready.topology.g12.gap_pt 4 > 1
+material.spacing.20.a light-photo: pass 22 / judged 22 / expected 22 (static+topology 22/22, motion 0/0); events None touches None stalls flutter [] native []
+material.spacing.20.b dark-photo: pass 11 / judged 18 / expected 22 (static+topology 11/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+   FAIL ready.topology.g9.neck_pt 4.333 > 1
+   FAIL ready.topology.g10.count 1 > 0
+   FAIL ready.topology.g10.neck_pt absent > 1
+   FAIL ready.topology.g10.gap_pt absent > 1
+   FAIL ready.topology.g11.count 1 > 0
+   FAIL ready.topology.g11.neck_pt absent > 1
+   FAIL ready.topology.g11.gap_pt absent > 1
+material.spacing.20.b light-photo: pass 19 / judged 22 / expected 22 (static+topology 19/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.topology.g9.neck_pt 1.333 > 1
+   FAIL ready.topology.g10.neck_pt 5 > 1
+   FAIL ready.topology.g11.gap_pt 4 > 1
+material.spacing.20.c dark-photo: pass 18 / judged 22 / expected 22 (static+topology 18/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+material.spacing.20.c light-photo: pass 20 / judged 22 / expected 22 (static+topology 20/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.rim_rms 6.975 > 6
+   FAIL settled.rim_rms 6.975 > 6
+material.spacing.4.a dark-photo: pass 17 / judged 22 / expected 22 (static+topology 17/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+   FAIL ready.topology.g0.neck_pt 4.333 > 1
+material.spacing.4.a light-photo: pass 21 / judged 22 / expected 22 (static+topology 21/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.topology.g0.neck_pt 3 > 1
+material.spacing.40.a dark-photo: pass 18 / judged 22 / expected 22 (static+topology 18/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+material.spacing.40.a light-photo: pass 22 / judged 22 / expected 22 (static+topology 22/22, motion 0/0); events None touches None stalls flutter [] native []
+material.spacing.40.b dark-photo: pass 14 / judged 20 / expected 22 (static+topology 14/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+   FAIL ready.topology.g20.count 1 > 0
+   FAIL ready.topology.g20.neck_pt absent > 1
+   FAIL ready.topology.g20.gap_pt absent > 1
+   FAIL ready.topology.g24.gap_pt 3 > 1
+material.spacing.40.b light-photo: pass 21 / judged 22 / expected 22 (static+topology 21/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.topology.g20.neck_pt 4.667 > 1
+material.spacing.40.c dark-photo: pass 17 / judged 19 / expected 19 (static+topology 17/19, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 2 > 1
+   FAIL settled.bbox_pt 2 > 1
+material.spacing.40.c light-photo: pass 15 / judged 19 / expected 19 (static+topology 15/19, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 3 > 1
+   FAIL ready.centre_pt 1.5 > 1
+   FAIL settled.bbox_pt 3 > 1
+   FAIL settled.centre_pt 1.5 > 1
+material.spacing.40.d dark-photo: pass 13 / judged 20 / expected 22 (static+topology 13/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+   FAIL ready.topology.g19.neck_pt 1.333 > 1
+   FAIL ready.topology.g21.count 1 > 0
+   FAIL ready.topology.g21.neck_pt absent > 1
+   FAIL ready.topology.g21.gap_pt absent > 1
+   FAIL ready.topology.g22.gap_pt 5.333 > 1
+material.spacing.40.d light-photo: pass 20 / judged 22 / expected 22 (static+topology 20/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.topology.g19.neck_pt 1.333 > 1
+   FAIL ready.topology.g21.gap_pt 4.667 > 1
+material.spacing.40.e dark-photo: pass 18 / judged 22 / expected 22 (static+topology 18/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 3 > 1
+   FAIL ready.centre_pt 1.5 > 1
+   FAIL settled.bbox_pt 3 > 1
+   FAIL settled.centre_pt 1.5 > 1
+material.spacing.40.e light-photo: pass 20 / judged 22 / expected 22 (static+topology 20/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 2 > 1
+   FAIL settled.bbox_pt 2 > 1
+material.spacing.6.a dark-photo: pass 17 / judged 22 / expected 22 (static+topology 17/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+   FAIL ready.topology.g4.gap_pt 1.333 > 1
+material.spacing.6.a light-photo: pass 22 / judged 22 / expected 22 (static+topology 22/22, motion 0/0); events None touches None stalls flutter [] native []
+material.spacing.8.a dark-photo: pass 17 / judged 21 / expected 22 (static+topology 17/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+   FAIL ready.topology.g4.neck_pt absent > 1
+material.spacing.8.a light-photo: pass 21 / judged 22 / expected 22 (static+topology 21/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.topology.g4.neck_pt 4.667 > 1
+material.spacing.80.a dark-photo: pass 18 / judged 22 / expected 22 (static+topology 18/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 1.5 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 1.5 > 1
+material.spacing.80.a light-photo: pass 22 / judged 22 / expected 22 (static+topology 22/22, motion 0/0); events None touches None stalls flutter [] native []
+material.spacing.80.b dark-photo: pass 18 / judged 22 / expected 22 (static+topology 18/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 1.5 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 1.5 > 1
+material.spacing.80.b light-photo: pass 22 / judged 22 / expected 22 (static+topology 22/22, motion 0/0); events None touches None stalls flutter [] native []
+material.spacing.80.c dark-photo: pass 17 / judged 22 / expected 22 (static+topology 17/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 2 > 1
+   FAIL settled.bbox_pt 2 > 1
+   FAIL ready.topology.g40.gap_pt 2.667 > 1
+   FAIL ready.topology.g42.gap_pt 7.667 > 1
+   FAIL ready.topology.g44.gap_pt 5.333 > 1
+material.spacing.80.c light-photo: pass 14 / judged 20 / expected 22 (static+topology 14/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 3 > 1
+   FAIL ready.centre_pt 1.5 > 1
+   FAIL settled.bbox_pt 3 > 1
+   FAIL settled.centre_pt 1.5 > 1
+   FAIL ready.topology.g40.count 1 > 0
+   FAIL ready.topology.g40.neck_pt absent > 1
+   FAIL ready.topology.g40.gap_pt absent > 1
+   FAIL ready.topology.g42.gap_pt 3.667 > 1
+material.spacing.80.d dark-photo: pass 17 / judged 22 / expected 22 (static+topology 17/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 3 > 1
+   FAIL ready.centre_pt 1.5 > 1
+   FAIL settled.bbox_pt 3 > 1
+   FAIL settled.centre_pt 1.5 > 1
+   FAIL ready.topology.g48.gap_pt 4.333 > 1
+material.spacing.80.d light-photo: pass 18 / judged 22 / expected 22 (static+topology 18/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+material.spacing.80.e dark-photo: pass 15 / judged 19 / expected 19 (static+topology 15/19, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 3 > 1
+   FAIL ready.centre_pt 1.5 > 1
+   FAIL settled.bbox_pt 3 > 1
+   FAIL settled.centre_pt 1.5 > 1
+material.spacing.80.e light-photo: pass 15 / judged 19 / expected 19 (static+topology 15/19, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 3 > 1
+   FAIL ready.centre_pt 1.5 > 1
+   FAIL settled.bbox_pt 3 > 1
+   FAIL settled.centre_pt 1.5 > 1
+material.spacing.default.a dark-photo: pass 17 / judged 21 / expected 22 (static+topology 17/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+   FAIL ready.topology.g4.neck_pt absent > 1
+material.spacing.default.a light-photo: pass 21 / judged 22 / expected 22 (static+topology 21/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.topology.g4.neck_pt 4.667 > 1
+material.spacing.default.b dark-photo: pass 18 / judged 22 / expected 22 (static+topology 18/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+material.spacing.default.b light-photo: pass 20 / judged 22 / expected 22 (static+topology 20/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.rim_rms 6.975 > 6
+   FAIL settled.rim_rms 6.975 > 6
+material.spacing.default.c dark-photo: pass 17 / judged 19 / expected 19 (static+topology 17/19, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 2 > 1
+   FAIL settled.bbox_pt 2 > 1
+material.spacing.default.c light-photo: pass 15 / judged 19 / expected 19 (static+topology 15/19, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 3 > 1
+   FAIL ready.centre_pt 1.5 > 1
+   FAIL settled.bbox_pt 3 > 1
+   FAIL settled.centre_pt 1.5 > 1
+material.spacing.default.d dark-photo: pass 15 / judged 22 / expected 22 (static+topology 15/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+   FAIL ready.topology.g2.neck_pt 3.667 > 1
+   FAIL ready.topology.g5.gap_pt 1.333 > 1
+   FAIL ready.topology.g6.gap_pt 2.667 > 1
+material.spacing.default.d light-photo: pass 21 / judged 22 / expected 22 (static+topology 21/22, motion 0/0); events None touches None stalls flutter [] native []
+   FAIL ready.topology.g2.neck_pt 2.333 > 1
