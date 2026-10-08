@@ -1,0 +1,83 @@
+#### run build/glass_lab/runs/20261008-044149
+material.merge dark-photo-reduce-motion: pass 56 / judged 68 / expected 68 (static+topology 9/13, motion 47/55); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+   FAIL motion.left.step1e0.cx.response_pct 10.638 > 5 [native 0.47/0.91 rms 0.015; flutter 0.52/0.89 rms 0.019]
+   FAIL motion.left.step1e0.xmin.response_pct 13.953 > 7.317 [native 0.43/1.09 rms 0.008; flutter 0.49/1.07 rms 0.006]
+   FAIL motion.right.step1e0.xmax.response_pct 13.953 > 7.317 [native 0.43/1.09 rms 0.009; flutter 0.49/1.06 rms 0.008]
+   FAIL motion.pair.step1e0.topology.join_ms 25 > 17 [native joins [208.33333333333334] splits []; flutter joins [233.33333333333334] splits []]
+   FAIL motion.pair.step1e0.topology.gap_rms 7.02 > 5.144 [native joins [208.33333333333334] splits []; flutter joins [233.33333333333334] splits []]
+   FAIL motion.right.step3e0.cx.peak_ms 66.667 > 62.5
+   FAIL motion.right.step3e0.cx.settle_ms 33.333 > 25
+   FAIL motion.pair.step3e0.topology.gap_rms 3.847 > 3.772 [native joins [] splits [75.0]; flutter joins [] splits [91.66666666666667]]
+material.merge dark-stripes-reduce-motion: pass 42 / judged 67 / expected 68 (static+topology 11/13, motion 31/55); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL ready.bbox_pt 2 > 1
+   FAIL settled.bbox_pt 2 > 1
+   FAIL motion.right.step1e0.cx.peak_ms 75 > 17
+   FAIL motion.right.step1e0.cx.settle_ms 58.333 > 17
+   FAIL motion.left.step1e0.xmin.settle_ms 75 > 50
+   FAIL motion.right.step1e0.xmax.peak_ms 75 > 17
+   FAIL motion.right.step1e0.xmax.settle_ms 75 > 17
+   FAIL motion.pair.step1e0.topology.count 7 > 0 [native joins [191.66666666666666] splits []; flutter joins [233.33333333333334, 500.0] splits [400.0, 700.0]]
+   FAIL motion.pair.step1e0.topology.join_ms 41.667 > 25 [native joins [191.66666666666666] splits []; flutter joins [233.33333333333334, 500.0] splits [400.0, 700.0]]
+   FAIL motion.pair.step1e0.topology.split_ms absent > 17 [native joins [191.66666666666666] splits []; flutter joins [233.33333333333334, 500.0] splits [400.0, 700.0]]
+   FAIL motion.pair.step1e0.topology.neck_rms 6.562 > 5.867 [native joins [191.66666666666666] splits []; flutter joins [233.33333333333334, 500.0] splits [400.0, 700.0]]
+   FAIL motion.pair.step1e0.topology.gap_rms 11.494 > 9.179 [native joins [191.66666666666666] splits []; flutter joins [233.33333333333334, 500.0] splits [400.0, 700.0]]
+   FAIL motion.left.step3e0.cx.peak_ms 166.667 > 150
+   FAIL motion.left.step3e0.cx.settle_ms 83.333 > 62.5
+   FAIL motion.right.step3e0.cx.settle_ms 83.333 > 37.5
+   FAIL motion.left.step3e0.cx.response_pct 43.59 > 7.5 [native 0.39/1.13 rms 0.010; flutter 0.56/0.96 rms 0.016]
+   FAIL motion.right.step3e0.cx.response_pct 46.154 > 7.5 [native 0.39/1.13 rms 0.009; flutter 0.57/0.95 rms 0.016]
+   FAIL motion.right.step3e0.cx.damping 0.18 > 0.15 [native 0.39/1.13 rms 0.009; flutter 0.57/0.95 rms 0.016]
+   FAIL motion.left.step3e0.xmin.peak_ms 166.667 > 162.5
+   FAIL motion.left.step3e0.xmin.settle_ms 83.333 > 75
+   FAIL motion.left.step3e0.xmin.response_pct 51.515 > 13.235 [native 0.33/1.32 rms 0.016; flutter 0.50/1.06 rms 0.006]
+   FAIL motion.right.step3e0.xmax.settle_ms 83.333 > 75
+   FAIL motion.right.step3e0.xmax.response_pct 56.25 > 13.235 [native 0.32/1.36 rms 0.016; flutter 0.50/1.06 rms 0.007]
+   FAIL motion.pair.step3e0.topology.split_ms 33.333 > 17 [native joins [] splits [58.333333333333336]; flutter joins [] splits [91.66666666666667]]
+   FAIL motion.pair.step3e0.topology.neck_rms 13.13 > 8.358 [native joins [] splits [58.333333333333336]; flutter joins [] splits [91.66666666666667]]
+   FAIL motion.pair.step3e0.topology.gap_rms 5.734 > 3.778 [native joins [] splits [58.333333333333336]; flutter joins [] splits [91.66666666666667]]
+material.merge light-photo-reduce-motion: pass 51 / judged 68 / expected 68 (static+topology 13/13, motion 38/55); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL motion.right.step1e0.cx.peak_ms 91.667 > 37.5
+   FAIL motion.left.step1e0.cx.response_pct 15.217 > 6.522 [native 0.46/0.93 rms 0.018; flutter 0.53/0.88 rms 0.019]
+   FAIL motion.right.step1e0.cx.response_pct 15.217 > 9.574 [native 0.46/0.93 rms 0.018; flutter 0.53/0.87 rms 0.018]
+   FAIL motion.right.step1e0.xmax.peak_ms 91.667 > 37.5
+   FAIL motion.right.step1e0.xmax.settle_ms 41.667 > 25
+   FAIL motion.right.step1e0.xmax.response_pct 19.512 > 17.442 [native 0.41/1.20 rms 0.006; flutter 0.49/1.06 rms 0.009]
+   FAIL motion.pair.step1e0.topology.gap_rms 5.151 > 4.927 [native joins [208.33333333333334] splits []; flutter joins [225.0] splits []]
+   FAIL motion.left.step3e0.cx.peak_ms 75 > 25
+   FAIL motion.right.step3e0.cx.peak_ms 108.333 > 25
+   FAIL motion.right.step3e0.cx.settle_ms 41.667 > 37.5
+   FAIL motion.left.step3e0.cx.response_pct 17.021 > 12.245 [native 0.47/1.03 rms 0.014; flutter 0.55/0.97 rms 0.015]
+   FAIL motion.right.step3e0.cx.response_pct 17.021 > 9.184 [native 0.47/1.02 rms 0.014; flutter 0.55/0.97 rms 0.016]
+   FAIL motion.left.step3e0.xmin.peak_ms 75 > 25
+   FAIL motion.left.step3e0.xmin.settle_ms 33.333 > 25
+   FAIL motion.right.step3e0.xmax.peak_ms 108.333 > 25
+   FAIL motion.right.step3e0.xmax.settle_ms 33.333 > 25
+   FAIL motion.right.step3e0.xmax.response_pct 19.048 > 13.636 [native 0.42/1.14 rms 0.007; flutter 0.50/1.07 rms 0.007]
+material.merge light-stripes-reduce-motion: pass 45 / judged 68 / expected 68 (static+topology 11/13, motion 34/55); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL ready.bbox_pt 2 > 1
+   FAIL settled.bbox_pt 2 > 1
+   FAIL motion.right.step1e0.cx.peak_ms 66.667 > 17
+   FAIL motion.left.step1e0.cx.settle_ms 33.333 > 17
+   FAIL motion.right.step1e0.cx.settle_ms 33.333 > 17
+   FAIL motion.left.step1e0.cx.response_pct 13.333 > 5 [native 0.45/0.91 rms 0.018; flutter 0.51/0.89 rms 0.017]
+   FAIL motion.right.step1e0.cx.response_pct 11.111 > 5 [native 0.45/0.91 rms 0.018; flutter 0.50/0.91 rms 0.017]
+   FAIL motion.left.step1e0.xmin.settle_ms 41.667 > 17
+   FAIL motion.left.step1e0.xmin.response_pct 16.667 > 5 [native 0.42/1.11 rms 0.009; flutter 0.49/1.06 rms 0.007]
+   FAIL motion.right.step1e0.xmax.peak_ms 66.667 > 17
+   FAIL motion.right.step1e0.xmax.settle_ms 58.333 > 17
+   FAIL motion.right.step1e0.xmax.response_pct 14.286 > 5 [native 0.42/1.11 rms 0.009; flutter 0.48/1.09 rms 0.007]
+   FAIL motion.pair.step1e0.topology.neck_rms 4.365 > 2.969 [native joins [208.33333333333334] splits []; flutter joins [225.0] splits []]
+   FAIL motion.pair.step1e0.topology.gap_rms 4.715 > 4.459 [native joins [208.33333333333334] splits []; flutter joins [225.0] splits []]
+   FAIL motion.left.step3e0.cx.response_pct 19.149 > 12 [native 0.47/1.02 rms 0.014; flutter 0.56/0.95 rms 0.017]
+   FAIL motion.right.step3e0.cx.response_pct 18.75 > 9 [native 0.48/1.00 rms 0.014; flutter 0.57/0.93 rms 0.017]
+   FAIL motion.right.step3e0.cx.damping 0.07 > 0.05 [native 0.48/1.00 rms 0.014; flutter 0.57/0.93 rms 0.017]
+   FAIL motion.left.step3e0.xmin.peak_ms 33.333 > 17
+   FAIL motion.left.step3e0.xmin.response_pct 19.512 > 13.636 [native 0.41/1.16 rms 0.007; flutter 0.49/1.06 rms 0.008]
+   FAIL motion.right.step3e0.xmax.peak_ms 25 > 17
+   FAIL motion.right.step3e0.xmax.response_pct 21.951 > 13.636 [native 0.41/1.16 rms 0.007; flutter 0.50/1.04 rms 0.007]
+   FAIL motion.pair.step3e0.topology.split_ms 25 > 17 [native joins [] splits [75.0]; flutter joins [] splits [100.0]]
+   FAIL motion.pair.step3e0.topology.gap_rms 3.572 > 2.714 [native joins [] splits [75.0]; flutter joins [] splits [100.0]]
