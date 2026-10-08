@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
@@ -328,15 +330,16 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
       try {
         final union = renderObject.unionOutline;
         if (union != null && !union.leads) continue;
-        candidates.add((
-          _computeShapeInfo(
-            renderObject,
-            union?.shape ?? shape,
-            glassContainsChild,
-            union?.rect ?? renderObject.drawnRect,
-          ),
-          renderObject.motion?.isTransient ?? false,
-        ));
+        final info = _computeShapeInfo(
+          renderObject,
+          union?.shape ?? shape,
+          glassContainsChild,
+          union?.rect ?? renderObject.drawnRect,
+        );
+        if (candidates.any((candidate) => _coincident(candidate.$1, info))) {
+          continue;
+        }
+        candidates.add((info, renderObject.motion?.isTransient ?? false));
       } catch (e) {
         debugPrint('Failed to compute shape info: $e');
       }
@@ -432,6 +435,38 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
       shapeBounds: blendGroupRect,
       shapeToGeometry: transformToGeometry,
     );
+  }
+}
+
+const double _coincidentTolerance = 1e-3;
+
+bool _coincident(ShapeGeometry a, ShapeGeometry b) {
+  final boundsA = a.shapeBounds, boundsB = b.shapeBounds;
+  if ((boundsA.left - boundsB.left).abs() > _coincidentTolerance ||
+      (boundsA.top - boundsB.top).abs() > _coincidentTolerance ||
+      (boundsA.right - boundsB.right).abs() > _coincidentTolerance ||
+      (boundsA.bottom - boundsB.bottom).abs() > _coincidentTolerance) {
+    return false;
+  }
+  final outlineA = _canonicalOutline(a), outlineB = _canonicalOutline(b);
+  return outlineA.$1 == outlineB.$1 &&
+      (outlineA.$2 - outlineB.$2).abs() <= _coincidentTolerance;
+}
+
+(RawShapeType, double) _canonicalOutline(ShapeGeometry geometry) {
+  final bounds = geometry.shapeBounds;
+  final halfShort = math.min(bounds.width, bounds.height) / 2;
+  switch (geometry.rawShapeType) {
+    case RawShapeType.ellipse:
+      return (RawShapeType.ellipse, 0);
+    case RawShapeType.roundedRectangle:
+      final isSquare = (bounds.width - bounds.height).abs() <= _coincidentTolerance;
+      if (isSquare && geometry.rawCornerRadius >= halfShort - _coincidentTolerance) {
+        return (RawShapeType.ellipse, 0);
+      }
+      return (RawShapeType.roundedRectangle, math.min(geometry.rawCornerRadius, halfShort));
+    case RawShapeType.squircle:
+      return (RawShapeType.squircle, math.min(geometry.rawCornerRadius * 1.65, halfShort));
   }
 }
 

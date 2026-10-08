@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
+import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_tab_bar.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_backdrop.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_launch.dart';
@@ -64,8 +64,8 @@ class _InlineNavScene extends StatelessWidget {
       appBar: GlobalAppbar.sub(
         titleText: 'Agents',
         actions: [
-          GlassButton.icon(icon: Icons.notifications_none_rounded, onPressed: () {}),
-          GlassButton.icon(icon: Icons.more_horiz_rounded, onPressed: () {}),
+          IconButton(onPressed: () {}, icon: Icon(Icons.notifications_none_rounded, size: 22, color: context.skin.accentText)),
+          IconButton(onPressed: () {}, icon: Icon(Icons.more_horiz_rounded, size: 22, color: context.skin.accentText)),
         ],
       ),
       body: GlassLabBackdrop(id: backdrop),

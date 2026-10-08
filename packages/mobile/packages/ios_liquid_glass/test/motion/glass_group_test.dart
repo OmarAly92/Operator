@@ -67,6 +67,32 @@ Future<(_Group, List<RenderLiquidGlass>)> _group(List<_Motion> motions) async {
   return (group, glasses);
 }
 
+Future<(_Group, List<RenderLiquidGlass>)> _placed(List<(LiquidShape, Rect)> members) async {
+  final program = await ui.FragmentProgram.fromAsset('lib/assets/shaders/liquid_glass_final_render.frag');
+  final link = GlassGroupLink();
+  final glasses = [
+    for (final (shape, rect) in members)
+      RenderLiquidGlass(shape: shape, glassContainsChild: false, blendGroupLink: link)
+        ..child = RenderConstrainedBox(additionalConstraints: BoxConstraints.tight(rect.size)),
+  ];
+  final stack = RenderStack(textDirection: TextDirection.ltr, children: glasses);
+  for (final (index, glass) in glasses.indexed) {
+    final rect = members[index].$2;
+    (glass.parentData! as StackParentData)
+      ..left = rect.left
+      ..top = rect.top;
+  }
+  final group = _Group(geometryShader: program.fragmentShader(), link: link)..child = stack;
+  final root = RenderConstrainedBox(additionalConstraints: BoxConstraints.tight(const Size(800, 400)), child: group);
+  PipelineOwner().rootNode = root;
+  root.layout(const BoxConstraints());
+  return (group, glasses);
+}
+
+const LiquidShape _oval = LiquidOval();
+const Rect _first = Rect.fromLTWH(10, 10, 44, 44);
+const Rect _second = Rect.fromLTWH(62, 10, 44, 44);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -114,5 +140,67 @@ void main() {
     group.settle();
     group.revalidateGeometry();
     expect(group.state, LiquidGlassGeometryState.updated);
+  });
+
+  test('a capsule and an oval on the same square rect are one shape in the geometry', () async {
+    final (group, glasses) = await _placed([(_capsule, _first), (_oval, _first)]);
+    final (_, shapes, _) = group.gatherShapeData();
+    expect(shapes, hasLength(1));
+    expect(shapes.single.renderObject, glasses.first);
+  });
+
+  test('two such doubled buttons side by side are two shapes, not four', () async {
+    final (group, _) = await _placed([(_capsule, _first), (_oval, _first), (_capsule, _second), (_oval, _second)]);
+    final (_, shapes, _) = group.gatherShapeData();
+    expect(shapes, hasLength(2));
+    expect(shapes.map((shape) => shape.shapeBounds), [_first, _second]);
+  });
+
+  test('the doubled member still paints its content', () async {
+    final (group, glasses) = await _placed([(_capsule, _first), (_oval, _first)]);
+    group.gatherShapeData();
+    expect(glasses.every((glass) => glass.attached), isTrue);
+    expect(group.link.shapeEntries.map((entry) => entry.key), glasses);
+  });
+
+  test('a rounded rectangle whose radius is below half the side is not an oval', () async {
+    final (group, _) = await _placed([(const LiquidRoundedRectangle(borderRadius: 10), _first), (_oval, _first)]);
+    final (_, shapes, _) = group.gatherShapeData();
+    expect(shapes, hasLength(2));
+  });
+
+  test('a rounded rectangle at exactly half the side is an oval', () async {
+    final (group, _) = await _placed([(const LiquidRoundedRectangle(borderRadius: 22), _first), (_oval, _first)]);
+    final (_, shapes, _) = group.gatherShapeData();
+    expect(shapes, hasLength(1));
+  });
+
+  test('on a wide rect a capsule is not an oval', () async {
+    const wide = Rect.fromLTWH(10, 10, 102, 44);
+    final (group, _) = await _placed([(_capsule, wide), (_oval, wide)]);
+    final (_, shapes, _) = group.gatherShapeData();
+    expect(shapes, hasLength(2));
+  });
+
+  test('two capsules of the same rect are one shape however large their radii', () async {
+    const wide = Rect.fromLTWH(10, 10, 102, 44);
+    final (group, _) = await _placed([(_capsule, wide), (const LiquidRoundedRectangle(borderRadius: 40), wide)]);
+    final (_, shapes, _) = group.gatherShapeData();
+    expect(shapes, hasLength(1));
+  });
+
+  test('a superellipse is never an oval and a rect shifted by a pixel is not the same rect', () async {
+    final (group, _) = await _placed([(const LiquidRoundedSuperellipse(borderRadius: 22), _first), (_oval, _first), (_oval, _first.shift(const Offset(1, 0)))]);
+    final (_, shapes, _) = group.gatherShapeData();
+    expect(shapes, hasLength(3));
+  });
+
+  test('the sixteen shape cap counts the shapes left after doubled members are dropped', () async {
+    final (group, glasses) = await _placed([
+      for (var i = 0; i < 16; i++) ...[(_capsule, Rect.fromLTWH(10.0 + i * 46, 10, 44, 44)), (_oval, Rect.fromLTWH(10.0 + i * 46, 10, 44, 44))],
+    ]);
+    final (_, shapes, _) = group.gatherShapeData();
+    expect(shapes, hasLength(16));
+    expect(shapes.map((shape) => shape.renderObject), [for (var i = 0; i < 32; i += 2) glasses[i]]);
   });
 }
