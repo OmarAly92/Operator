@@ -1,0 +1,942 @@
+[
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "bolt.step1e0.luma.overshoot_pct",
+  "noise_before": 0.8492215221753696,
+  "noise_after": 1.1604107206054124,
+  "limit_before": 2.0,
+  "limit_after": 2.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "bolt.step1e0.progress.overshoot_pct",
+  "noise_before": 0.027165154639030575,
+  "noise_after": 0.03402263797303018,
+  "limit_before": 2.0,
+  "limit_after": 2.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "bolt.step1e0.progress.sharpness",
+  "noise_before": 0.36063519306085823,
+  "noise_after": 3.5615461312890453,
+  "limit_before": 1.0,
+  "limit_after": 5.342319196933568,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "bolt.step3e0.cy.peak_ms",
+  "noise_before": 291.66666666666674,
+  "noise_after": 8.333333333333371,
+  "limit_before": 437.5000000000001,
+  "limit_after": 17.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "bolt.step3e0.cy.response_pct",
+  "noise_before": 19.999999999999996,
+  "noise_after": 5.072463768115946,
+  "limit_before": 29.999999999999993,
+  "limit_after": 7.608695652173919,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "bolt.step3e0.cy.settle_ms",
+  "noise_before": 233.33333333333331,
+  "noise_after": 33.33333333333326,
+  "limit_before": 350.0,
+  "limit_after": 49.999999999999886,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "bolt.step3e0.height.peak_ms",
+  "noise_before": 291.66666666666674,
+  "noise_after": 8.333333333333371,
+  "limit_before": 437.5000000000001,
+  "limit_after": 17.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "bolt.step3e0.height.settle_ms",
+  "noise_before": 249.99999999999994,
+  "noise_after": 16.66666666666663,
+  "limit_before": 374.9999999999999,
+  "limit_after": 24.999999999999943,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "bolt.step3e0.luma.overshoot_pct",
+  "noise_before": 2.159624819330963,
+  "noise_after": 1.140899692569186,
+  "limit_before": 3.2394372289964446,
+  "limit_after": 2.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "bolt.step3e0.luma.peak_ms",
+  "noise_before": 75.0,
+  "noise_after": 16.66666666666663,
+  "limit_before": 112.5,
+  "limit_after": 24.999999999999943,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "bolt.step3e0.luma.settle_ms",
+  "noise_before": 258.33333333333337,
+  "noise_after": 8.333333333333258,
+  "limit_before": 387.50000000000006,
+  "limit_after": 17.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "bolt.step3e0.progress.rms",
+  "noise_before": 0.20610676162028124,
+  "noise_after": 0.021074695401891063,
+  "limit_before": 0.3091601424304219,
+  "limit_after": 0.05,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "bolt.step3e0.progress.settle_ms",
+  "noise_before": 216.66666666666669,
+  "noise_after": 16.66666666666663,
+  "limit_before": 325.0,
+  "limit_after": 24.999999999999943,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "bolt.step3e0.progress.sharpness",
+  "noise_before": 46.07842310854859,
+  "noise_after": 56.8955929224382,
+  "limit_before": 69.1176346628229,
+  "limit_after": 85.3433893836573,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "bolt.step3e0.progress.t10_90_ms",
+  "noise_before": 308.33333333333326,
+  "noise_after": 16.666666666666572,
+  "limit_before": 462.4999999999999,
+  "limit_after": 24.999999999999858,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "collapsed.step1e0.luma.overshoot_pct",
+  "noise_before": 0.0,
+  "noise_after": 0.0014001999233625995,
+  "limit_before": 2.0,
+  "limit_after": 2.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "collapsed.step1e0.progress.overshoot_pct",
+  "noise_before": 0.0005229354721469903,
+  "noise_after": 0.008642208062248358,
+  "limit_before": 2.0,
+  "limit_after": 2.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "collapsed.step3e0.progress.damping",
+  "noise_before": 0.05999999999999994,
+  "noise_after": 0.020000000000000018,
+  "limit_before": 0.08999999999999991,
+  "limit_after": 0.05,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "collapsed.step3e0.progress.response_pct",
+  "noise_before": 86.1111111111111,
+  "noise_after": 2.2900763358778646,
+  "limit_before": 129.16666666666666,
+  "limit_after": 5.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "collapsed.step3e0.progress.rms",
+  "noise_before": 0.1333147206542902,
+  "noise_after": 0.011506792139667123,
+  "limit_before": 0.19997208098143532,
+  "limit_after": 0.05,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "collapsed.step3e0.progress.settle_ms",
+  "noise_before": 300.00000000000006,
+  "noise_after": 8.333333333333371,
+  "limit_before": 450.0000000000001,
+  "limit_after": 17.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "collapsed.step3e0.progress.sharpness",
+  "noise_before": 9.110256721782635,
+  "noise_after": 3.4099776206227235,
+  "limit_before": 13.665385082673954,
+  "limit_after": 5.114966430934086,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "collapsed.step3e0.progress.t10_90_ms",
+  "noise_before": 224.99999999999994,
+  "noise_after": 16.66666666666663,
+  "limit_before": 337.4999999999999,
+  "limit_after": 24.999999999999943,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "heart.step1e0.progress.damping",
+  "noise_before": 0.030000000000000027,
+  "noise_after": 0.040000000000000036,
+  "limit_before": 0.05,
+  "limit_after": 0.06000000000000005,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "heart.step3e0.cy.damping",
+  "noise_before": 0.2300000000000001,
+  "noise_after": 0.1100000000000001,
+  "limit_before": 0.34500000000000014,
+  "limit_after": 0.16500000000000015,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "heart.step3e0.cy.peak_ms",
+  "noise_before": 350.0,
+  "noise_after": 116.66666666666663,
+  "limit_before": 525.0,
+  "limit_after": 174.99999999999994,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "heart.step3e0.cy.settle_ms",
+  "noise_before": 150.0,
+  "noise_after": 50.00000000000006,
+  "limit_before": 225.0,
+  "limit_after": 75.00000000000009,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "heart.step3e0.height.damping",
+  "noise_before": 0.14,
+  "noise_after": 0.050000000000000044,
+  "limit_before": 0.21000000000000002,
+  "limit_after": 0.07500000000000007,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "heart.step3e0.height.peak_ms",
+  "noise_before": 350.0,
+  "noise_after": 116.66666666666663,
+  "limit_before": 525.0,
+  "limit_after": 174.99999999999994,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "heart.step3e0.height.response_pct",
+  "noise_before": 7.812500000000007,
+  "noise_after": 5.797101449275368,
+  "limit_before": 11.71875000000001,
+  "limit_after": 8.695652173913052,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "heart.step3e0.height.settle_ms",
+  "noise_before": 158.33333333333331,
+  "noise_after": 41.666666666666686,
+  "limit_before": 237.49999999999997,
+  "limit_after": 62.50000000000003,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "heart.step3e0.progress.rms",
+  "noise_before": 0.14632240966874724,
+  "noise_after": 0.01675776099374554,
+  "limit_before": 0.21948361450312087,
+  "limit_after": 0.05,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "heart.step3e0.progress.settle_ms",
+  "noise_before": 249.99999999999994,
+  "noise_after": 8.333333333333258,
+  "limit_before": 374.9999999999999,
+  "limit_after": 17.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "heart.step3e0.progress.sharpness",
+  "noise_before": 0.8222801230273049,
+  "noise_after": 1.085342702915522,
+  "limit_before": 1.2334201845409574,
+  "limit_after": 1.628014054373283,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "heart.step3e0.progress.t10_90_ms",
+  "noise_before": 183.33333333333343,
+  "noise_after": 8.333333333333428,
+  "limit_before": 275.0000000000001,
+  "limit_after": 17.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step1e0.height.damping",
+  "noise_before": 0.08000000000000007,
+  "noise_after": 0.13000000000000012,
+  "limit_before": 0.1200000000000001,
+  "limit_after": 0.19500000000000017,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step1e0.height.response_pct",
+  "noise_before": 4.878048780487809,
+  "noise_after": 6.9767441860465045,
+  "limit_before": 7.317073170731714,
+  "limit_after": 10.465116279069758,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step1e0.luma.damping",
+  "noise_before": 0.0,
+  "noise_after": 0.010000000000000009,
+  "limit_before": 0.05,
+  "limit_after": 0.05,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step1e0.progress.overshoot_pct",
+  "noise_before": 0.0005425028037020496,
+  "noise_after": 0.009085380221685035,
+  "limit_before": 2.0,
+  "limit_after": 2.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step1e0.topology.count",
+  "noise_before": 38.0,
+  "noise_after": 0.0,
+  "limit_before": 57.0,
+  "limit_after": 0.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step1e0.topology.neck_rms",
+  "noise_before": 2.9263775622527533,
+  "noise_after": 3.236395331622425,
+  "limit_before": 4.38956634337913,
+  "limit_after": 4.854592997433637,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step1e0.ymax.damping",
+  "noise_before": 0.08000000000000007,
+  "noise_after": 0.13000000000000012,
+  "limit_before": 0.1200000000000001,
+  "limit_after": 0.19500000000000017,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step1e0.ymax.response_pct",
+  "noise_before": 4.878048780487809,
+  "noise_after": 6.9767441860465045,
+  "limit_before": 7.317073170731714,
+  "limit_after": 10.465116279069758,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step1e0.ymin.damping",
+  "noise_before": 0.08000000000000007,
+  "noise_after": 0.13000000000000012,
+  "limit_before": 0.1200000000000001,
+  "limit_after": 0.19500000000000017,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step1e0.ymin.response_pct",
+  "noise_before": 4.878048780487809,
+  "noise_after": 6.9767441860465045,
+  "limit_before": 7.317073170731714,
+  "limit_after": 10.465116279069758,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.height.damping",
+  "noise_before": 0.10999999999999999,
+  "noise_after": 0.029999999999999916,
+  "limit_before": 0.16499999999999998,
+  "limit_after": 0.05,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.height.peak_ms",
+  "noise_before": 350.0,
+  "noise_after": 66.66666666666663,
+  "limit_before": 525.0,
+  "limit_after": 99.99999999999994,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.height.response_pct",
+  "noise_before": 95.23809523809523,
+  "noise_after": 4.065040650406489,
+  "limit_before": 142.85714285714283,
+  "limit_after": 6.097560975609734,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.height.settle_ms",
+  "noise_before": 116.66666666666669,
+  "noise_after": 16.666666666666686,
+  "limit_before": 175.00000000000003,
+  "limit_after": 25.00000000000003,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.luma.damping",
+  "noise_before": 0.08000000000000007,
+  "noise_after": 0.020000000000000018,
+  "limit_before": 0.1200000000000001,
+  "limit_after": 0.05,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.luma.overshoot_pct",
+  "noise_before": 0.04820729135281976,
+  "noise_after": 0.04884865218501844,
+  "limit_before": 2.0,
+  "limit_after": 2.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.luma.peak_ms",
+  "noise_before": 358.33333333333337,
+  "noise_after": 33.33333333333337,
+  "limit_before": 537.5,
+  "limit_after": 50.00000000000006,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.luma.response_pct",
+  "noise_before": 12.499999999999996,
+  "noise_after": 5.555555555555548,
+  "limit_before": 18.749999999999993,
+  "limit_after": 8.333333333333321,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.luma.settle_ms",
+  "noise_before": 200.0,
+  "noise_after": 16.66666666666663,
+  "limit_before": 300.0,
+  "limit_after": 24.999999999999943,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.progress.damping",
+  "noise_before": 0.05999999999999994,
+  "noise_after": 0.010000000000000009,
+  "limit_before": 0.08999999999999991,
+  "limit_after": 0.05,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.progress.response_pct",
+  "noise_before": 86.1111111111111,
+  "noise_after": 1.5151515151515165,
+  "limit_before": 129.16666666666666,
+  "limit_after": 5.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.progress.rms",
+  "noise_before": 0.1334126215723362,
+  "noise_after": 0.011561930122113592,
+  "limit_before": 0.20011893235850428,
+  "limit_after": 0.05,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.progress.settle_ms",
+  "noise_before": 300.00000000000006,
+  "noise_after": 8.333333333333371,
+  "limit_before": 450.0000000000001,
+  "limit_after": 17.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.progress.sharpness",
+  "noise_before": 9.110806914710949,
+  "noise_after": 3.410059671501868,
+  "limit_before": 13.666210372066423,
+  "limit_after": 5.115089507252802,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.progress.t10_90_ms",
+  "noise_before": 224.99999999999994,
+  "noise_after": 16.66666666666663,
+  "limit_before": 337.4999999999999,
+  "limit_after": 24.999999999999943,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.topology.count",
+  "noise_before": 25.0,
+  "noise_after": 5.0,
+  "limit_before": 37.5,
+  "limit_after": 7.5,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.ymax.damping",
+  "noise_before": 0.13,
+  "noise_after": 0.029999999999999916,
+  "limit_before": 0.195,
+  "limit_after": 0.05,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.ymax.peak_ms",
+  "noise_before": 333.33333333333337,
+  "noise_after": 50.0,
+  "limit_before": 500.00000000000006,
+  "limit_after": 75.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.ymax.response_pct",
+  "noise_before": 6.896551724137937,
+  "noise_after": 6.4516129032258105,
+  "limit_before": 10.344827586206906,
+  "limit_after": 9.677419354838715,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.ymax.settle_ms",
+  "noise_before": 150.0,
+  "noise_after": 8.333333333333371,
+  "limit_before": 225.0,
+  "limit_after": 17.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.ymin.peak_ms",
+  "noise_before": 350.0,
+  "noise_after": 116.66666666666663,
+  "limit_before": 525.0,
+  "limit_after": 174.99999999999994,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "stack.step3e0.ymin.settle_ms",
+  "noise_before": 75.00000000000006,
+  "noise_after": 25.000000000000057,
+  "limit_before": 112.50000000000009,
+  "limit_after": 37.500000000000085,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "star.step1e0.cy.damping",
+  "noise_before": 0.010000000000000009,
+  "noise_after": 0.020000000000000018,
+  "limit_before": 0.05,
+  "limit_after": 0.05,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "star.step1e0.cy.response_pct",
+  "noise_before": 6.521739130434788,
+  "noise_after": 8.69565217391304,
+  "limit_before": 9.782608695652181,
+  "limit_after": 13.04347826086956,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "star.step1e0.height.response_pct",
+  "noise_before": 4.938271604938276,
+  "noise_after": 6.172839506172845,
+  "limit_before": 7.407407407407414,
+  "limit_after": 9.259259259259267,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "star.step1e0.luma.overshoot_pct",
+  "noise_before": 0.40032113596024654,
+  "noise_after": 0.45759846579787045,
+  "limit_before": 2.0,
+  "limit_after": 2.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "star.step1e0.width.peak_ms",
+  "noise_before": 8.333333333333314,
+  "noise_after": 16.666666666666657,
+  "limit_before": 17.0,
+  "limit_after": 24.999999999999986,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "star.step1e0.width.settle_ms",
+  "noise_before": 0.0,
+  "noise_after": 16.666666666666686,
+  "limit_before": 17.0,
+  "limit_after": 25.00000000000003,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "star.step3e0.height.peak_ms",
+  "noise_before": 58.33333333333337,
+  "noise_after": 16.666666666666686,
+  "limit_before": 87.50000000000006,
+  "limit_after": 25.00000000000003,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "star.step3e0.height.response_pct",
+  "noise_before": 45.94594594594594,
+  "noise_after": 5.55555555555556,
+  "limit_before": 68.9189189189189,
+  "limit_after": 8.33333333333334,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "star.step3e0.height.settle_ms",
+  "noise_before": 75.0,
+  "noise_after": 16.666666666666686,
+  "limit_before": 112.5,
+  "limit_after": 25.00000000000003,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "star.step3e0.luma.overshoot_pct",
+  "noise_before": 5.700587368028653,
+  "noise_after": 0.6001205660720395,
+  "limit_before": 8.55088105204298,
+  "limit_after": 2.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "star.step3e0.luma.settle_ms",
+  "noise_before": 125.0,
+  "noise_after": 8.333333333333371,
+  "limit_before": 187.5,
+  "limit_after": 17.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "star.step3e0.width.damping",
+  "noise_before": 0.10000000000000009,
+  "noise_after": 0.020000000000000018,
+  "limit_before": 0.15000000000000013,
+  "limit_after": 0.05,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "star.step3e0.width.peak_ms",
+  "noise_before": 58.33333333333337,
+  "noise_after": 16.666666666666686,
+  "limit_before": 87.50000000000006,
+  "limit_after": 25.00000000000003,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "star.step3e0.width.response_pct",
+  "noise_before": 59.32203389830507,
+  "noise_after": 2.1739130434782625,
+  "limit_before": 88.9830508474576,
+  "limit_after": 5.0,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "star.step3e0.width.settle_ms",
+  "noise_before": 83.33333333333331,
+  "noise_after": 16.666666666666686,
+  "limit_before": 124.99999999999997,
+  "limit_after": 25.00000000000003,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "step1e0.delay_ms",
+  "noise_before": 1208.3340000000005,
+  "noise_after": 23.334000000001964,
+  "limit_before": 1812.5010000000007,
+  "limit_after": 35.001000000002946,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "toggle.step1e0.cy.damping",
+  "noise_before": 0.010000000000000009,
+  "noise_after": 0.020000000000000018,
+  "limit_before": 0.05,
+  "limit_after": 0.05,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "toggle.step1e0.cy.response_pct",
+  "noise_before": 6.521739130434788,
+  "noise_after": 8.69565217391304,
+  "limit_before": 9.782608695652181,
+  "limit_after": 13.04347826086956,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "toggle.step1e0.height.damping",
+  "noise_before": 0.0,
+  "noise_after": 0.010000000000000009,
+  "limit_before": 0.05,
+  "limit_after": 0.05,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "toggle.step1e0.height.overshoot_pct",
+  "noise_before": 0.12036006870181915,
+  "noise_after": 0.19262524048655472,
+  "limit_before": 2.0,
+  "limit_after": 2.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "toggle.step1e0.height.response_pct",
+  "noise_before": 5.000000000000004,
+  "noise_after": 7.500000000000007,
+  "limit_before": 7.500000000000007,
+  "limit_after": 11.25000000000001,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "toggle.step1e0.luma.overshoot_pct",
+  "noise_before": 0.07570451412763912,
+  "noise_after": 0.11131535519339764,
+  "limit_before": 2.0,
+  "limit_after": 2.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "toggle.step1e0.luma.response_pct",
+  "noise_before": 5.000000000000004,
+  "noise_after": 6.250000000000005,
+  "limit_before": 7.500000000000007,
+  "limit_after": 9.375000000000007,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "toggle.step1e0.width.peak_ms",
+  "noise_before": 8.333333333333314,
+  "noise_after": 16.666666666666657,
+  "limit_before": 17.0,
+  "limit_after": 24.999999999999986,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "toggle.step1e0.width.settle_ms",
+  "noise_before": 0.0,
+  "noise_after": 16.666666666666686,
+  "limit_before": 17.0,
+  "limit_after": 25.00000000000003,
+  "limit_moved": true
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "toggle.step3e0.cy.peak_ms",
+  "noise_before": 8.333333333333314,
+  "noise_after": 0.0,
+  "limit_before": 17.0,
+  "limit_after": 17.0,
+  "limit_moved": false
+ },
+ {
+  "scene": "material.morph.plain",
+  "case": "light-stripes-reduce-motion",
+  "measure": "toggle.step3e0.cy.response_pct",
+  "noise_before": 5.555555555555561,
+  "noise_after": 5.263157894736847,
+  "limit_before": 8.333333333333341,
+  "limit_after": 7.894736842105271,
+  "limit_moved": true
+ }
+]
