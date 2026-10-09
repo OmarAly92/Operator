@@ -21,9 +21,29 @@ enum MaterialScenes {
         "material.spacing.40.a": { AnyView(SpacingScene(gaps: [0, 4, 8, 12], spacing: 40)) },
         "material.spacing.40.b": { AnyView(SpacingScene(gaps: [16, 20, 24, 32], spacing: 40)) },
         "material.spacing.40.c": { AnyView(SpacingScene(gaps: [40, 48, 60], spacing: 40)) },
+        "material.spacing.4.a": { AnyView(SpacingScene(gaps: [0, 4, 8, 12], spacing: 4)) },
+        "material.spacing.6.a": { AnyView(SpacingScene(gaps: [0, 4, 8, 12], spacing: 6)) },
+        "material.spacing.8.a": { AnyView(SpacingScene(gaps: [0, 4, 8, 12], spacing: 8)) },
+        "material.spacing.10.a": { AnyView(SpacingScene(gaps: [0, 4, 8, 12], spacing: 10)) },
+        "material.spacing.12.a": { AnyView(SpacingScene(gaps: [0, 4, 8, 12], spacing: 12)) },
+        "material.spacing.16.a": { AnyView(SpacingScene(gaps: [0, 4, 8, 12], spacing: 16)) },
+        "material.spacing.20.a": { AnyView(SpacingScene(gaps: [0, 4, 8, 12], spacing: 20)) },
+        "material.spacing.80.a": { AnyView(SpacingScene(gaps: [0, 4, 8, 12], spacing: 80)) },
+        "material.spacing.default.d": { AnyView(SpacingScene(gaps: [2, 5, 6, 7], spacing: nil)) },
+        "material.spacing.20.b": { AnyView(SpacingScene(gaps: [9, 10, 11, 14], spacing: 20)) },
+        "material.spacing.20.c": { AnyView(SpacingScene(gaps: [16, 18, 24, 32], spacing: 20)) },
+        "material.spacing.40.d": { AnyView(SpacingScene(gaps: [18, 19, 21, 22], spacing: 40)) },
+        "material.spacing.40.e": { AnyView(SpacingScene(gaps: [28, 36, 44, 52], spacing: 40)) },
+        "material.spacing.80.b": { AnyView(SpacingScene(gaps: [16, 24, 32, 36], spacing: 80)) },
+        "material.spacing.80.c": { AnyView(SpacingScene(gaps: [38, 40, 42, 44], spacing: 80)) },
+        "material.spacing.80.d": { AnyView(SpacingScene(gaps: [48, 56, 64, 72], spacing: 80)) },
+        "material.spacing.80.e": { AnyView(SpacingScene(gaps: [80, 88, 96], spacing: 80)) },
         "material.merge": { AnyView(MergeScene()) },
+        "material.respace": { AnyView(RespaceScene()) },
         "material.union": { AnyView(UnionScene()) },
         "material.morph": { AnyView(MorphScene()) },
+        "material.morph.plain": { AnyView(MorphScene(interactive: false)) },
+        "material.tap": { AnyView(TapScene()) },
         "material.shapes": { AnyView(ShapesScene()) },
         "material.edge.soft": { AnyView(EdgeScene(style: .soft)) },
         "material.edge.hard": { AnyView(EdgeScene(style: .hard)) },
@@ -207,6 +227,30 @@ struct MergeScene: View {
     }
 }
 
+struct RespaceScene: View {
+    @State private var wide = false
+
+    var body: some View {
+        ZStack {
+            Backdrop()
+            GlassEffectContainer(spacing: wide ? 40 : 8) {
+                HStack(spacing: 12) {
+                    Color.clear.frame(width: 80, height: 80).glassEffect(.regular, in: .circle)
+                    Color.clear.frame(width: 80, height: 80).glassEffect(.regular, in: .circle)
+                }
+            }
+            VStack {
+                Spacer()
+                HStack(spacing: 24) {
+                    LabButton(title: "Widen", id: "widen") { withAnimation { wide = true } }
+                    LabButton(title: "Narrow", id: "narrow") { withAnimation { wide = false } }
+                }
+                .padding(.bottom, 120)
+            }
+        }
+    }
+}
+
 struct UnionScene: View {
     @Namespace private var namespace
     private let symbols = ["star.fill", "heart.fill", "bolt.fill", "leaf.fill"]
@@ -230,6 +274,7 @@ struct UnionScene: View {
 }
 
 struct MorphScene: View {
+    var interactive = true
     @Namespace private var namespace
     @State private var expanded = false
     private let badges = ["star.fill", "heart.fill", "bolt.fill"]
@@ -256,10 +301,28 @@ struct MorphScene: View {
                             .frame(width: 56, height: 56)
                     }
                     .buttonStyle(.plain)
-                    .glassEffect(.regular.interactive())
+                    .glassEffect(interactive ? .regular.interactive() : .regular)
                     .glassEffectID("toggle", in: namespace)
                     .accessibilityIdentifier("morph")
                 }
+            }
+        }
+    }
+}
+
+struct TapScene: View {
+    var body: some View {
+        ZStack {
+            Backdrop()
+            GlassEffectContainer(spacing: 20) {
+                Button {} label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 22, weight: .semibold))
+                        .frame(width: 56, height: 56)
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular.interactive())
+                .accessibilityIdentifier("glass")
             }
         }
     }

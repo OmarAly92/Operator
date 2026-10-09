@@ -6,6 +6,7 @@ import 'package:ios_liquid_glass/src/api/glass.dart';
 import 'package:ios_liquid_glass/src/api/glass_effect_container.dart';
 import 'package:ios_liquid_glass/src/api/glass_effect_transition.dart';
 import 'package:ios_liquid_glass/src/api/glass_material_context.dart';
+import 'package:ios_liquid_glass/src/api/glass_namespace.dart';
 import 'package:ios_liquid_glass/src/api/glass_shape.dart';
 import 'package:ios_liquid_glass/src/api/glass_theme.dart';
 import 'package:ios_liquid_glass/src/liquid_glass.dart';
@@ -19,7 +20,9 @@ class GlassEffect extends StatefulWidget {
     super.key,
     this.glass = Glass.regular,
     this.shape = const GlassShape.capsule(),
-    this.transition = GlassEffectTransition.materialize,
+    this.transition,
+    this.id,
+    this.union,
     this.sideHint,
     required this.child,
   });
@@ -28,9 +31,14 @@ class GlassEffect extends StatefulWidget {
 
   final Glass glass;
   final GlassShape shape;
-  final GlassEffectTransition transition;
+  final GlassEffectTransition? transition;
+  final GlassEffectID? id;
+  final GlassEffectUnion? union;
   final double? sideHint;
   final Widget child;
+
+  GlassEffectTransition get effectiveTransition =>
+      transition ?? (id == null ? GlassEffectTransition.materialize : GlassEffectTransition.matchedGeometry);
 
   @override
   State<GlassEffect> createState() => _GlassEffectState();
@@ -65,7 +73,7 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
   @override
   void didUpdateWidget(GlassEffect oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.glass.kind != widget.glass.kind || oldWidget.transition != widget.transition) _join();
+    if (oldWidget.glass.kind != widget.glass.kind || oldWidget.effectiveTransition != widget.effectiveTransition || oldWidget.id != widget.id) _join();
   }
 
   static bool _laidOut(RenderObject? parent) => switch (parent) {
@@ -79,12 +87,16 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
     final coordinator = _identity ? null : container ?? (_private ??= GlassMotionCoordinator(vsync: this));
     _useOverlay(coordinator != null && container == null);
     final scope = GlassAnimationScope.maybeOf(context);
-    final animate = widget.transition == GlassEffectTransition.materialize;
+    final transition = widget.effectiveTransition;
+    final animate = transition != GlassEffectTransition.identity;
+    final morphs = transition == GlassEffectTransition.matchedGeometry;
     final current = _member;
     if (coordinator == _coordinator && current != null) {
       current
         ..scopeAnimation = scope
-        ..animatesTransitions = animate;
+        ..animatesTransitions = animate
+        ..id = widget.id
+        ..morphs = morphs;
       return;
     }
     final hosted = container != null || _overlay != null;
@@ -98,6 +110,8 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
       from: current,
       reduceMotion: GlassAccessibility.of(context).reduceMotion,
       dark: GlassTheme.brightnessOf(context) == Brightness.dark,
+      id: widget.id,
+      morphs: morphs,
     )
       ?..onSettled = _settled
       ..onScreen = _onScreen;
@@ -200,9 +214,10 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     _parent = context.findAncestorRenderObjectOfType<RenderObject>();
-    final content = GlassSnapshotBoundary(key: _snapshotKey, child: GlassEffectScope(glass: widget.glass, child: widget.child));
+    final snapshot = GlassSnapshotBoundary(key: _snapshotKey, child: GlassEffectScope(glass: widget.glass, child: widget.child));
     final member = _member;
-    if (_identity || member == null) return content;
+    if (_identity || member == null) return snapshot;
+    final content = GlassMorphContent(member: member, child: snapshot);
     member
       ..scrollables = _scrollables()
       ..rebuilt();
@@ -219,16 +234,17 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
         member
           ..shape = shape
           ..material = material
-          ..sharedSettings = grouped ? container.settings : null
+          ..sharedMaterial = grouped ? container.material : null
           ..reduceMotion = GlassAccessibility.of(context).reduceMotion
-          ..dark = GlassTheme.brightnessOf(context) == Brightness.dark;
+          ..dark = GlassTheme.brightnessOf(context) == Brightness.dark
+          ..unite(widget.union, glass: widget.glass, grouped: grouped && !member.ownsLayer);
         final Widget glass;
         if (grouped && !member.ownsLayer) {
           glass = LiquidGlass.grouped(shape: shape, shadows: material.shadows, shadowSource: material, motion: member, child: content);
         } else {
           glass = LiquidGlass.withOwnLayer(
-            settings: grouped ? container.settings : material.settings,
-            settingsSource: grouped ? null : material,
+            settings: grouped ? container.material.settings : material.settings,
+            settingsSource: grouped ? container.material : material,
             shape: shape,
             shadows: material.shadows,
             shadowSource: material,

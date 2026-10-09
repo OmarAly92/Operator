@@ -5,6 +5,7 @@ import '../glass_lab_backdrop.dart';
 import '../glass_lab_launch.dart';
 import '../glass_lab_marker.dart';
 import 'lab_parts.dart';
+import 'morph_scenes.dart';
 
 const Color labAccent = Color(0xFF1ACB64);
 
@@ -71,58 +72,10 @@ sealed class MaterialScenes {
         ),
       ],
     ),
-    'material.merge': (launch) => LabCentered(
-      backdrop: launch.backdrop,
-      bottom: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [LabButton(title: 'Merge', id: 'merge'), SizedBox(width: 24), LabButton(title: 'Split', id: 'split')],
-      ),
-      children: const [
-        GlassEffectContainer(
-          spacing: 40,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LabBlock(width: 80, height: 80, shape: GlassShape.circle()),
-              SizedBox(width: 80),
-              LabBlock(width: 80, height: 80, shape: GlassShape.circle()),
-            ],
-          ),
-        ),
-      ],
-    ),
-    'material.union': (launch) => LabCentered(
-      backdrop: launch.backdrop,
-      children: [
-        GlassEffectContainer(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final (index, icon) in const [Icons.star, Icons.favorite, Icons.bolt, Icons.eco].indexed) ...[
-                if (index > 0) const SizedBox(width: 16),
-                GlassEffect(
-                  shape: const GlassShape.rect(20),
-                  child: SizedBox.square(dimension: 64, child: GlassForeground(child: Icon(icon, size: 24))),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    ),
-    'material.morph': (launch) => LabCentered(
-      backdrop: launch.backdrop,
-      children: [
-        GlassLabMarker(
-          'morph',
-          child: GlassEffect(
-            glass: Glass.regular.interactive(),
-            shape: const GlassShape.circle(),
-            child: const SizedBox.square(dimension: 56, child: GlassForeground(child: Icon(Icons.add, size: 22))),
-          ),
-        ),
-      ],
-    ),
+    'material.union': (launch) => UnionScene(backdrop: launch.backdrop),
+    'material.morph': (launch) => MorphScene(backdrop: launch.backdrop),
+    'material.morph.plain': (launch) => MorphScene(backdrop: launch.backdrop, interactive: false),
+    'material.tap': (launch) => TapScene(backdrop: launch.backdrop),
     'material.flip': (launch) => const Stack(
       children: [
         Positioned.fill(child: GlassLabScrollBackdrop()),
@@ -238,6 +191,45 @@ class _EdgeSceneState extends State<EdgeScene> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class UnionScene extends StatefulWidget {
+  const UnionScene({super.key, required this.backdrop});
+
+  static const List<IconData> symbols = [Icons.star, Icons.favorite, Icons.bolt, Icons.eco];
+  static const List<double> glyphSizes = [33, 28, 34.5, 32.5];
+
+  final String backdrop;
+
+  @override
+  State<UnionScene> createState() => _UnionSceneState();
+}
+
+class _UnionSceneState extends State<UnionScene> {
+  final GlassNamespace _namespace = GlassNamespace();
+
+  @override
+  Widget build(BuildContext context) {
+    return LabCentered(
+      backdrop: widget.backdrop,
+      children: [
+        GlassEffectContainer(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (index, icon) in UnionScene.symbols.indexed) ...[
+                if (index > 0) const SizedBox(width: 16),
+                GlassEffect(
+                  union: GlassEffectUnion(index < 2 ? 'first' : 'second', _namespace),
+                  child: SizedBox.square(dimension: 64, child: GlassForeground(child: Icon(icon, size: UnionScene.glyphSizes[index]))),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

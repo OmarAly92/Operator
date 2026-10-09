@@ -10,16 +10,19 @@ LEAD_SECONDS = 0.2
 HOLD_SECONDS = 0.3
 MAX_LAG_MS = 150
 INNER_INSET = (16, 8)
-MIN_TRAVEL = {"width": 4.0, "height": 4.0, "cx": 4.0, "cy": 4.0, "luma": 3.0, "progress": 0.2}
-MIN_EVENT_CHANGE = {"width": 4.0, "height": 4.0, "cx": 4.0, "cy": 4.0, "luma": 1.5, "progress": 0.1}
-KEYS = (*align.KEYS, "progress")
+EDGE_KEYS = ("xmin", "xmax", "ymin", "ymax")
+MIN_TRAVEL = {"width": 4.0, "height": 4.0, "cx": 4.0, "cy": 4.0, "luma": 3.0, "progress": 0.2, **{key: 4.0 for key in EDGE_KEYS}}
+MIN_EVENT_CHANGE = {"width": 4.0, "height": 4.0, "cx": 4.0, "cy": 4.0, "luma": 1.5, "progress": 0.1, **{key: 4.0 for key in EDGE_KEYS}}
+SIGNIFICANT_KEYS = (*align.KEYS, "progress")
+KEYS = (*SIGNIFICANT_KEYS, *EDGE_KEYS)
 MOTION_MEASURES = (
     "delay_ms",
     "topology.count",
     "topology.join_ms",
     "topology.split_ms",
     "topology.neck_rms",
-    *(f"{key}.{measure}" for key in align.KEYS for measure in ("peak_ms", "settle_ms", "overshoot_pct", "response_pct", "damping")),
+    "topology.gap_rms",
+    *(f"{key}.{measure}" for key in (*align.KEYS, *EDGE_KEYS) for measure in ("peak_ms", "settle_ms", "overshoot_pct", "response_pct", "damping")),
     "progress.t10_90_ms",
     "progress.settle_ms",
     "progress.overshoot_pct",
@@ -41,6 +44,7 @@ LIMITS = {
     "join_ms": "time_ms",
     "split_ms": "time_ms",
     "neck_rms": "neck_pt",
+    "gap_rms": "gap_pt",
     "count": "count",
 }
 TRANSITION_SAMPLES = 2
@@ -104,7 +108,7 @@ def capture(scene, case_dir, found):
             row = track.shape_row(crop, part["bare"], part["edges"], part["origin"])
             row.update(track.progress_row(shrink(crop), part["bare_pt"], part["full_pt"], part["inner"]))
             if name in scene.topology:
-                row.update(track.topology_row(crop, part["bare"], part["edges"]))
+                row.update(track.topology_row(crop, part["bare"]))
             rows[name].append(row)
     windows = [w for w in touch.read(case_dir / "video.mp4", case_dir / "marker") if w[1] >= start - LEAD_SECONDS and w[0] <= end]
     events = []
@@ -153,7 +157,10 @@ def event_series(times, rows, first, last):
     if "count" in picked[0]:
         counts = np.array([row["count"] for row in picked])
         series["count"] = counts[np.clip(np.searchsorted(stamps, grid, side="right") - 1, 0, len(counts) - 1)].tolist()
-        series["neck"] = np.interp(grid, stamps, [row["neck"] for row in picked]).tolist()
+        necks = np.array([row["neck"] for row in picked], dtype=np.float64)
+        series["neck"] = necks[np.clip(np.searchsorted(stamps, grid, side="right") - 1, 0, len(necks) - 1)].tolist()
+        gaps = np.array([row["gap"] for row in picked], dtype=np.float64)
+        series["gap"] = gaps[np.clip(np.searchsorted(stamps, grid, side="right") - 1, 0, len(gaps) - 1)].tolist()
     for key in (*KEYS, "sharpness", "residual"):
         values = np.array([row[key] for row in picked], dtype=np.float64)
         valid = np.isfinite(values)
@@ -165,7 +172,9 @@ def event_series(times, rows, first, last):
 
 
 def significant(series):
-    return any(np.isfinite(series[key]).all() and np.ptp(series[key]) >= MIN_EVENT_CHANGE[key] for key in KEYS)
+    if "count" in series and np.ptp(np.array(series["count"], dtype=np.float64)) >= 1:
+        return True
+    return any(np.isfinite(series[key]).all() and np.ptp(series[key]) >= MIN_EVENT_CHANGE[key] for key in SIGNIFICANT_KEYS)
 
 
 def crossing(times, values, level):
@@ -321,23 +330,58 @@ def transitions(counts):
     return joins, splits
 
 
+def finite_difference(a, b):
+    if np.isfinite(a) and np.isfinite(b):
+        return float(abs(a - b))
+    if not np.isfinite(a) and not np.isfinite(b):
+        return 0.0
+    return float("inf")
+
+
+def neck_difference(a, b):
+    return finite_difference(a["neck"], b["neck"])
+
+
+def gap_difference(a, b):
+    return finite_difference(a["gap"], b["gap"])
+
+
+def transition_gap(a, b):
+    if a and b:
+        return abs(a[0] - b[0]) * 1000 / align.GRID_HZ
+    return 0.0 if not a and not b else float("inf")
+
+
+def series_rms(a_count, b_count, a_values, b_values):
+    squares = []
+    for ca, cb, va, vb in zip(a_count, b_count, a_values, b_values):
+        difference = finite_difference(va, vb)
+        if np.isinf(difference) and ca != cb:
+            continue
+        if np.isfinite(va) or np.isfinite(vb):
+            squares.append(difference ** 2)
+    return float(np.sqrt(np.mean(squares))) if squares else 0.0
+
+
+def neck_rms(a_count, b_count, a_neck, b_neck):
+    return series_rms(a_count, b_count, a_neck, b_neck)
+
+
 def compare_topology(a_series, b_series):
     a_count, b_count = np.array(a_series["count"]), np.array(b_series["count"])
-    if a_count.max() < 2 and b_count.max() < 2:
-        return None
     entry = {}
     a_joins, a_splits = transitions(a_count)
     b_joins, b_splits = transitions(b_count)
-    for key, a, b in (("join_ms", a_joins, b_joins), ("split_ms", a_splits, b_splits)):
-        if a and b:
-            entry[key] = abs(a[0] - b[0]) * 1000 / align.GRID_HZ
+    entry["join_ms"] = transition_gap(a_joins, b_joins)
+    entry["split_ms"] = transition_gap(a_splits, b_splits)
     count = min(len(a_count), len(b_count))
     excluded = np.zeros(count, dtype=bool)
     for index in a_joins + a_splits + b_joins + b_splits:
         excluded[max(0, index - TRANSITION_SAMPLES) : index + TRANSITION_SAMPLES + 1] = True
     entry["count"] = float(((a_count[:count] != b_count[:count]) & ~excluded).sum())
-    a_neck, b_neck = np.array(a_series["neck"][:count]), np.array(b_series["neck"][:count])
-    entry["neck_rms"] = float(np.sqrt(np.mean((a_neck - b_neck) ** 2)))
+    entry["neck_rms"] = neck_rms(a_count[:count], b_count[:count], a_series["neck"][:count], b_series["neck"][:count])
+    if "gap" in a_series and "gap" in b_series:
+        entry["gap_rms"] = series_rms(a_count[:count], b_count[:count], a_series["gap"][:count], b_series["gap"][:count])
     entry["native"] = {"joins_ms": [i * 1000 / align.GRID_HZ for i in a_joins], "splits_ms": [i * 1000 / align.GRID_HZ for i in a_splits]}
     entry["flutter"] = {"joins_ms": [i * 1000 / align.GRID_HZ for i in b_joins], "splits_ms": [i * 1000 / align.GRID_HZ for i in b_splits]}
     return entry
@@ -363,10 +407,8 @@ def compare(scene, native, flutter):
             sa, sb = a["series"][name], b["series"][name]
             shape = {}
             if name in scene.topology:
-                topology = compare_topology(sa, sb)
-                if topology:
-                    shape["topology"] = topology
-            for key in align.KEYS:
+                shape["topology"] = compare_topology(sa, sb)
+            for key in (*align.KEYS, *scene.edges.get(name, ())):
                 entry = compare_key(key, sa[key], sb[key])
                 if entry:
                     shape[key] = entry
@@ -402,7 +444,12 @@ def expected(result, scene):
             if measure == "delay_ms":
                 names.append(f"{label}.delay_ms")
                 continue
-            owners = scene.topology if measure.startswith("topology.") else scene.track
+            if measure.startswith("topology."):
+                owners = scene.topology
+            elif measure.split(".")[0] in EDGE_KEYS:
+                owners = [name for name, keys in scene.edges.items() if measure.split(".")[0] in keys]
+            else:
+                owners = scene.track
             names += [f"{name}.{label}.{measure}" for name in owners]
     return names
 
@@ -462,11 +509,13 @@ def static_topology(scene, native_dir, flutter_dir):
         rows = {}
         for app, folder in (("native", native_dir), ("flutter", flutter_dir)):
             bare = track.crop_px(metrics.load(folder / "bare" / "ready.png"), px)
-            rows[app] = track.topology(track.still_mask(track.crop_px(metrics.load(folder / "ready.png"), px), bare))
+            mask = track.still_mask(track.crop_px(metrics.load(folder / "ready.png"), px), bare)
+            rows[app] = dict(track.topology(mask), gap=track.gap(mask))
         found[name] = {
             "native": rows["native"],
             "flutter": rows["flutter"],
             "count": abs(rows["native"]["count"] - rows["flutter"]["count"]),
-            "neck_pt": abs(rows["native"]["neck"] - rows["flutter"]["neck"]),
+            "neck_pt": neck_difference(rows["native"], rows["flutter"]),
+            "gap_pt": gap_difference(rows["native"], rows["flutter"]),
         }
     return found

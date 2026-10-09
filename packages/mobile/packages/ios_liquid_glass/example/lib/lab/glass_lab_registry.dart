@@ -6,9 +6,10 @@ import 'glass_lab_marker.dart';
 import 'scenes/material_scenes.dart';
 import 'scenes/motion_scenes.dart';
 import 'scenes/perf_scenes.dart';
+import 'scenes/spacing_scenes.dart';
 
 sealed class GlassLabRegistry {
-  static final Map<String, Widget Function(GlassLabLaunch launch)> scenes = {...MaterialScenes.scenes, ...MotionScenes.scenes};
+  static final Map<String, Widget Function(GlassLabLaunch launch)> scenes = {...MaterialScenes.scenes, ...MotionScenes.scenes, ...SpacingScenes.scenes};
   static final Map<String, Widget Function(GlassLabLaunch launch)> tools = {...PerfScenes.scenes, ...MotionScenes.tools};
 
   static Widget build(GlassLabLaunch launch) {

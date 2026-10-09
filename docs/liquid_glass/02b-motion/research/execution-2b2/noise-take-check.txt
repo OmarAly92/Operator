@@ -1,0 +1,115 @@
+# Task 25f: why take_check flags material.morph and material.respace (read-only analysis)
+
+Reran `take_check.py` on all 40 `material.morph` and 10 `material.respace` takes of `build/glass_lab/runs/noise-2b2` (one process per take, `--scene` the scene id). The 50 JSON lines are identical to the earlier run kept in the session scratchpad (`tc1.txt`): 28 of 40 morph takes FAIL, 9 of 10 respace takes FAIL. Extra numbers below come from `shapes.capture` rows of the same takes (helper scripts in the session scratchpad only). No recording, no deletion, no commit, nothing written to the repo except this file.
+
+## Bottom line
+
+- No morph take has the gotcha 47 fault. All 40 have exactly 2 touches, none has a zero-length window (shortest 45 ms, median 77, longest 166 ms), and no animation is squeezed (10-90% of the stack height is 252-373 ms at step 1 and 150-325 ms at step 3, the same for PASS and FAIL takes of one case; one slower outlier at 535 ms).
+- The failures come from the tap branch of the rule, `tap and hole and burst >= 2`, which does not use `zero`. It fires on a pattern that passing takes show too: a long frame gap before the tap (the still screen) followed by 1.7-5 ms frames. Only the count of those short gaps (1 in passing takes, 1-4 in failing ones) separates PASS from FAIL.
+- The earlier report said all 28 failures are capture holes. It is 27 takes with a capture hole and 1 take (`light-stripes-reduce-motion/1`) with "touch step 3 owns no event".
+- `material.respace` is a measure problem, not a capture problem: native animates the pair (2 components to 1 about 200 ms after the tap, neck 12 to 33 over 24-25 video frames, and back over 13-16 frames), but the tracker's event detection and significance test cannot see it.
+- `material.union` and the 23 `material.spacing.*` scenes have no steps; all their static `ready.mad` and `settled.mad` in `noise.json` are 0.0.
+
+## (1) material.morph: touch windows, zero, gaps, burst
+
+- Touch count: 40 of 40 takes have 2 touches. Zero-length windows: 0 of 80 (take_check's `zero` is false for every event). Window lengths in ms: min 45, median 77, max 166 (`light-stripes/0` 153, `light-stripes/3` 166).
+- Failure messages: 40 `capture hole` messages in 27 takes, plus 1 "touch step 3 owns no event".
+- Where the flagged events sit: 32 flagged events are the first event of a step (13 at step 1, 19 at step 3, all of them `gap1` long with `gap2` under 30 ms) and 8 are later events of the same step (2 at step 1, 6 at step 3; 7 have both gaps long). By take: 20 flagged on first events only, 1 on a later event only, 6 on both.
+- Per-take table (first event of each step; the number in brackets is the events that step owns; last column is the 10-90% time of the `stack` height series in ms, step 1 / step 3):
+
+| take | verdict | touch windows (ms) | step 1 first event: gap1 / gap2 (ms) / burst (events) | step 3 first event: gap1 / gap2 (ms) / burst (events) | stack 10-90% ms |
+|---|---|---|---|---|---|
+| dark-photo/0 | FAIL | 80 80 | 13.3/16.7/0 (2) | 2335.0/1.7/3 (2) | 368/185 |
+| dark-photo/1 | FAIL | 63 76 | 396.7/1.7/2 (2) | 2338.3/5.0/1 (2) | 375/187 |
+| dark-photo/2 | FAIL | 75 76 | 11.7/15.0/1 (3) | 2338.3/3.3/2 (2) | 367/177 |
+| dark-photo/3 | FAIL | 83 82 | 10.0/16.7/0 (2) | 2290.0/3.3/2 (3) | 367/183 |
+| dark-photo/4 | FAIL | 69 75 | 413.3/3.3/2 (3) | 2295.0/5.0/2 (2) | 535/152 |
+| dark-photo-reduce-motion/0 | FAIL | 58 83 | 406.7/3.3/2 (2) | 8.3/15.0/0 (2) | 273/268 |
+| dark-photo-reduce-motion/1 | FAIL | 68 92 | 396.7/3.3/2 (2) | 2836.7/3.3/2 (2) | 260/270 |
+| dark-photo-reduce-motion/2 | PASS | 79 85 | 413.3/1.7/1 (1) | 11.7/16.7/2 (2) | 265/272 |
+| dark-photo-reduce-motion/3 | FAIL | 68 95 | 406.7/1.7/2 (2) | 13.3/15.0/0 (2) | 270/265 |
+| dark-photo-reduce-motion/4 | FAIL | 58 85 | 405.0/1.7/2 (1) | 2873.3/5.0/3 (2) | 267/262 |
+| dark-stripes/0 | FAIL | 83 75 | 13.3/16.7/1 (2) | 2325.0/3.3/2 (2) | 345/150 |
+| dark-stripes/1 | FAIL | 80 75 | 385.0/1.7/3 (2) | 2336.7/5.0/0 (2) | 350/173 |
+| dark-stripes/2 | PASS | 77 71 | 388.3/1.7/1 (2) | 2340.0/3.3/1 (2) | 347/167 |
+| dark-stripes/3 | PASS | 61 88 | 386.7/5.0/1 (1) | 10.0/15.0/0 (2) | 338/185 |
+| dark-stripes/4 | PASS | 88 80 | 385.0/3.3/1 (1) | 3.3/5.0/2 (2) | 348/183 |
+| dark-stripes-reduce-motion/0 | FAIL | 63 80 | 421.7/1.7/4 (1) | 2776.7/3.3/2 (2) | 270/285 |
+| dark-stripes-reduce-motion/1 | PASS | 70 95 | 11.7/15.0/1 (1) | 16.7/16.7/1 (2) | 277/283 |
+| dark-stripes-reduce-motion/2 | FAIL | 65 88 | 418.3/3.3/1 (1) | 2803.3/3.3/3 (2) | 273/285 |
+| dark-stripes-reduce-motion/3 | PASS | 74 56 | 11.7/16.7/0 (1) | 2733.3/3.3/1 (2) | 260/297 |
+| dark-stripes-reduce-motion/4 | FAIL | 76 83 | 13.3/16.7/0 (1) | 2790.0/3.3/2 (2) | 258/277 |
+| light-photo/0 | PASS | 77 85 | 13.3/15.0/1 (3) | 8.3/13.3/0 (1) | 347/187 |
+| light-photo/1 | FAIL | 76 74 | 406.7/3.3/2 (2) | 2343.3/3.3/1 (2) | 358/165 |
+| light-photo/2 | FAIL | 61 88 | 396.7/3.3/1 (2) | 5.0/16.7/2 (2) | 368/187 |
+| light-photo/3 | PASS | 65 85 | 410.0/1.7/1 (2) | 8.3/16.7/0 (1) | 373/182 |
+| light-photo/4 | FAIL | 70 73 | 375.0/3.3/3 (2) | 2321.7/3.3/2 (1) | 367/185 |
+| light-photo-reduce-motion/0 | FAIL | 75 52 | 3.3/5.0/0 (1) | 2760.0/3.3/4 (2) | 268/285 |
+| light-photo-reduce-motion/1 | PASS | 63 91 | 400.0/3.3/1 (1) | 6.7/13.3/0 (2) | 273/268 |
+| light-photo-reduce-motion/2 | FAIL | 45 74 | 3.3/5.0/3 (2) | 3036.7/1.7/2 (2) | 270/290 |
+| light-photo-reduce-motion/3 | FAIL | 81 83 | 401.7/3.3/2 (2) | 3003.3/1.7/1 (2) | 272/282 |
+| light-photo-reduce-motion/4 | FAIL | 74 80 | 403.3/3.3/2 (1) | 2528.3/3.3/2 (2) | 277/292 |
+| light-stripes/0 | FAIL | 153 82 | 395.0/1.7/1 (3) | 2331.7/3.3/2 (2) | 342/187 |
+| light-stripes/1 | FAIL | 72 75 | 13.3/16.7/0 (1) | 2321.7/3.3/2 (2) | 358/200 |
+| light-stripes/2 | PASS | 92 90 | 15.0/16.7/1 (1) | 13.3/16.7/0 (2) | 355/193 |
+| light-stripes/3 | FAIL | 166 80 | 381.7/1.7/1 (2) | 2286.7/3.3/3 (1) | 335/180 |
+| light-stripes/4 | FAIL | 80 47 | 18.3/15.0/2 (1) | 2420.0/1.7/3 (2) | 357/217 |
+| light-stripes-reduce-motion/0 | PASS | 78 80 | 380.0/1.7/1 (1) | 2798.3/6.7/1 (2) | 262/308 |
+| light-stripes-reduce-motion/1 | FAIL | 58 50 | 16.7/8.3/3 (1) | none | 252/307 |
+| light-stripes-reduce-motion/2 | PASS | 60 94 | 401.7/5.0/1 (1) | 15.0/15.0/0 (2) | 268/313 |
+| light-stripes-reduce-motion/3 | FAIL | 71 93 | 406.7/1.7/2 (1) | 13.3/15.0/0 (2) | 265/293 |
+| light-stripes-reduce-motion/4 | FAIL | 79 90 | 393.3/3.3/1 (1) | 2701.7/3.3/2 (2) | 260/325 |
+
+Later events of a step (the tail of the morph) have gap1 130-370 ms in nearly every take; they are not in the table.
+
+## (2) Is the gap1 / burst signature in passing takes too? Yes, with the same values
+
+First event of each step with `gap1_ms > 30`:
+
+| step | verdict | takes with gap1 > 30 | gap1 range | burst values (count of takes) |
+|---|---|---|---|---|
+| 1 | PASS | 8 of 12 | 380.0-413.3 ms | 1 (8) |
+| 1 | FAIL | 18 of 28 | 375.0-421.7 ms | 1 (5), 2 (10), 3 (2), 4 (1) |
+| 3 | PASS | 3 of 12 | 2340.0-2798.3 ms | 1 (3) |
+| 3 | FAIL | 23 of 27 | 2286.7-3036.7 ms | 0 (1), 1 (3), 2 (13), 3 (5), 4 (1) |
+
+- gap1 is the same in PASS and FAIL takes: step 1 about 375-420 ms; step 3 about 2.3-2.4 s in normal mode (14 takes, 2287-2420 ms) and 2.5-3.0 s in Reduce Motion (12 takes, 2528-3037 ms). gap2 right after the stall is 1.7-5.0 ms in the passing takes with a stall (median 2.5 ms at step 1, 3.3 ms at step 3, max 6.7), the same as in the failing ones (median 3.3 ms). A passing take stops at one short gap; a failing one has two to four.
+- The take with 0 events at step 3 and the low-gap takes are not part of the table above: 14 of 40 step-1 takes (4 PASS, 10 FAIL) have gap1 under 30 ms (11.7-18.3 ms, one 3.3 ms), a frame happened to land just before the tap.
+- Origin: the first frame of the clip is the last still frame before the tap (in `dark-photo/1` the first frame is at 15.65 s and the onset at 16.047 s, a 397 ms gap) and the recording only writes a frame when the screen changes, so the still screen before a tap reads as a long gap1. At step 3 the same effect spans the wait between the two taps (tap-to-tap median 3.72 s in morph, one take 6.39 s, against 3.0 s in morph.plain; why morph waits longer is not known). The touch window is not squeezed in these takes (45-166 ms), and the onset equals the touch-down time in most of them (the marker and the first glass change land in the same frame).
+- After the 1-4 short frames the frames return to the display rate: frame gaps 3 to 6 of the first step-1 event are 16.7 ms median in both groups (PASS min 3.3 max 16.7, FAIL min 3.3 max 20.0). Gotcha 47's fault would keep frames 1.7-6.7 ms apart through the animation.
+- Why merge and morph.plain pass: merge first events have gap1 17-53 ms (39 of 40 above 30 ms but under 54) and burst 0-1; morph.plain step 1 has gap1 5-28 ms in 37 of 40 takes (the other 3 are 93-835 ms with burst 0-1) and step 3 gap1 20-100 ms, burst 0-1. Neither has a 380 ms or 2.3 s stall. Why the glass morph scene idles that long before a tap when plain and merge do not is not known; I did not find it in the data.
+
+## (3) Does the morph timing agree across takes? Yes, nothing is squeezed
+
+`stack` height (54 to about 270 pt; travel 213.7-216.3 pt at step 1, -211.0 to -216.3 at step 3), time from 10% to 90% of the travel and frames inside it:
+
+| step | verdict | n | 10-90% ms (min / median / max) | video frames inside 10-90% (min / median / max) | first 1 pt of change after touch-down, ms (min / median / max) |
+|---|---|---|---|---|---|
+| 1 | PASS | 12 | 260 / 307.5 / 373 | 23 / 27 / 38 | 88 / 120.5 / 173 |
+| 1 | FAIL | 28 | 252 / 306 / 535 | 21 / 32 / 43 | 82 / 120 / 248 |
+| 3 | PASS | 12 | 167 / 230.5 / 313 | 16 / 23.5 / 38 | 97 / 135 / 142 |
+| 3 | FAIL | 28 | 150 / 239.5 / 325 | 14 / 23 / 35 | 28 / 127 / 135 |
+
+- By case the spread is small and PASS and FAIL takes of one case agree: `dark-stripes` step 1 is 345 and 350 ms (FAIL) against 347, 338, 348 (PASS); `light-photo-reduce-motion` step 1 is 273 (PASS) against 268-277 (FAIL). Normal mode step 1 is 335-375 ms (one 535), Reduce Motion step 1 is 252-277 ms; step 3 is 150-217 ms normal and 262-325 ms Reduce Motion.
+- A squeezed take would show a 10-90 time several times shorter than its siblings, with 3-6 frames inside it (gotcha 47: 125 ms read as 50 ms). The shortest against its siblings is `dark-stripes/0` step 3 at 150 ms against 167-185 ms (10-19% shorter), and the frame count inside 10-90 never falls under 14. The one outlier, `dark-photo/4` step 1 at 535 ms against 367-375 ms, is longer, not shorter; it has a 367 ms video gap in its tail (events at 17.238 s and 17.605 s), the kind of long gap every glass morph take has after the main motion.
+- take_check's `progress_first_frames` are nan for morph (no inner region), so the height series is used in its place.
+
+Conclusion for (1) to (3): the morph takes are not recorder-squeezed. The flag is the tap branch firing on the idle-then-flush at the start of a tap, with 2-4 short frames instead of 1. Whether to keep them, relax the tap branch (for example require `zero`, as gotcha 47 describes, or a squeezed 10-90), or gate morph with a timing check like the one above is the main session's decision.
+
+## (4) material.respace: why no event for the taps
+
+What the scene tracks: `scenes.json` `material.respace` has `track: ["pair"]`, `topology: ["pair"]`, region `[103, 399, 196, 104]`, steps wait, tap widen, wait, tap narrow, wait. The lab scene (`tool/glass_lab/native/GlassLab/MaterialScenes.swift:230`) is two 80 pt circles 12 pt apart in a `GlassEffectContainer(spacing: wide ? 40 : 8)`: the layout never changes, only the blend spacing, so the outer bounding box of the pair is constant.
+
+How events are assigned (`shapes.capture`, `tool/glass_lab/harness/shapes.py:113-121`): an event is a run of frames whose mean absolute difference from the previous frame (whole region, downscaled by the pixel scale) exceeds `align.MOTION_THRESHOLD` 0.5; it is kept only if `significant(series)` holds, which tests a `count` change of at least 1 or a change of at least `MIN_EVENT_CHANGE` in width, height, cx, cy (4.0), luma (1.5) or progress (0.1); neck and gap are not in that test. `touch.owner` then gives the event to the last step whose touch started before its onset.
+
+What the frames do (rows of `shapes.capture`, per take):
+
+- Widen (step 1): the gap between the circles goes 10.7, 10.0, 8.7, 7.3, 3.0 over about 8 frames, then at +190 to +218 ms after touch-down the pair becomes one component and the neck grows 12 to 33 (dark) or 12.7 to 35.3 (light), in harness units, over 24-25 video frames (16.29 s to about 16.8 s in `dark-photo/0`). Narrow (step 3): the reverse, count 1 to 2 at +225 to +247 ms with 13-16 frames of changing neck. In all 10 takes. Native does animate the pair (neck over far more than 3 video frames), and the capture is sound: 2 touches per take, windows 25-74 ms, 16-18 ms frame gaps and burst 0 in every event that was found.
+- Why it is not an event: bounding box width, height, cx, cy have 0.0 peak-to-peak in every window. The per-frame mean difference peaks at 0.507 in `dark-photo/0` (one frame, so align finds a one-frame event at 16.29-16.307 s and `significant` then drops it), 0.475 in `dark-photo/2` (below 0.5, no event at all), 0.545 and 0.611 in `light-photo/0`. Luma peak-to-peak in the 0.8 s after a tap is 0.2-0.3 in the dark takes (under 1.5) and 2.0 in the light takes (over 1.5), so a light take gets an event only when the 0.5 threshold also fires: events found for step 3 only in `light-photo/0` and `/1`, for steps 1 and 3 in `/4`, none in `/2` and `/3`, none in the 5 dark takes. The neck peak-to-peak in the same windows is 20-30 (widen) and 24-31 (narrow), present but not tested.
+- Class: measure/manifest (event detection and the significance test never look at the neck or gap of a scene whose only motion is topology), not a capture fault. Consequence already in `noise.json`: `material.respace` `dark-photo` has no motion floor at all and `light-photo` only `step3e0` floors (`topology.neck_rms` 18.0, `split_ms` 58.3, `gap_rms` 1.80, `delay_ms`) from pairs that both found a step 3 event.
+- take_check on respace (rerun): `dark-photo/0-4` FAIL, steps 1 and 3 own no event; `light-photo/0` and `/1` FAIL on step 1 only (step 3 event with gap1 16.7 and 15.0 ms, burst 0); `/2` and `/3` FAIL on both steps; `/4` PASS (events at steps 1 and 3, gap1 18.3 and 16.7 ms, burst 0). No respace take has a capture hole or a zero-length window.
+
+## (5) material.union and material.spacing.*
+
+- `tool/glass_lab/scenes.json`: `material.union` and all 23 `material.spacing.*` scenes have `steps: []` (24 scenes, none with a step), so `touch.touch_steps` is empty and take_check cannot apply (it crashed on them at `take_check.py:28`, `analyze.window` returning None).
+- `tool/glass_lab/noise.json`: all 24 scenes are present with 48 cases (`material.union` 2: dark-stripes, light-stripes; each spacing scene dark-photo and light-photo) and 96 static values (`ready.mad` and `settled.mad` per case). Every one is 0.0 (max 0.0), so every one is at most 1.0. The Task 25c/d logs also print "5 takes, static mad 0.00" for each case.

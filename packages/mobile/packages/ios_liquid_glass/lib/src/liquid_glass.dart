@@ -426,6 +426,8 @@ class RenderLiquidGlass extends RenderProxyBox
 
   Rect get drawnRect => _motion?.resolve(this) ?? Offset.zero & size;
 
+  GlassUnionOutline? get unionOutline => _motion?.union(this);
+
   @override
   void attach(PipelineOwner owner) {
     super.attach(owner);
@@ -504,6 +506,8 @@ class RenderLiquidGlass extends RenderProxyBox
 
   Path getPath() {
     if (_motion == null) return _lastPath;
+    final union = unionOutline;
+    if (union != null) return union.leads ? union.shape.getOuterPath(union.rect) : Path();
     return shape.getOuterPath(drawnRect);
   }
 }

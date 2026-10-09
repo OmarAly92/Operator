@@ -10,6 +10,7 @@ export 'src/api/glass_effect.dart' show GlassEffect, GlassEffectScope;
 export 'src/api/glass_effect_container.dart' show GlassEffectContainer;
 export 'src/api/glass_effect_transition.dart' show GlassEffectTransition;
 export 'src/api/glass_foreground.dart' show GlassForeground;
+export 'src/api/glass_namespace.dart' show GlassEffectID, GlassEffectUnion, GlassNamespace;
 export 'src/api/glass_shape.dart';
 export 'src/api/glass_theme.dart' show GlassTheme, GlassThemeData;
 export 'src/fake_glass.dart' show FakeGlass;

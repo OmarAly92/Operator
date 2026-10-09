@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
+import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:ios_liquid_glass/src/motion/glass_materialize.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_coordinator.dart';
 import 'package:ios_liquid_glass/src/motion/ios27_motion.dart';
@@ -100,7 +101,7 @@ void main() {
     final member = coordinator.join()
       ..attachBox(space.box)
       ..shape = const LiquidRoundedRectangle(borderRadius: 20)
-      ..sharedSettings = const LiquidGlassSettings();
+      ..sharedMaterial = GlassMaterialSource(resolve: (_) => const GlassMaterial({}), side: 88);
     member.sized(space.box.size);
     expect(member.drawn, const Rect.fromLTWH(0, 0, 100, 40));
     expect(coordinator.leave(member, animate: true), isTrue);
@@ -128,7 +129,7 @@ void main() {
     final member = coordinator.join()
       ..attachBox(space.box)
       ..shape = const LiquidRoundedRectangle(borderRadius: 20)
-      ..sharedSettings = const LiquidGlassSettings();
+      ..sharedMaterial = GlassMaterialSource(resolve: (_) => const GlassMaterial({}), side: 88);
     member.sized(space.box.size);
     expect(member.drawn, const Rect.fromLTWH(150, 180, 100, 40));
     space.tripwire.armed = true;
@@ -148,7 +149,7 @@ void main() {
     final member = coordinator.join()
       ..attachBox(space.box)
       ..shape = const LiquidRoundedRectangle(borderRadius: 20)
-      ..sharedSettings = const LiquidGlassSettings();
+      ..sharedMaterial = GlassMaterialSource(resolve: (_) => const GlassMaterial({}), side: 88);
     member.sized(space.box.size);
     member.drawn;
     expect(coordinator.leave(member, animate: true), isTrue);
@@ -168,7 +169,7 @@ void main() {
     final member = coordinator.join()
       ..attachBox(space.box)
       ..shape = const LiquidRoundedRectangle(borderRadius: 20)
-      ..sharedSettings = const LiquidGlassSettings();
+      ..sharedMaterial = GlassMaterialSource(resolve: (_) => const GlassMaterial({}), side: 88);
     member.sized(space.box.size);
     expect(coordinator.leave(member, animate: false), isFalse);
     expect(coordinator.takeGhosts(), isEmpty);
@@ -209,7 +210,7 @@ void main() {
     final member = coordinator.join(inserted: true)
       ..attachBox(space.box)
       ..shape = const LiquidRoundedRectangle(borderRadius: 20)
-      ..sharedSettings = const LiquidGlassSettings();
+      ..sharedMaterial = GlassMaterialSource(resolve: (_) => const GlassMaterial({}), side: 88);
     member.sized(space.box.size);
     expect(member.drawn, const Rect.fromLTWH(0, 0, 100, 40));
     await tester.pump();
@@ -229,5 +230,36 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     await tester.pump(const Duration(milliseconds: 16));
     expect(coordinator.ghosts, isEmpty);
+  });
+
+  testWidgets('of two leavers with one id only the first pairs with an arrival that has already been placed', (tester) async {
+    await tester.pump();
+    final coordinator = GlassMotionCoordinator(vsync: const TestVSync());
+    addTearDown(coordinator.dispose);
+    final space = _Space(coordinator);
+    final namespace = GlassNamespace();
+    GlassMember place({bool inserted = false}) {
+      final member = coordinator.join(inserted: inserted, morphs: true, id: GlassEffectID('x', namespace))
+        ..attachBox(space.box)
+        ..shape = const LiquidRoundedRectangle(borderRadius: 20)
+        ..sharedMaterial = GlassMaterialSource(resolve: (_) => const GlassMaterial({}), side: 88);
+      member.sized(space.box.size);
+      return member;
+    }
+
+    final first = place(), second = place();
+    final arrival = place(inserted: true);
+    arrival.sync();
+    expect(coordinator.leave(first, animate: true), isTrue);
+    expect(coordinator.leave(second, animate: true), isTrue);
+    final ghosts = coordinator.takeGhosts();
+    expect(ghosts.map((ghost) => ghost.kind), [GlassGhostKind.content, GlassGhostKind.pending]);
+    expect(ghosts.first.member, first);
+    expect(ghosts.first.partner, arrival);
+    expect(ghosts.last.partner, isNull);
+    coordinator.dropGhosts();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(milliseconds: 16));
   });
 }

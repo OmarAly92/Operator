@@ -1,5 +1,6 @@
 import re
 import subprocess
+from collections import deque
 from pathlib import Path
 
 import numpy as np
@@ -87,10 +88,22 @@ def shape_row(frame, bare, edge_map, origin, scale=metrics.SCALE):
     found = box_pixels(frame, bare, edge_map)
     luma = float(metrics.luma(frame).mean())
     if found is None:
-        return {"width": 0.0, "height": 0.0, "cx": float("nan"), "cy": float("nan"), "luma": luma, "band": 0.0}
+        nan = float("nan")
+        return {"width": 0.0, "height": 0.0, "cx": nan, "cy": nan, "xmin": nan, "xmax": nan, "ymin": nan, "ymax": nan, "luma": luma, "band": 0.0}
     left, top, right, bottom = found
     x, y, w, h = left / scale, top / scale, (right - left + 1) / scale, (bottom - top + 1) / scale
-    return {"width": float(w), "height": float(h), "cx": float(origin[0] + x + w / 2), "cy": float(origin[1] + y + h / 2), "luma": luma, "band": float(in_band(edge_map, found))}
+    return {
+        "width": float(w),
+        "height": float(h),
+        "cx": float(origin[0] + x + w / 2),
+        "cy": float(origin[1] + y + h / 2),
+        "xmin": float(origin[0] + x),
+        "xmax": float(origin[0] + x + w),
+        "ymin": float(origin[1] + y),
+        "ymax": float(origin[1] + y + h),
+        "luma": luma,
+        "band": float(in_band(edge_map, found)),
+    }
 
 
 def laplacian(image):
@@ -214,20 +227,117 @@ def neck(mask, scale=metrics.SCALE):
     return float(min(widths)) / scale if widths else 0.0
 
 
-STILL_THRESHOLD = 6.0
+def _reach(seeds, free):
+    flat = free.ravel()
+    width = free.shape[1]
+    starts = flat.copy()
+    starts[1:] &= ~flat[:-1] | (np.arange(1, flat.size) % width == 0)
+    runs = np.cumsum(starts) * flat
+    hit = np.bincount(runs, weights=(seeds.ravel() & flat).astype(np.float64), minlength=int(runs.max()) + 1) > 0
+    hit[0] = False
+    return hit[runs].reshape(free.shape)
+
+
+def fill_holes(mask):
+    free = ~mask
+    outside = np.zeros_like(free)
+    outside[[0, -1], :] = free[[0, -1], :]
+    outside[:, [0, -1]] |= free[:, [0, -1]]
+    while True:
+        grown = _reach(_reach(outside, free).T, free.T).T
+        if (grown == outside).all():
+            return ~outside
+        outside = grown
+
+
+def close(mask, reach):
+    size = 2 * reach + 1
+    return _box_filter(_box_filter(mask, size, np.maximum), size, np.minimum)
+
+
+TOPOLOGY_LUMA = 8.0
+TOPOLOGY_CLOSE = 2
+
+
+def topology_mask(frame, bare):
+    change = np.abs(metrics.luma(frame) - metrics.luma(bare)) > TOPOLOGY_LUMA
+    solid = fill_holes(close(change, TOPOLOGY_CLOSE))
+    edge = _box_filter(~solid, 2 * TOPOLOGY_CLOSE + 1, np.maximum)
+    return solid & (change | ~edge)
+
+
+STILL_RIM = 30.0
+GRAIN_REMOVED = 0.8
+GRAIN_MIN = 4.0
+GRAIN_WINDOW = 5
+
+
+def grain_removed(frame, bare):
+    change = frame - bare
+    shared = np.zeros(bare.shape[:2], dtype=np.float32)
+    energy = np.zeros(bare.shape[:2], dtype=np.float32)
+    for channel in range(3):
+        texture = bare[..., channel] - smooth(bare[..., channel])
+        lost = change[..., channel] - smooth(change[..., channel])
+        shared += _box_filter(lost * texture, GRAIN_WINDOW, np.add)
+        energy += _box_filter(texture * texture, GRAIN_WINDOW, np.add)
+    return (energy > GRAIN_MIN * GRAIN_WINDOW**2) & (shared < -GRAIN_REMOVED * energy)
 
 
 def still_mask(frame, bare):
-    return smooth(np.abs(frame - bare).max(axis=2)) > STILL_THRESHOLD
+    rim = np.abs(frame - bare).max(axis=2) > STILL_RIM
+    return fill_holes(rim | grain_removed(frame, bare))
 
 
 def topology(mask):
     parts = components(point_mask(mask))
     if len(parts) != 1:
-        return {"count": float(len(parts)), "neck": 0.0}
+        return {"count": float(len(parts)), "neck": float("nan")}
     width = neck(mask)
     return {"count": 1.0, "neck": width if width > 0 else float("nan")}
 
 
-def topology_row(frame, bare, edge_map):
-    return topology(glass_mask(frame, bare, edge_map))
+def _labels(mask):
+    labels = np.zeros(mask.shape, dtype=np.int32)
+    height, width = mask.shape
+    found = 0
+    for y, x in zip(*np.nonzero(mask)):
+        if labels[y, x]:
+            continue
+        found += 1
+        labels[y, x] = found
+        queue = deque([(y, x)])
+        while queue:
+            cy, cx = queue.popleft()
+            for ny, nx in ((cy - 1, cx), (cy + 1, cx), (cy, cx - 1), (cy, cx + 1)):
+                if 0 <= ny < height and 0 <= nx < width and mask[ny, nx] and not labels[ny, nx]:
+                    labels[ny, nx] = found
+                    queue.append((ny, nx))
+    return labels, found
+
+
+def gap(mask, scale=metrics.SCALE):
+    labels, found = _labels(point_mask(mask))
+    centres = []
+    for label in range(1, found + 1):
+        ys, xs = np.nonzero(labels == label)
+        if len(xs) >= TOPOLOGY_MIN_AREA:
+            centres.append((np.array([xs.mean(), ys.mean()]) + 0.5) * scale)
+    if len(centres) != 2:
+        return float("nan")
+    a, b = centres
+    span = float(np.linalg.norm(b - a))
+    along = (b - a) / span
+    height, width = mask.shape
+    empty = 0
+    for t in np.arange(0, span, 1.0):
+        x, y = a + along * t
+        ix, iy = int(np.floor(x)), int(np.floor(y))
+        if 0 <= ix < width and 0 <= iy < height and not mask[iy, ix]:
+            empty += 1
+    return empty / scale
+
+
+def topology_row(frame, bare):
+    mask = topology_mask(frame, bare)
+    return dict(topology(mask), gap=gap(mask))

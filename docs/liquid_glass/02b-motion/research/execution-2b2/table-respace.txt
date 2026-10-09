@@ -1,0 +1,33 @@
+#### run build/glass_lab/runs/20261008-041322
+material.respace dark-photo: pass 11 / judged 17 / expected 27 (static+topology 9/13, motion 2/14); events [0, 1] touches [2, 2] stalls flutter [] native []
+   FAIL ready.bbox_pt 3 > 1
+   FAIL ready.centre_pt 1.5 > 1
+   FAIL settled.bbox_pt 3 > 1
+   FAIL settled.centre_pt 1.5 > 1
+   FAIL motion.events.native_motion 0 < 1
+   FAIL motion.events.unpaired 1 > 0
+   FAIL motion.pair.step1e0.topology.count absent > 0 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step1e0.topology.join_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step1e0.topology.split_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step1e0.topology.neck_rms absent > 1 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step1e0.topology.gap_rms absent > 1 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step3e0.topology.count absent > 0 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step3e0.topology.join_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step3e0.topology.split_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step3e0.topology.neck_rms absent > 1 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step3e0.topology.gap_rms absent > 1 [key absent: an app's travel under the minimum or no pair]
+material.respace light-photo: pass 13 / judged 17 / expected 27 (static+topology 11/13, motion 2/14); events [0, 2] touches [2, 2] stalls flutter [] native []
+   FAIL ready.rim_rms 7.363 > 6
+   FAIL settled.rim_rms 7.363 > 6
+   FAIL motion.events.native_motion 0 < 1
+   FAIL motion.events.unpaired 2 > 0
+   FAIL motion.pair.step1e0.topology.count absent > 0 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step1e0.topology.join_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step1e0.topology.split_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step1e0.topology.neck_rms absent > 1 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step1e0.topology.gap_rms absent > 1 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step3e0.topology.count absent > 3 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step3e0.topology.join_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step3e0.topology.split_ms absent > 87.5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step3e0.topology.neck_rms absent > 27 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.pair.step3e0.topology.gap_rms absent > 2.706 [key absent: an app's travel under the minimum or no pair]

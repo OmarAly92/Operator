@@ -151,8 +151,10 @@ class _RenderGlassShadow extends RenderProxyBox {
 
   @override
   void paint(PaintingContext context, Offset offset) {
-    if (shadows.isNotEmpty && visibility > 0) {
-      final rect = (_motion?.resolve(this) ?? Offset.zero & size).shift(offset);
+    final union = _motion?.union(this);
+    if (shadows.isNotEmpty && visibility > 0 && (union == null || union.leads)) {
+      final rect = (union?.rect ?? _motion?.resolve(this) ?? Offset.zero & size).shift(offset);
+      final shape = union?.shape ?? this.shape;
       final canvas = context.canvas;
 
       final needsCutout = shadows.any((s) => s.offset != Offset.zero);
@@ -172,7 +174,7 @@ class _RenderGlassShadow extends RenderProxyBox {
             Path.combine(
               PathOperation.difference,
               Path()..addRect(layerBounds),
-              _shapePath(rect.deflate(.5)),
+              _shapePath(shape, rect.deflate(.5)),
             ),
           );
       }
@@ -190,7 +192,7 @@ class _RenderGlassShadow extends RenderProxyBox {
             )
             .toPaint();
 
-        _drawShape(canvas, shadowRect, paint);
+        _drawShape(canvas, shape, shadowRect, paint);
       }
 
       if (needsCutout) {
@@ -201,7 +203,7 @@ class _RenderGlassShadow extends RenderProxyBox {
     super.paint(context, offset);
   }
 
-  Path _shapePath(Rect rect) => switch (shape) {
+  Path _shapePath(LiquidShape shape, Rect rect) => switch (shape) {
         LiquidRoundedSuperellipse(:final borderRadius) => Path()
           ..addRSuperellipse(
             RSuperellipse.fromRectAndRadius(
@@ -219,7 +221,7 @@ class _RenderGlassShadow extends RenderProxyBox {
           ),
       };
 
-  void _drawShape(Canvas canvas, Rect rect, Paint paint) {
+  void _drawShape(Canvas canvas, LiquidShape shape, Rect rect, Paint paint) {
     switch (shape) {
       case LiquidRoundedSuperellipse(:final borderRadius):
         canvas.drawRSuperellipse(

@@ -1,0 +1,14 @@
+2 scene, case and frame triples compared; 2 Flutter frames byte-identical to the 2A run
+identical flutter tabbar.rest light-white ready: native frame max difference 0.0
+identical flutter tabbar.rest light-white settled: native frame max difference 0.0
+tabbar.rest light-white ready mad: 9.41 -> 9.41 (fail -> fail), flutter frame max difference 0.0, native 0.0
+tabbar.rest light-white settled mad: 9.41 -> 9.41 (fail -> fail), flutter frame max difference 0.0, native 0.0
+missing: 7
+MISSING tabbar.rest dark-black
+MISSING tabbar.rest dark-photo
+MISSING tabbar.rest dark-stripes
+MISSING tabbar.rest dark-white
+MISSING tabbar.rest light-black
+MISSING tabbar.rest light-photo
+MISSING tabbar.rest light-stripes
+worse: 0

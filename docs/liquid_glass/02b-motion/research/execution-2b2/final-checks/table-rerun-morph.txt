@@ -1,0 +1,902 @@
+#### run /Users/omaraly/development/AI/Operator-2b2/packages/mobile/build/glass_lab/runs/20261009-003940
+material.morph dark-photo: pass 48 / judged 87 / expected 213 (static+topology 9/13, motion 39/200); events [4, 3] touches [2, 2] stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+   FAIL motion.events.unpaired 1 > 0
+   FAIL motion.heart.step1e0.cy.peak_ms 266.667 > 25
+   FAIL motion.collapsed.step1e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step1e0.cy.settle_ms 83.333 > 75
+   FAIL motion.collapsed.step1e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step1e0.cy.overshoot_pct 46.557 > 28.557
+   FAIL motion.bolt.step1e0.cy.overshoot_pct 11.765 > 2
+   FAIL motion.collapsed.step1e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.response_pct absent > 5 [native 1.50/0.82 rms 0.310; flutter 1.13/0.74 rms 0.070 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.cy.response_pct absent > 5 [native 1.07/0.64 rms 0.221; flutter 0.30/0.71 rms 0.043 fit_invalid {'native': 'rms 0.221'}]
+   FAIL motion.bolt.step1e0.cy.response_pct absent > 5 [native 0.59/0.76 rms 0.186; flutter 0.27/0.88 rms 0.055 fit_invalid {'native': 'rms 0.186'}]
+   FAIL motion.toggle.step1e0.cy.response_pct absent > 5 [native 1.50/0.78 rms 0.080; flutter 1.23/0.72 rms 0.097 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.collapsed.step1e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.damping absent > 0.05 [native 1.50/0.82 rms 0.310; flutter 1.13/0.74 rms 0.070 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.cy.damping absent > 0.05 [native 1.07/0.64 rms 0.221; flutter 0.30/0.71 rms 0.043 fit_invalid {'native': 'rms 0.221'}]
+   FAIL motion.bolt.step1e0.cy.damping absent > 0.05 [native 0.59/0.76 rms 0.186; flutter 0.27/0.88 rms 0.055 fit_invalid {'native': 'rms 0.186'}]
+   FAIL motion.toggle.step1e0.cy.damping absent > 0.05 [native 1.50/0.78 rms 0.080; flutter 1.23/0.72 rms 0.097 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.collapsed.step1e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.peak_ms 100 > 25
+   FAIL motion.collapsed.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.settle_ms 533.333 > 125
+   FAIL motion.heart.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.settle_ms 450 > 75
+   FAIL motion.collapsed.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.overshoot_pct 2.312 > 2
+   FAIL motion.heart.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.overshoot_pct 18.446 > 4.631
+   FAIL motion.collapsed.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.response_pct absent > 5 [native 1.50/0.92 rms 0.263; flutter 0.71/0.65 rms 0.123 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.response_pct absent > 5 [native 0.96/0.66 rms 0.161; flutter 0.81/0.64 rms 0.158 fit_invalid {'native': 'rms 0.161', 'flutter': 'rms 0.158'}]
+   FAIL motion.collapsed.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.damping absent > 0.05 [native 1.50/0.92 rms 0.263; flutter 0.71/0.65 rms 0.123 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.damping absent > 0.05 [native 0.96/0.66 rms 0.161; flutter 0.81/0.64 rms 0.158 fit_invalid {'native': 'rms 0.161', 'flutter': 'rms 0.158'}]
+   FAIL motion.collapsed.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step1e0.ymin.settle_ms 375 > 287.5
+   FAIL motion.stack.step1e0.ymin.response_pct absent > 5 [native 1.50/0.73 rms 0.163; flutter 0.59/0.96 rms 0.004 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.stack.step1e0.ymin.damping absent > 0.05 [native 1.50/0.73 rms 0.163; flutter 0.59/0.96 rms 0.004 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.stack.step1e0.ymax.settle_ms 141.667 > 62.5
+   FAIL motion.stack.step1e0.ymax.response_pct 44.34 > 10.811 [native 1.06/0.81 rms 0.050; flutter 0.59/0.97 rms 0.009]
+   FAIL motion.stack.step1e0.ymax.damping 0.16 > 0.05 [native 1.06/0.81 rms 0.050; flutter 0.59/0.97 rms 0.009]
+   FAIL motion.stack.step1e0.topology.join_ms absent > 17 [native joins [408.3333333333333] splits [383.3333333333333, 441.6666666666667]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.star.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.peak_ms 33.333 > 25
+   FAIL motion.bolt.step3e0.cy.peak_ms 183.333 > 175
+   FAIL motion.toggle.step3e0.cy.peak_ms 141.667 > 17
+   FAIL motion.collapsed.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.cy.settle_ms 116.667 > 25
+   FAIL motion.collapsed.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.cy.overshoot_pct 16.185 > 2
+   FAIL motion.collapsed.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.response_pct 39.189 > 5 [native 0.74/0.35 rms 0.145; flutter 0.45/0.30 rms 0.144]
+   FAIL motion.bolt.step3e0.cy.response_pct absent > 5 [native 1.50/0.64 rms 0.156; flutter 1.33/0.58 rms 0.103 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.toggle.step3e0.cy.response_pct 61.644 > 8 [native 0.73/0.66 rms 0.096; flutter 0.28/0.65 rms 0.070]
+   FAIL motion.collapsed.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.cy.damping absent > 0.05 [native 1.50/0.64 rms 0.156; flutter 1.33/0.58 rms 0.103 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.collapsed.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.peak_ms 183.333 > 37.5
+   FAIL motion.heart.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.peak_ms 116.667 > 17
+   FAIL motion.collapsed.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.settle_ms 183.333 > 37.5
+   FAIL motion.heart.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.settle_ms 125 > 17
+   FAIL motion.collapsed.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.response_pct 55.357 > 15.984 [native 1.12/0.63 rms 0.131; flutter 0.50/0.67 rms 0.078]
+   FAIL motion.heart.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.response_pct absent > 5 [native 0.99/0.63 rms 0.183; flutter 0.54/0.64 rms 0.144 fit_invalid {'native': 'rms 0.183'}]
+   FAIL motion.collapsed.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.damping absent > 0.05 [native 0.99/0.63 rms 0.183; flutter 0.54/0.64 rms 0.144 fit_invalid {'native': 'rms 0.183'}]
+   FAIL motion.collapsed.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e0.ymin.peak_ms 108.333 > 37.5
+   FAIL motion.stack.step3e0.ymin.settle_ms 125 > 62.5
+   FAIL motion.stack.step3e0.ymin.response_pct absent > 5 [native 1.48/0.50 rms 0.217; flutter 0.64/0.49 rms 0.178 fit_invalid {'native': 'rms 0.217', 'flutter': 'rms 0.178'}]
+   FAIL motion.stack.step3e0.ymin.damping absent > 0.05 [native 1.48/0.50 rms 0.217; flutter 0.64/0.49 rms 0.178 fit_invalid {'native': 'rms 0.217', 'flutter': 'rms 0.178'}]
+   FAIL motion.stack.step3e0.ymax.peak_ms 183.333 > 175
+   FAIL motion.stack.step3e0.ymax.settle_ms 83.333 > 62.5
+   FAIL motion.stack.step3e0.ymax.response_pct 40.777 > 8.491 [native 1.03/0.73 rms 0.063; flutter 0.61/0.92 rms 0.005]
+   FAIL motion.stack.step3e0.ymax.damping 0.19 > 0.06 [native 1.03/0.73 rms 0.063; flutter 0.61/0.92 rms 0.005]
+   FAIL motion.stack.step3e0.topology.count 33 > 9 [native joins [400.0] splits []; flutter joins [233.33333333333334] splits []]
+   FAIL motion.stack.step3e0.topology.join_ms 166.667 > 25 [native joins [400.0] splits []; flutter joins [233.33333333333334] splits []]
+   FAIL motion.stack.step3e0.topology.gap_rms 43.333 > 8.899 [native joins [400.0] splits []; flutter joins [233.33333333333334] splits []]
+   FAIL motion.star.step3e1.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e1.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e1.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e1.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e1.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e1.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e1.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e1.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e1.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e1.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e1.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e1.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e1.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e1.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e1.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e1.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e1.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e1.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e1.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e1.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e1.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e1.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e1.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e1.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e1.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e1.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e1.width.peak_ms absent > 100 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e1.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e1.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e1.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e1.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e1.width.settle_ms absent > 150 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e1.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e1.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e1.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e1.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e1.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e1.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e1.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e1.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e1.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e1.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e1.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e1.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e1.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e1.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e1.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e1.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e1.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e1.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e1.ymin.peak_ms absent > 25 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e1.ymin.settle_ms absent > 175 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e1.ymin.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e1.ymin.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e1.ymin.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e1.ymax.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e1.ymax.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e1.ymax.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e1.ymax.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e1.ymax.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+material.morph dark-stripes: pass 36 / judged 80 / expected 148 (static+topology 8/13, motion 28/135); events [3, 2] touches [2, 2] stalls flutter [] native [123]
+   FAIL ready.bbox_pt 6 > 1
+   FAIL ready.centre_pt 3 > 1
+   FAIL settled.bbox_pt 6 > 1
+   FAIL settled.centre_pt 3 > 1
+   FAIL ready.topology.stack.neck_pt 23.667 > 1
+   FAIL motion.events.unpaired 1 > 0
+   FAIL motion.star.step1e0.cy.peak_ms 141.667 > 75
+   FAIL motion.heart.step1e0.cy.peak_ms 375 > 50
+   FAIL motion.bolt.step1e0.cy.peak_ms 225 > 75
+   FAIL motion.collapsed.step1e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.settle_ms 325 > 175
+   FAIL motion.collapsed.step1e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.overshoot_pct 19.551 > 14.373
+   FAIL motion.heart.step1e0.cy.overshoot_pct 16.66 > 4.444
+   FAIL motion.bolt.step1e0.cy.overshoot_pct 11.667 > 2
+   FAIL motion.collapsed.step1e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.response_pct absent > 5 [native 1.50/0.84 rms 0.281; flutter 1.15/0.73 rms 0.071 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.cy.response_pct absent > 5 [native 1.17/0.58 rms 0.159; flutter 0.31/0.68 rms 0.039 fit_invalid {'native': 'rms 0.159'}]
+   FAIL motion.bolt.step1e0.cy.response_pct 59.722 > 19.481 [native 0.72/0.57 rms 0.092; flutter 0.29/0.75 rms 0.049]
+   FAIL motion.toggle.step1e0.cy.response_pct absent > 5 [native 1.50/0.76 rms 0.076; flutter 1.17/0.73 rms 0.070 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.collapsed.step1e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.damping absent > 0.05 [native 1.50/0.84 rms 0.281; flutter 1.15/0.73 rms 0.071 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.cy.damping absent > 0.05 [native 1.17/0.58 rms 0.159; flutter 0.31/0.68 rms 0.039 fit_invalid {'native': 'rms 0.159'}]
+   FAIL motion.bolt.step1e0.cy.damping 0.18 > 0.05 [native 0.72/0.57 rms 0.092; flutter 0.29/0.75 rms 0.049]
+   FAIL motion.toggle.step1e0.cy.damping absent > 0.05 [native 1.50/0.76 rms 0.076; flutter 1.17/0.73 rms 0.070 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.collapsed.step1e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.peak_ms 483.333 > 100
+   FAIL motion.heart.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.peak_ms 75 > 62.5
+   FAIL motion.collapsed.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.settle_ms 641.667 > 425
+   FAIL motion.heart.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.settle_ms 425 > 75
+   FAIL motion.collapsed.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.overshoot_pct 19.767 > 3.045
+   FAIL motion.collapsed.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.response_pct absent > 5 [native 1.50/0.89 rms 0.242; flutter 0.66/0.64 rms 0.128 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.response_pct absent > 5 [native 0.89/0.61 rms 0.167; flutter 0.66/0.64 rms 0.129 fit_invalid {'native': 'rms 0.167'}]
+   FAIL motion.collapsed.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.damping absent > 0.05 [native 1.50/0.89 rms 0.242; flutter 0.66/0.64 rms 0.128 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.damping absent > 0.05 [native 0.89/0.61 rms 0.167; flutter 0.66/0.64 rms 0.129 fit_invalid {'native': 'rms 0.167'}]
+   FAIL motion.collapsed.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step1e0.ymin.settle_ms 358.333 > 125
+   FAIL motion.stack.step1e0.ymin.overshoot_pct 8.333 > 2.5
+   FAIL motion.stack.step1e0.ymin.response_pct absent > 5 [native 1.50/0.74 rms 0.145; flutter 0.60/0.95 rms 0.005 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.stack.step1e0.ymin.damping absent > 0.05 [native 1.50/0.74 rms 0.145; flutter 0.60/0.95 rms 0.005 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.stack.step1e0.ymax.settle_ms 133.333 > 37.5
+   FAIL motion.stack.step1e0.ymax.response_pct 42.857 > 18.919 [native 1.05/0.81 rms 0.046; flutter 0.60/0.95 rms 0.013]
+   FAIL motion.stack.step1e0.ymax.damping 0.14 > 0.05 [native 1.05/0.81 rms 0.046; flutter 0.60/0.95 rms 0.013]
+   FAIL motion.stack.step1e0.topology.count 9 > 7.5 [native joins [416.6666666666667] splits [375.0, 441.6666666666667]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.stack.step1e0.topology.join_ms absent > 287.5 [native joins [416.6666666666667] splits [375.0, 441.6666666666667]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.star.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.cy.peak_ms 83.333 > 17
+   FAIL motion.collapsed.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.settle_ms 66.667 > 25
+   FAIL motion.toggle.step3e0.cy.settle_ms 83.333 > 25
+   FAIL motion.collapsed.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.response_pct absent > 5 [native 0.73/0.34 rms 0.158; flutter 0.45/0.30 rms 0.150 fit_invalid {'native': 'rms 0.158', 'flutter': 'rms 0.150'}]
+   FAIL motion.bolt.step3e0.cy.response_pct absent > 5 [native 1.50/0.61 rms 0.145; flutter 1.35/0.58 rms 0.103 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.toggle.step3e0.cy.response_pct 51.351 > 18.519 [native 0.74/0.66 rms 0.104; flutter 0.36/0.73 rms 0.026]
+   FAIL motion.collapsed.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.damping absent > 0.05 [native 0.73/0.34 rms 0.158; flutter 0.45/0.30 rms 0.150 fit_invalid {'native': 'rms 0.158', 'flutter': 'rms 0.150'}]
+   FAIL motion.bolt.step3e0.cy.damping absent > 0.05 [native 1.50/0.61 rms 0.145; flutter 1.35/0.58 rms 0.103 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.toggle.step3e0.cy.damping 0.07 > 0.05 [native 0.74/0.66 rms 0.104; flutter 0.36/0.73 rms 0.026]
+   FAIL motion.collapsed.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.peak_ms 183.333 > 25
+   FAIL motion.heart.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.peak_ms 83.333 > 37.5
+   FAIL motion.collapsed.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.settle_ms 183.333 > 25
+   FAIL motion.heart.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.settle_ms 83.333 > 37.5
+   FAIL motion.collapsed.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.response_pct absent > 5 [native 1.22/0.56 rms 0.166; flutter 0.59/0.64 rms 0.135 fit_invalid {'native': 'rms 0.166'}]
+   FAIL motion.heart.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.response_pct absent > 5 [native 1.05/0.60 rms 0.205; flutter 0.63/0.64 rms 0.134 fit_invalid {'native': 'rms 0.205'}]
+   FAIL motion.collapsed.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.damping absent > 0.05 [native 1.22/0.56 rms 0.166; flutter 0.59/0.64 rms 0.135 fit_invalid {'native': 'rms 0.166'}]
+   FAIL motion.heart.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.damping absent > 0.05 [native 1.05/0.60 rms 0.205; flutter 0.63/0.64 rms 0.134 fit_invalid {'native': 'rms 0.205'}]
+   FAIL motion.collapsed.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e0.ymin.peak_ms 100 > 25
+   FAIL motion.stack.step3e0.ymin.settle_ms 116.667 > 17
+   FAIL motion.stack.step3e0.ymin.overshoot_pct 8.03 > 6.496
+   FAIL motion.stack.step3e0.ymin.response_pct absent > 5 [native 1.50/0.45 rms 0.235; flutter 0.64/0.49 rms 0.182 fit_invalid {'native': 'at the grid edge', 'flutter': 'rms 0.182'}]
+   FAIL motion.stack.step3e0.ymin.damping absent > 0.05 [native 1.50/0.45 rms 0.235; flutter 0.64/0.49 rms 0.182 fit_invalid {'native': 'at the grid edge', 'flutter': 'rms 0.182'}]
+   FAIL motion.stack.step3e0.ymax.settle_ms 50 > 25
+   FAIL motion.stack.step3e0.ymax.response_pct 44.954 > 16.525 [native 1.09/0.68 rms 0.065; flutter 0.60/0.94 rms 0.005]
+   FAIL motion.stack.step3e0.ymax.damping 0.26 > 0.09 [native 1.09/0.68 rms 0.065; flutter 0.60/0.94 rms 0.005]
+   FAIL motion.stack.step3e0.topology.count 29 > 15 [native joins [341.6666666666667] splits []; flutter joins [175.0] splits []]
+   FAIL motion.stack.step3e0.topology.join_ms 166.667 > 62.5 [native joins [341.6666666666667] splits []; flutter joins [175.0] splits []]
+   FAIL motion.stack.step3e0.topology.neck_rms 3.326 > 2.855 [native joins [341.6666666666667] splits []; flutter joins [175.0] splits []]
+material.morph light-photo: pass 45 / judged 80 / expected 148 (static+topology 13/13, motion 32/135); events [5, 2] touches [2, 2] stalls flutter [] native []
+   FAIL motion.events.unpaired 3 > 0
+   FAIL motion.star.step1e0.cy.peak_ms 158.333 > 87.5
+   FAIL motion.heart.step1e0.cy.peak_ms 391.667 > 37.5
+   FAIL motion.bolt.step1e0.cy.peak_ms 366.667 > 37.5
+   FAIL motion.collapsed.step1e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step1e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step1e0.cy.overshoot_pct 18.411 > 2
+   FAIL motion.bolt.step1e0.cy.overshoot_pct 11.765 > 2
+   FAIL motion.collapsed.step1e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.response_pct absent > 5 [native 1.50/0.98 rms 0.289; flutter 1.15/0.74 rms 0.067 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.cy.response_pct absent > 5 [native 1.23/0.56 rms 0.185; flutter 0.31/0.69 rms 0.041 fit_invalid {'native': 'rms 0.185'}]
+   FAIL motion.bolt.step1e0.cy.response_pct 58.667 > 18.519 [native 0.75/0.56 rms 0.108; flutter 0.31/0.69 rms 0.044]
+   FAIL motion.toggle.step1e0.cy.response_pct absent > 5 [native 1.50/0.77 rms 0.088; flutter 1.15/0.74 rms 0.067 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.collapsed.step1e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.damping absent > 0.05 [native 1.50/0.98 rms 0.289; flutter 1.15/0.74 rms 0.067 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.cy.damping absent > 0.05 [native 1.23/0.56 rms 0.185; flutter 0.31/0.69 rms 0.041 fit_invalid {'native': 'rms 0.185'}]
+   FAIL motion.bolt.step1e0.cy.damping 0.13 > 0.05 [native 0.75/0.56 rms 0.108; flutter 0.31/0.69 rms 0.044]
+   FAIL motion.toggle.step1e0.cy.damping absent > 0.05 [native 1.50/0.77 rms 0.088; flutter 1.15/0.74 rms 0.067 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.collapsed.step1e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.peak_ms 233.333 > 187.5
+   FAIL motion.heart.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.peak_ms 91.667 > 62.5
+   FAIL motion.collapsed.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.settle_ms 441.667 > 337.5
+   FAIL motion.heart.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.settle_ms 483.333 > 100
+   FAIL motion.collapsed.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.overshoot_pct 16.667 > 3.893
+   FAIL motion.collapsed.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.response_pct absent > 5 [native 1.50/0.96 rms 0.263; flutter 0.66/0.66 rms 0.119 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.response_pct absent > 5 [native 0.93/0.66 rms 0.189; flutter 0.66/0.65 rms 0.120 fit_invalid {'native': 'rms 0.189'}]
+   FAIL motion.collapsed.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.damping absent > 0.05 [native 1.50/0.96 rms 0.263; flutter 0.66/0.66 rms 0.119 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.damping absent > 0.05 [native 0.93/0.66 rms 0.189; flutter 0.66/0.65 rms 0.120 fit_invalid {'native': 'rms 0.189'}]
+   FAIL motion.collapsed.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step1e0.ymin.response_pct absent > 5 [native 1.50/0.79 rms 0.163; flutter 0.60/0.95 rms 0.005 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.stack.step1e0.ymin.damping absent > 0.05 [native 1.50/0.79 rms 0.163; flutter 0.60/0.95 rms 0.005 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.stack.step1e0.ymax.settle_ms 150 > 75
+   FAIL motion.stack.step1e0.ymax.response_pct 44.954 > 18.908 [native 1.09/0.80 rms 0.054; flutter 0.60/0.96 rms 0.008]
+   FAIL motion.stack.step1e0.ymax.damping 0.16 > 0.06 [native 1.09/0.80 rms 0.054; flutter 0.60/0.96 rms 0.008]
+   FAIL motion.stack.step1e0.topology.count 13 > 7.5 [native joins [408.3333333333333] splits [391.6666666666667, 450.0]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.stack.step1e0.topology.join_ms absent > 37.5 [native joins [408.3333333333333] splits [391.6666666666667, 450.0]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.star.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.cy.peak_ms 108.333 > 37.5
+   FAIL motion.collapsed.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.settle_ms 125 > 87.5
+   FAIL motion.toggle.step3e0.cy.settle_ms 108.333 > 37.5
+   FAIL motion.collapsed.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.response_pct absent > 8 [native 0.77/0.34 rms 0.169; flutter 0.45/0.30 rms 0.150 fit_invalid {'native': 'rms 0.169', 'flutter': 'rms 0.150'}]
+   FAIL motion.bolt.step3e0.cy.response_pct absent > 5 [native 1.50/0.67 rms 0.150; flutter 1.32/0.60 rms 0.107 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.toggle.step3e0.cy.response_pct 55 > 17.857 [native 0.80/0.65 rms 0.108; flutter 0.36/0.73 rms 0.024]
+   FAIL motion.collapsed.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.damping absent > 0.05 [native 0.77/0.34 rms 0.169; flutter 0.45/0.30 rms 0.150 fit_invalid {'native': 'rms 0.169', 'flutter': 'rms 0.150'}]
+   FAIL motion.bolt.step3e0.cy.damping absent > 0.05 [native 1.50/0.67 rms 0.150; flutter 1.32/0.60 rms 0.107 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.toggle.step3e0.cy.damping 0.08 > 0.05 [native 0.80/0.65 rms 0.108; flutter 0.36/0.73 rms 0.024]
+   FAIL motion.collapsed.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.peak_ms 191.667 > 37.5
+   FAIL motion.heart.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.peak_ms 100 > 37.5
+   FAIL motion.collapsed.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.settle_ms 191.667 > 25
+   FAIL motion.heart.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.settle_ms 100 > 37.5
+   FAIL motion.collapsed.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.response_pct absent > 5.31 [native 1.17/0.62 rms 0.163; flutter 0.59/0.65 rms 0.133 fit_invalid {'native': 'rms 0.163'}]
+   FAIL motion.heart.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.response_pct absent > 5 [native 1.06/0.63 rms 0.188; flutter 0.63/0.64 rms 0.131 fit_invalid {'native': 'rms 0.188'}]
+   FAIL motion.collapsed.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.damping absent > 0.05 [native 1.17/0.62 rms 0.163; flutter 0.59/0.65 rms 0.133 fit_invalid {'native': 'rms 0.163'}]
+   FAIL motion.heart.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.damping absent > 0.05 [native 1.06/0.63 rms 0.188; flutter 0.63/0.64 rms 0.131 fit_invalid {'native': 'rms 0.188'}]
+   FAIL motion.collapsed.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e0.ymin.peak_ms 125 > 37.5
+   FAIL motion.stack.step3e0.ymin.settle_ms 150 > 75
+   FAIL motion.stack.step3e0.ymin.overshoot_pct 10.433 > 5.496
+   FAIL motion.stack.step3e0.ymin.response_pct absent > 5 [native 1.50/0.53 rms 0.233; flutter 0.68/0.51 rms 0.188 fit_invalid {'native': 'at the grid edge', 'flutter': 'rms 0.188'}]
+   FAIL motion.stack.step3e0.ymin.damping absent > 0.05 [native 1.50/0.53 rms 0.233; flutter 0.68/0.51 rms 0.188 fit_invalid {'native': 'at the grid edge', 'flutter': 'rms 0.188'}]
+   FAIL motion.stack.step3e0.ymax.settle_ms 75 > 25
+   FAIL motion.stack.step3e0.ymax.response_pct 45.946 > 17.949 [native 1.11/0.70 rms 0.069; flutter 0.60/0.94 rms 0.005]
+   FAIL motion.stack.step3e0.ymax.damping 0.24 > 0.075 [native 1.11/0.70 rms 0.069; flutter 0.60/0.94 rms 0.005]
+   FAIL motion.stack.step3e0.topology.count 35 > 10.5 [native joins [425.0] splits []; flutter joins [233.33333333333334] splits []]
+   FAIL motion.stack.step3e0.topology.join_ms 191.667 > 37.5 [native joins [425.0] splits []; flutter joins [233.33333333333334] splits []]
+   FAIL motion.stack.step3e0.topology.gap_rms 58.194 > 17.284 [native joins [425.0] splits []; flutter joins [233.33333333333334] splits []]
+material.morph light-stripes: pass 43 / judged 83 / expected 148 (static+topology 13/13, motion 30/135); events [3, 2] touches [2, 2] stalls flutter [] native []
+   FAIL motion.events.unpaired 1 > 0
+   FAIL motion.star.step1e0.cy.peak_ms 108.333 > 17
+   FAIL motion.heart.step1e0.cy.peak_ms 425 > 17
+   FAIL motion.bolt.step1e0.cy.peak_ms 375 > 212.5
+   FAIL motion.toggle.step1e0.cy.peak_ms 91.667 > 37.5
+   FAIL motion.collapsed.step1e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.settle_ms 350 > 87.5
+   FAIL motion.heart.step1e0.cy.settle_ms 183.333 > 37.5
+   FAIL motion.toggle.step1e0.cy.settle_ms 125 > 50
+   FAIL motion.collapsed.step1e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.overshoot_pct 22.424 > 2
+   FAIL motion.heart.step1e0.cy.overshoot_pct 15.833 > 2
+   FAIL motion.collapsed.step1e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.response_pct absent > 5 [native 1.50/0.89 rms 0.307; flutter 1.15/0.73 rms 0.071 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.cy.response_pct absent > 5 [native 1.39/0.60 rms 0.190; flutter 0.30/0.70 rms 0.040 fit_invalid {'native': 'rms 0.190'}]
+   FAIL motion.bolt.step1e0.cy.response_pct 69.474 > 16.875 [native 0.95/0.55 rms 0.120; flutter 0.29/0.72 rms 0.044]
+   FAIL motion.toggle.step1e0.cy.response_pct absent > 5 [native 1.50/0.86 rms 0.114; flutter 1.16/0.73 rms 0.070 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.collapsed.step1e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.damping absent > 0.05 [native 1.50/0.89 rms 0.307; flutter 1.15/0.73 rms 0.071 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.cy.damping absent > 0.05 [native 1.39/0.60 rms 0.190; flutter 0.30/0.70 rms 0.040 fit_invalid {'native': 'rms 0.190'}]
+   FAIL motion.bolt.step1e0.cy.damping 0.17 > 0.05 [native 0.95/0.55 rms 0.120; flutter 0.29/0.72 rms 0.044]
+   FAIL motion.toggle.step1e0.cy.damping absent > 0.05 [native 1.50/0.86 rms 0.114; flutter 1.16/0.73 rms 0.070 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.collapsed.step1e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.peak_ms 541.667 > 37.5
+   FAIL motion.heart.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.peak_ms 141.667 > 37.5
+   FAIL motion.collapsed.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.settle_ms 666.667 > 87.5
+   FAIL motion.heart.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.overshoot_pct 2.89 > 2
+   FAIL motion.heart.step1e0.width.overshoot_pct absent > 21.933 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.response_pct absent > 5 [native 1.50/0.96 rms 0.255; flutter 0.65/0.65 rms 0.127 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.response_pct absent > 5 [native 1.10/0.63 rms 0.193; flutter 0.65/0.65 rms 0.127 fit_invalid {'native': 'rms 0.193'}]
+   FAIL motion.collapsed.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.damping absent > 0.05 [native 1.50/0.96 rms 0.255; flutter 0.65/0.65 rms 0.127 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.damping absent > 0.05 [native 1.10/0.63 rms 0.193; flutter 0.65/0.65 rms 0.127 fit_invalid {'native': 'rms 0.193'}]
+   FAIL motion.collapsed.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step1e0.ymin.response_pct absent > 5 [native 1.50/0.80 rms 0.180; flutter 0.59/0.96 rms 0.004 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.stack.step1e0.ymin.damping absent > 0.05 [native 1.50/0.80 rms 0.180; flutter 0.59/0.96 rms 0.004 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.stack.step1e0.ymax.response_pct 55.639 > 11.842 [native 1.33/0.74 rms 0.069; flutter 0.59/0.96 rms 0.010]
+   FAIL motion.stack.step1e0.ymax.damping 0.22 > 0.05 [native 1.33/0.74 rms 0.069; flutter 0.59/0.96 rms 0.010]
+   FAIL motion.stack.step1e0.topology.count 19 > 4.5 [native joins [] splits [450.0]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.stack.step1e0.topology.split_ms 41.667 > 37.5 [native joins [] splits [450.0]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.star.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.cy.peak_ms 83.333 > 50
+   FAIL motion.collapsed.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.settle_ms 133.333 > 75
+   FAIL motion.toggle.step3e0.cy.settle_ms 91.667 > 62.5
+   FAIL motion.collapsed.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.overshoot_pct 4.167 > 3.553
+   FAIL motion.collapsed.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.response_pct absent > 24.324 [native 0.72/0.34 rms 0.160; flutter 0.45/0.31 rms 0.146 fit_invalid {'native': 'rms 0.160'}]
+   FAIL motion.bolt.step3e0.cy.response_pct absent > 5 [native 1.50/0.63 rms 0.138; flutter 1.35/0.59 rms 0.106 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.toggle.step3e0.cy.response_pct 52 > 32.278 [native 0.75/0.66 rms 0.104; flutter 0.36/0.73 rms 0.025]
+   FAIL motion.collapsed.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.damping absent > 0.05 [native 0.72/0.34 rms 0.160; flutter 0.45/0.31 rms 0.146 fit_invalid {'native': 'rms 0.160'}]
+   FAIL motion.bolt.step3e0.cy.damping absent > 0.05 [native 1.50/0.63 rms 0.138; flutter 1.35/0.59 rms 0.106 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.toggle.step3e0.cy.damping 0.07 > 0.05 [native 0.75/0.66 rms 0.104; flutter 0.36/0.73 rms 0.025]
+   FAIL motion.collapsed.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.peak_ms 175 > 37.5
+   FAIL motion.heart.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.peak_ms 83.333 > 62.5
+   FAIL motion.collapsed.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.settle_ms 175 > 50
+   FAIL motion.heart.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.settle_ms 91.667 > 50
+   FAIL motion.collapsed.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.response_pct 56.303 > 25 [native 1.19/0.61 rms 0.138; flutter 0.52/0.65 rms 0.111]
+   FAIL motion.heart.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.response_pct absent > 5 [native 1.02/0.63 rms 0.187; flutter 0.63/0.64 rms 0.134 fit_invalid {'native': 'rms 0.187'}]
+   FAIL motion.collapsed.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.damping absent > 0.05 [native 1.02/0.63 rms 0.187; flutter 0.63/0.64 rms 0.134 fit_invalid {'native': 'rms 0.187'}]
+   FAIL motion.collapsed.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e0.ymin.peak_ms 108.333 > 37.5
+   FAIL motion.stack.step3e0.ymin.settle_ms 133.333 > 62.5
+   FAIL motion.stack.step3e0.ymin.overshoot_pct 8.588 > 5.236
+   FAIL motion.stack.step3e0.ymin.response_pct absent > 5 [native 1.50/0.50 rms 0.224; flutter 0.68/0.52 rms 0.183 fit_invalid {'native': 'at the grid edge', 'flutter': 'rms 0.183'}]
+   FAIL motion.stack.step3e0.ymin.damping absent > 0.05 [native 1.50/0.50 rms 0.224; flutter 0.68/0.52 rms 0.183 fit_invalid {'native': 'at the grid edge', 'flutter': 'rms 0.183'}]
+   FAIL motion.stack.step3e0.ymax.response_pct 41.905 > 25.909 [native 1.05/0.71 rms 0.066; flutter 0.61/0.93 rms 0.005]
+   FAIL motion.stack.step3e0.ymax.damping 0.22 > 0.075 [native 1.05/0.71 rms 0.066; flutter 0.61/0.93 rms 0.005]
+   FAIL motion.stack.step3e0.topology.count 36 > 21 [native joins [416.6666666666667] splits []; flutter joins [233.33333333333334] splits []]
+   FAIL motion.stack.step3e0.topology.join_ms 183.333 > 50 [native joins [416.6666666666667] splits []; flutter joins [233.33333333333334] splits []]
+   FAIL motion.stack.step3e0.topology.neck_rms 1.939 > 1.738 [native joins [416.6666666666667] splits []; flutter joins [233.33333333333334] splits []]
+   FAIL motion.stack.step3e0.topology.gap_rms 27.528 > 23.424 [native joins [416.6666666666667] splits []; flutter joins [233.33333333333334] splits []]
+material.morph.plain dark-photo: pass 47 / judged 92 / expected 148 (static+topology 9/13, motion 38/135); events [2, 3] touches [2, 2] stalls flutter [] native []
+   FAIL ready.bbox_pt 4 > 1
+   FAIL ready.centre_pt 2 > 1
+   FAIL settled.bbox_pt 4 > 1
+   FAIL settled.centre_pt 2 > 1
+   FAIL motion.events.unpaired 1 > 0
+   FAIL motion.star.step1e0.cy.peak_ms 208.333 > 50
+   FAIL motion.heart.step1e0.cy.peak_ms 125 > 75
+   FAIL motion.toggle.step1e0.cy.peak_ms 358.333 > 75
+   FAIL motion.collapsed.step1e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.settle_ms 125 > 75
+   FAIL motion.bolt.step1e0.cy.settle_ms 125 > 75
+   FAIL motion.collapsed.step1e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.overshoot_pct 24.138 > 8.376
+   FAIL motion.heart.step1e0.cy.overshoot_pct 35.537 > 18.281
+   FAIL motion.bolt.step1e0.cy.overshoot_pct 12.045 > 2
+   FAIL motion.toggle.step1e0.cy.overshoot_pct 12.146 > 6.394
+   FAIL motion.collapsed.step1e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.response_pct absent > 5 [native 1.50/0.63 rms 0.259; flutter 1.14/0.74 rms 0.071 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.cy.response_pct 40.741 > 38.182 [native 0.54/0.59 rms 0.118; flutter 0.32/0.64 rms 0.045]
+   FAIL motion.bolt.step1e0.cy.response_pct 154.545 > 100 [native 0.11/1.39 rms 0.149; flutter 0.28/0.83 rms 0.058]
+   FAIL motion.collapsed.step1e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.damping absent > 0.05 [native 1.50/0.63 rms 0.259; flutter 1.14/0.74 rms 0.071 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.collapsed.step1e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.peak_ms 158.333 > 87.5
+   FAIL motion.heart.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.settle_ms 525 > 87.5
+   FAIL motion.heart.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.settle_ms 341.667 > 50
+   FAIL motion.collapsed.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.overshoot_pct 3.964 > 2
+   FAIL motion.heart.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.overshoot_pct 18.605 > 2
+   FAIL motion.collapsed.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.response_pct absent > 5 [native 1.50/0.69 rms 0.210; flutter 0.72/0.65 rms 0.125 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.response_pct absent > 13.846 [native 0.64/0.63 rms 0.173; flutter 0.82/0.64 rms 0.162 fit_invalid {'native': 'rms 0.173', 'flutter': 'rms 0.162'}]
+   FAIL motion.collapsed.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.damping absent > 0.05 [native 1.50/0.69 rms 0.210; flutter 0.72/0.65 rms 0.125 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.damping absent > 0.05 [native 0.64/0.63 rms 0.173; flutter 0.82/0.64 rms 0.162 fit_invalid {'native': 'rms 0.173', 'flutter': 'rms 0.162'}]
+   FAIL motion.collapsed.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step1e0.ymin.peak_ms 191.667 > 62.5
+   FAIL motion.stack.step1e0.ymin.settle_ms 241.667 > 75
+   FAIL motion.stack.step1e0.ymin.overshoot_pct 8.308 > 2
+   FAIL motion.stack.step1e0.ymin.response_pct 57.143 > 8.955 [native 1.40/0.64 rms 0.109; flutter 0.60/0.95 rms 0.005]
+   FAIL motion.stack.step1e0.ymin.damping 0.31 > 0.05 [native 1.40/0.64 rms 0.109; flutter 0.60/0.95 rms 0.005]
+   FAIL motion.stack.step1e0.ymax.response_pct 122.222 > 111.111 [native 0.27/1.99 rms 0.021; flutter 0.60/0.96 rms 0.009]
+   FAIL motion.stack.step1e0.ymax.damping 1.03 > 0.96 [native 0.27/1.99 rms 0.021; flutter 0.60/0.96 rms 0.009]
+   FAIL motion.stack.step1e0.topology.join_ms absent > 62.5 [native joins [316.6666666666667] splits [275.0, 358.3333333333333]; flutter joins [] splits [416.6666666666667]]
+   FAIL motion.stack.step1e0.topology.split_ms 141.667 > 50 [native joins [316.6666666666667] splits [275.0, 358.3333333333333]; flutter joins [] splits [416.6666666666667]]
+   FAIL motion.star.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.peak_ms 100 > 17
+   FAIL motion.collapsed.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.overshoot_pct 25.685 > 3.172
+   FAIL motion.toggle.step3e0.cy.overshoot_pct 18.557 > 2
+   FAIL motion.collapsed.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.cy.response_pct 13.333 > 5 [native 0.30/0.66 rms 0.073; flutter 0.26/0.65 rms 0.069]
+   FAIL motion.collapsed.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.damping 0.13 > 0.05 [native 0.43/0.43 rms 0.109; flutter 0.45/0.30 rms 0.145]
+   FAIL motion.collapsed.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.peak_ms 100 > 25
+   FAIL motion.heart.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.peak_ms 25 > 17
+   FAIL motion.collapsed.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.settle_ms 91.667 > 17
+   FAIL motion.heart.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.settle_ms 25 > 17
+   FAIL motion.collapsed.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.response_pct 25.758 > 5 [native 0.66/0.67 rms 0.094; flutter 0.49/0.67 rms 0.078]
+   FAIL motion.heart.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.response_pct absent > 5 [native 0.46/0.64 rms 0.158; flutter 0.54/0.64 rms 0.144 fit_invalid {'native': 'rms 0.158'}]
+   FAIL motion.collapsed.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.damping absent > 0.05 [native 0.46/0.64 rms 0.158; flutter 0.54/0.64 rms 0.144 fit_invalid {'native': 'rms 0.158'}]
+   FAIL motion.collapsed.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e0.ymin.overshoot_pct 6.271 > 2
+   FAIL motion.stack.step3e0.ymin.response_pct absent > 5 [native 1.00/0.55 rms 0.198; flutter 0.63/0.49 rms 0.180 fit_invalid {'native': 'rms 0.198', 'flutter': 'rms 0.180'}]
+   FAIL motion.stack.step3e0.ymin.damping absent > 0.05 [native 1.00/0.55 rms 0.198; flutter 0.63/0.49 rms 0.180 fit_invalid {'native': 'rms 0.198', 'flutter': 'rms 0.180'}]
+   FAIL motion.stack.step3e0.ymax.peak_ms 91.667 > 87.5
+   FAIL motion.stack.step3e0.topology.count 18 > 3 [native joins [316.6666666666667] splits []; flutter joins [225.0] splits []]
+   FAIL motion.stack.step3e0.topology.join_ms 91.667 > 17 [native joins [316.6666666666667] splits []; flutter joins [225.0] splits []]
+   FAIL motion.stack.step3e0.topology.neck_rms 2.136 > 1 [native joins [316.6666666666667] splits []; flutter joins [225.0] splits []]
+   FAIL motion.stack.step3e0.topology.gap_rms 14.183 > 8.264 [native joins [316.6666666666667] splits []; flutter joins [225.0] splits []]
+material.morph.plain dark-stripes: pass 44 / judged 94 / expected 148 (static+topology 8/13, motion 36/135); events [2, 2] touches [2, 2] stalls flutter [] native []
+   FAIL ready.bbox_pt 6 > 1
+   FAIL ready.centre_pt 3 > 1
+   FAIL settled.bbox_pt 6 > 1
+   FAIL settled.centre_pt 3 > 1
+   FAIL ready.topology.stack.neck_pt 23.667 > 1
+   FAIL motion.star.step1e0.cy.peak_ms 266.667 > 50
+   FAIL motion.heart.step1e0.cy.peak_ms 275 > 37.5
+   FAIL motion.bolt.step1e0.cy.peak_ms 358.333 > 50
+   FAIL motion.collapsed.step1e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.settle_ms 141.667 > 50
+   FAIL motion.bolt.step1e0.cy.settle_ms 125 > 25
+   FAIL motion.toggle.step1e0.cy.settle_ms 58.333 > 37.5
+   FAIL motion.collapsed.step1e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.overshoot_pct 23.49 > 6.467
+   FAIL motion.heart.step1e0.cy.overshoot_pct 16.66 > 2
+   FAIL motion.bolt.step1e0.cy.overshoot_pct 11.667 > 2
+   FAIL motion.collapsed.step1e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.response_pct absent > 5 [native 1.50/0.64 rms 0.260; flutter 1.15/0.73 rms 0.071 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.cy.response_pct 56.944 > 15.441 [native 0.72/0.56 rms 0.087; flutter 0.31/0.68 rms 0.040]
+   FAIL motion.bolt.step1e0.cy.response_pct 93.333 > 32.143 [native 0.15/0.83 rms 0.039; flutter 0.29/0.75 rms 0.049]
+   FAIL motion.collapsed.step1e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.damping absent > 0.05 [native 1.50/0.64 rms 0.260; flutter 1.15/0.73 rms 0.071 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.cy.damping 0.12 > 0.05 [native 0.72/0.56 rms 0.087; flutter 0.31/0.68 rms 0.040]
+   FAIL motion.toggle.step1e0.cy.damping 0.08 > 0.075 [native 1.09/0.81 rms 0.029; flutter 1.17/0.73 rms 0.070]
+   FAIL motion.collapsed.step1e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.peak_ms 391.667 > 62.5
+   FAIL motion.heart.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.peak_ms 41.667 > 17
+   FAIL motion.collapsed.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.settle_ms 525 > 75
+   FAIL motion.heart.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.overshoot_pct 3.448 > 2
+   FAIL motion.heart.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.overshoot_pct 19.075 > 3.789
+   FAIL motion.collapsed.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.response_pct absent > 5 [native 1.50/0.69 rms 0.205; flutter 0.66/0.64 rms 0.128 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.response_pct 50 > 6.977 [native 0.44/0.46 rms 0.094; flutter 0.66/0.64 rms 0.129]
+   FAIL motion.collapsed.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.damping absent > 0.05 [native 1.50/0.69 rms 0.205; flutter 0.66/0.64 rms 0.128 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.damping 0.18 > 0.06 [native 0.44/0.46 rms 0.094; flutter 0.66/0.64 rms 0.129]
+   FAIL motion.collapsed.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step1e0.ymin.peak_ms 116.667 > 50
+   FAIL motion.stack.step1e0.ymin.settle_ms 250 > 37.5
+   FAIL motion.stack.step1e0.ymin.overshoot_pct 8.642 > 2
+   FAIL motion.stack.step1e0.ymin.response_pct 56.835 > 13.953 [native 1.39/0.64 rms 0.103; flutter 0.60/0.95 rms 0.005]
+   FAIL motion.stack.step1e0.ymin.damping 0.31 > 0.05 [native 1.39/0.64 rms 0.103; flutter 0.60/0.95 rms 0.005]
+   FAIL motion.stack.step1e0.ymax.peak_ms 91.667 > 50
+   FAIL motion.stack.step1e0.ymax.response_pct 118.519 > 5 [native 0.27/1.98 rms 0.021; flutter 0.59/0.97 rms 0.013]
+   FAIL motion.stack.step1e0.ymax.damping 1.01 > 0.05 [native 0.27/1.98 rms 0.021; flutter 0.59/0.97 rms 0.013]
+   FAIL motion.stack.step1e0.topology.join_ms absent > 37.5 [native joins [325.0] splits [275.0, 358.3333333333333]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.stack.step1e0.topology.split_ms 133.333 > 62.5 [native joins [325.0] splits [275.0, 358.3333333333333]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.stack.step1e0.topology.neck_rms 17.348 > 12.168 [native joins [325.0] splits [275.0, 358.3333333333333]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.star.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.peak_ms 41.667 > 17
+   FAIL motion.bolt.step3e0.cy.peak_ms 116.667 > 87.5
+   FAIL motion.collapsed.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.settle_ms 41.667 > 37.5
+   FAIL motion.bolt.step3e0.cy.settle_ms 58.333 > 50
+   FAIL motion.collapsed.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.overshoot_pct 4.936 > 2
+   FAIL motion.collapsed.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.cy.response_pct 5.594 > 5.208 [native 1.43/0.44 rms 0.093; flutter 1.35/0.58 rms 0.104]
+   FAIL motion.collapsed.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.cy.damping 0.14 > 0.05 [native 1.43/0.44 rms 0.093; flutter 1.35/0.58 rms 0.104]
+   FAIL motion.collapsed.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.peak_ms 100 > 17
+   FAIL motion.heart.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.settle_ms 91.667 > 17
+   FAIL motion.heart.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.response_pct 15.714 > 8.696 [native 0.70/0.66 rms 0.140; flutter 0.59/0.64 rms 0.136]
+   FAIL motion.heart.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.response_pct absent > 5 [native 0.64/0.63 rms 0.173; flutter 0.63/0.64 rms 0.134 fit_invalid {'native': 'rms 0.173'}]
+   FAIL motion.collapsed.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.damping absent > 0.05 [native 0.64/0.63 rms 0.173; flutter 0.63/0.64 rms 0.134 fit_invalid {'native': 'rms 0.173'}]
+   FAIL motion.collapsed.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e0.ymin.overshoot_pct 5.895 > 2
+   FAIL motion.stack.step3e0.ymin.response_pct absent > 5 [native 1.08/0.50 rms 0.214; flutter 0.63/0.49 rms 0.173 fit_invalid {'native': 'rms 0.214', 'flutter': 'rms 0.173'}]
+   FAIL motion.stack.step3e0.ymin.damping absent > 0.05 [native 1.08/0.50 rms 0.214; flutter 0.63/0.49 rms 0.173 fit_invalid {'native': 'rms 0.214', 'flutter': 'rms 0.173'}]
+   FAIL motion.stack.step3e0.ymax.peak_ms 116.667 > 62.5
+   FAIL motion.stack.step3e0.topology.count 13 > 7.5 [native joins [225.0] splits []; flutter joins [191.66666666666666] splits []]
+   FAIL motion.stack.step3e0.topology.neck_rms 5.114 > 1.359 [native joins [225.0] splits []; flutter joins [191.66666666666666] splits []]
+   FAIL motion.stack.step3e0.topology.gap_rms 22.603 > 6.183 [native joins [225.0] splits []; flutter joins [191.66666666666666] splits []]
+material.morph.plain light-photo: pass 46 / judged 92 / expected 148 (static+topology 13/13, motion 33/135); events [2, 2] touches [2, 2] stalls flutter [] native [28, 25]
+   FAIL motion.star.step1e0.cy.peak_ms 250 > 62.5
+   FAIL motion.heart.step1e0.cy.peak_ms 258.333 > 25
+   FAIL motion.bolt.step1e0.cy.peak_ms 433.333 > 75
+   FAIL motion.toggle.step1e0.cy.peak_ms 108.333 > 25
+   FAIL motion.collapsed.step1e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.settle_ms 133.333 > 37.5
+   FAIL motion.heart.step1e0.cy.settle_ms 25 > 17
+   FAIL motion.bolt.step1e0.cy.settle_ms 75 > 17
+   FAIL motion.toggle.step1e0.cy.settle_ms 66.667 > 17
+   FAIL motion.collapsed.step1e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.overshoot_pct 22.078 > 6.077
+   FAIL motion.heart.step1e0.cy.overshoot_pct 16.667 > 2
+   FAIL motion.bolt.step1e0.cy.overshoot_pct 11.765 > 2
+   FAIL motion.collapsed.step1e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.response_pct absent > 5 [native 1.50/0.65 rms 0.255; flutter 1.14/0.75 rms 0.064 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.cy.response_pct 56.338 > 8.824 [native 0.71/0.55 rms 0.085; flutter 0.31/0.69 rms 0.039]
+   FAIL motion.bolt.step1e0.cy.response_pct 106.667 > 81.818 [native 0.15/0.80 rms 0.042; flutter 0.31/0.69 rms 0.042]
+   FAIL motion.collapsed.step1e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.damping absent > 0.05 [native 1.50/0.65 rms 0.255; flutter 1.14/0.75 rms 0.064 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.cy.damping 0.14 > 0.05 [native 0.71/0.55 rms 0.085; flutter 0.31/0.69 rms 0.039]
+   FAIL motion.collapsed.step1e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.peak_ms 175 > 17
+   FAIL motion.heart.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.settle_ms 516.667 > 75
+   FAIL motion.heart.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.settle_ms 333.333 > 25
+   FAIL motion.collapsed.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.overshoot_pct 3.468 > 2
+   FAIL motion.heart.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.overshoot_pct 18.446 > 3.401
+   FAIL motion.collapsed.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.response_pct absent > 5 [native 1.50/0.69 rms 0.205; flutter 0.66/0.65 rms 0.114 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.response_pct 53.488 > 14.634 [native 0.43/0.50 rms 0.092; flutter 0.66/0.65 rms 0.114]
+   FAIL motion.collapsed.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.damping absent > 0.05 [native 1.50/0.69 rms 0.205; flutter 0.66/0.65 rms 0.114 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.damping 0.15 > 0.06 [native 0.43/0.50 rms 0.092; flutter 0.66/0.65 rms 0.114]
+   FAIL motion.collapsed.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step1e0.ymin.peak_ms 200 > 50
+   FAIL motion.stack.step1e0.ymin.settle_ms 233.333 > 62.5
+   FAIL motion.stack.step1e0.ymin.overshoot_pct 8.333 > 2
+   FAIL motion.stack.step1e0.ymin.response_pct 56.835 > 7.955 [native 1.39/0.64 rms 0.103; flutter 0.60/0.95 rms 0.004]
+   FAIL motion.stack.step1e0.ymin.damping 0.31 > 0.05 [native 1.39/0.64 rms 0.103; flutter 0.60/0.95 rms 0.004]
+   FAIL motion.stack.step1e0.ymax.peak_ms 158.333 > 25
+   FAIL motion.stack.step1e0.ymax.response_pct 130.769 > 5 [native 0.26/1.99 rms 0.016; flutter 0.60/0.95 rms 0.008]
+   FAIL motion.stack.step1e0.ymax.damping 1.04 > 0.05 [native 0.26/1.99 rms 0.016; flutter 0.60/0.95 rms 0.008]
+   FAIL motion.stack.step1e0.topology.count 10 > 4.5 [native joins [325.0] splits [250.0, 358.3333333333333]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.stack.step1e0.topology.join_ms absent > 25 [native joins [325.0] splits [250.0, 358.3333333333333]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.stack.step1e0.topology.split_ms 158.333 > 17 [native joins [325.0] splits [250.0, 358.3333333333333]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.stack.step1e0.topology.neck_rms 14.799 > 5.864 [native joins [325.0] splits [250.0, 358.3333333333333]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.star.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.peak_ms 41.667 > 25
+   FAIL motion.bolt.step3e0.cy.peak_ms 75 > 25
+   FAIL motion.collapsed.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.settle_ms 58.333 > 17
+   FAIL motion.bolt.step3e0.cy.settle_ms 25 > 17
+   FAIL motion.collapsed.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.response_pct absent > 9.574 [native 0.46/0.33 rms 0.146; flutter 0.45/0.30 rms 0.150 fit_invalid {'flutter': 'rms 0.150'}]
+   FAIL motion.collapsed.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.damping absent > 0.05 [native 0.46/0.33 rms 0.146; flutter 0.45/0.30 rms 0.150 fit_invalid {'flutter': 'rms 0.150'}]
+   FAIL motion.collapsed.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.peak_ms 83.333 > 17
+   FAIL motion.heart.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.settle_ms 75 > 25
+   FAIL motion.heart.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.response_pct 21.333 > 6.081 [native 0.75/0.65 rms 0.147; flutter 0.59/0.65 rms 0.132]
+   FAIL motion.heart.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.response_pct absent > 5 [native 0.66/0.63 rms 0.157; flutter 0.63/0.64 rms 0.131 fit_invalid {'native': 'rms 0.157'}]
+   FAIL motion.collapsed.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.damping absent > 0.05 [native 0.66/0.63 rms 0.157; flutter 0.63/0.64 rms 0.131 fit_invalid {'native': 'rms 0.157'}]
+   FAIL motion.collapsed.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e0.ymin.settle_ms 75 > 25
+   FAIL motion.stack.step3e0.ymin.overshoot_pct 5.947 > 2
+   FAIL motion.stack.step3e0.ymin.response_pct absent > 5 [native 0.99/0.57 rms 0.200; flutter 0.68/0.51 rms 0.190 fit_invalid {'native': 'rms 0.200', 'flutter': 'rms 0.190'}]
+   FAIL motion.stack.step3e0.ymin.damping absent > 0.05 [native 0.99/0.57 rms 0.200; flutter 0.68/0.51 rms 0.190 fit_invalid {'native': 'rms 0.200', 'flutter': 'rms 0.190'}]
+   FAIL motion.stack.step3e0.ymax.peak_ms 75 > 25
+   FAIL motion.stack.step3e0.topology.count 17 > 6 [native joins [341.6666666666667] splits []; flutter joins [225.0] splits []]
+   FAIL motion.stack.step3e0.topology.join_ms 116.667 > 25 [native joins [341.6666666666667] splits []; flutter joins [225.0] splits []]
+   FAIL motion.stack.step3e0.topology.neck_rms 1.725 > 1.035 [native joins [341.6666666666667] splits []; flutter joins [225.0] splits []]
+   FAIL motion.stack.step3e0.topology.gap_rms 12.89 > 8.142 [native joins [341.6666666666667] splits []; flutter joins [225.0] splits []]
+material.morph.plain light-stripes: pass 47 / judged 90 / expected 148 (static+topology 13/13, motion 34/135); events [2, 2] touches [2, 2] stalls flutter [] native [25]
+   FAIL motion.star.step1e0.cy.peak_ms 308.333 > 25
+   FAIL motion.heart.step1e0.cy.peak_ms 241.667 > 25
+   FAIL motion.bolt.step1e0.cy.peak_ms 208.333 > 37.5
+   FAIL motion.toggle.step1e0.cy.peak_ms 50 > 37.5
+   FAIL motion.collapsed.step1e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.settle_ms 108.333 > 50
+   FAIL motion.heart.step1e0.cy.settle_ms 125 > 37.5
+   FAIL motion.bolt.step1e0.cy.settle_ms 66.667 > 37.5
+   FAIL motion.toggle.step1e0.cy.settle_ms 75 > 37.5
+   FAIL motion.collapsed.step1e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.overshoot_pct 19.444 > 8.764
+   FAIL motion.heart.step1e0.cy.overshoot_pct 15.126 > 2
+   FAIL motion.bolt.step1e0.cy.overshoot_pct 10.924 > 2
+   FAIL motion.collapsed.step1e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.response_pct absent > 5 [native 1.50/0.61 rms 0.233; flutter 1.15/0.74 rms 0.071 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.cy.response_pct 56.338 > 8.571 [native 0.71/0.56 rms 0.092; flutter 0.31/0.67 rms 0.038]
+   FAIL motion.bolt.step1e0.cy.response_pct 87.5 > 25 [native 0.16/0.79 rms 0.039; flutter 0.30/0.70 rms 0.044]
+   FAIL motion.toggle.step1e0.cy.response_pct 12.621 > 11.538 [native 1.03/0.81 rms 0.030; flutter 1.16/0.73 rms 0.071]
+   FAIL motion.collapsed.step1e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.cy.damping absent > 0.05 [native 1.50/0.61 rms 0.233; flutter 1.15/0.74 rms 0.071 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.cy.damping 0.11 > 0.05 [native 0.71/0.56 rms 0.092; flutter 0.31/0.67 rms 0.038]
+   FAIL motion.toggle.step1e0.cy.damping 0.08 > 0.05 [native 1.03/0.81 rms 0.030; flutter 1.16/0.73 rms 0.071]
+   FAIL motion.collapsed.step1e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.peak_ms 141.667 > 37.5
+   FAIL motion.heart.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.peak_ms 41.667 > 17
+   FAIL motion.collapsed.step1e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.settle_ms 558.333 > 25
+   FAIL motion.heart.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.settle_ms 525 > 62.5
+   FAIL motion.collapsed.step1e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.overshoot_pct 4.056 > 2
+   FAIL motion.heart.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.overshoot_pct 19.189 > 2
+   FAIL motion.collapsed.step1e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.response_pct absent > 5 [native 1.50/0.64 rms 0.192; flutter 0.66/0.64 rms 0.128 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.response_pct 50 > 6.977 [native 0.44/0.48 rms 0.098; flutter 0.66/0.64 rms 0.129]
+   FAIL motion.collapsed.step1e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step1e0.width.damping absent > 0.05 [native 1.50/0.64 rms 0.192; flutter 0.66/0.64 rms 0.128 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.heart.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step1e0.width.damping 0.16 > 0.05 [native 0.44/0.48 rms 0.098; flutter 0.66/0.64 rms 0.129]
+   FAIL motion.collapsed.step1e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step1e0.ymin.peak_ms 233.333 > 25
+   FAIL motion.stack.step1e0.ymin.settle_ms 216.667 > 37.5
+   FAIL motion.stack.step1e0.ymin.overshoot_pct 8.359 > 2
+   FAIL motion.stack.step1e0.ymin.response_pct 54.887 > 7.836 [native 1.33/0.64 rms 0.102; flutter 0.60/0.95 rms 0.004]
+   FAIL motion.stack.step1e0.ymin.damping 0.31 > 0.05 [native 1.33/0.64 rms 0.102; flutter 0.60/0.95 rms 0.004]
+   FAIL motion.stack.step1e0.ymax.peak_ms 75 > 37.5
+   FAIL motion.stack.step1e0.ymax.response_pct absent > 5.769 [native 0.26/2.00 rms 0.015; flutter 0.60/0.95 rms 0.010 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.stack.step1e0.ymax.damping absent > 0.05 [native 0.26/2.00 rms 0.015; flutter 0.60/0.95 rms 0.010 fit_invalid {'native': 'at the grid edge'}]
+   FAIL motion.stack.step1e0.topology.join_ms absent > 25 [native joins [308.3333333333333] splits [250.0, 341.6666666666667]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.stack.step1e0.topology.split_ms 158.333 > 37.5 [native joins [308.3333333333333] splits [250.0, 341.6666666666667]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.stack.step1e0.topology.neck_rms 15.033 > 5.667 [native joins [308.3333333333333] splits [250.0, 341.6666666666667]; flutter joins [] splits [408.3333333333333]]
+   FAIL motion.star.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.peak_ms 50 > 17
+   FAIL motion.collapsed.step3e0.cy.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.cy.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.cy.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.response_pct absent > 5 [native 0.43/0.32 rms 0.160; flutter 0.45/0.31 rms 0.145 fit_invalid {'native': 'rms 0.160'}]
+   FAIL motion.collapsed.step3e0.cy.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.cy.damping absent > 0.05 [native 0.43/0.32 rms 0.160; flutter 0.45/0.31 rms 0.145 fit_invalid {'native': 'rms 0.160'}]
+   FAIL motion.collapsed.step3e0.cy.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.peak_ms 116.667 > 17
+   FAIL motion.heart.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.width.peak_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.settle_ms 116.667 > 17
+   FAIL motion.heart.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.width.settle_ms absent > 17 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.collapsed.step3e0.width.overshoot_pct absent > 2 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.star.step3e0.width.response_pct 30.137 > 7.595 [native 0.73/0.69 rms 0.106; flutter 0.51/0.66 rms 0.114]
+   FAIL motion.heart.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.response_pct absent > 5 [native 0.61/0.64 rms 0.150; flutter 0.63/0.64 rms 0.134 fit_invalid {'native': 'rms 0.150'}]
+   FAIL motion.collapsed.step3e0.width.response_pct absent > 5 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.heart.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.bolt.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.toggle.step3e0.width.damping absent > 0.05 [native 0.61/0.64 rms 0.150; flutter 0.63/0.64 rms 0.134 fit_invalid {'native': 'rms 0.150'}]
+   FAIL motion.collapsed.step3e0.width.damping absent > 0.05 [key absent: an app's travel under the minimum or no pair]
+   FAIL motion.stack.step3e0.ymin.peak_ms 41.667 > 17
+   FAIL motion.stack.step3e0.ymin.settle_ms 50 > 25
+   FAIL motion.stack.step3e0.ymin.overshoot_pct 5.929 > 2
+   FAIL motion.stack.step3e0.ymin.response_pct absent > 5 [native 1.12/0.56 rms 0.201; flutter 0.64/0.49 rms 0.183 fit_invalid {'native': 'rms 0.201', 'flutter': 'rms 0.183'}]
+   FAIL motion.stack.step3e0.ymin.damping absent > 0.05 [native 1.12/0.56 rms 0.201; flutter 0.64/0.49 rms 0.183 fit_invalid {'native': 'rms 0.201', 'flutter': 'rms 0.183'}]
+   FAIL motion.stack.step3e0.topology.count 21 > 9 [native joins [333.3333333333333] splits []; flutter joins [233.33333333333334] splits []]
+   FAIL motion.stack.step3e0.topology.join_ms 100 > 17 [native joins [333.3333333333333] splits []; flutter joins [233.33333333333334] splits []]
+   FAIL motion.stack.step3e0.topology.neck_rms 1.717 > 1.197 [native joins [333.3333333333333] splits []; flutter joins [233.33333333333334] splits []]
+   FAIL motion.stack.step3e0.topology.gap_rms 16.878 > 4.455 [native joins [333.3333333333333] splits []; flutter joins [233.33333333333334] splits []]

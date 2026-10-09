@@ -23,6 +23,7 @@
  - (2B.1) **FIX**: the edge line and sheen keep their full width while the lens ramps with `visibility`; still glass is unchanged.
  - (2B.1) **FIX**: glass at a fractional position draws its rim at its exact position once its geometry is cached, instead of up to half a pixel off.
  - (2B.1) **FEAT**: `debugResetGlassAnimation()` is exported for tests.
+ - (2B.2) **FEAT**: `GlassNamespace` and `GlassEffect(union: GlassEffectUnion(id, namespace))`: glass in one container with the same union, shape and `Glass` draws as one shape on the bounding rect of its members, as SwiftUI's `.glassEffectUnion` does.
 
 ## 0.2.0-dev.4
 

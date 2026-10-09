@@ -1,0 +1,21 @@
+Ruling 33 guard (gatherShapeData drops a coincident candidate): can it change merge, union, morph, N7 spacing?
+Re-run at 55f3d833a, one lab command at a time, press 0.950 s (22:49 boot) and 0.977 s (00:12), disk 65 -> 50 GB.
+
+Flutter ready.png and settled.png, byte comparison against the Task 27 run of the same scene:
+  material.merge            20261008-043622 vs 20261009-001436   8 of 8 identical
+  material.merge RM         20261008-044149 vs 20261009-002558   8 of 8 identical
+  material.union            20261008-044717 vs 20261009-003722   4 of 4 identical
+  material.morph (+plain)   20261008-044933 vs 20261009-003940  16 of 16 identical
+  material.morph RM (+plain)20261008-050026 vs 20261009-010310  16 of 16 identical
+  material.spacing (N7)     20261008-051131 vs 20261009-012639  92 of 92 identical
+
+Tables (table.py) pass / judged / expected, old (Task 27) against re-run:
+  union          dark-stripes 5/18/19 and 5/18/19, light-stripes 19/19/19 and 19/19/19; the failing measure sets are equal (14 and 0 common, 0 only on one side)
+  spacing        46 of 46 cases equal in counts and in the set of failing measures (0 differences)
+  merge          dark-photo 58/68/68 -> 52/66/68, dark-stripes 48 -> 44, light-photo 54 -> 47, light-stripes 44 -> 50
+  merge RM       56 -> 54, 42/67 -> 41/68, 51 -> 48, 45 -> 48
+  morph          49/83/213 -> 48/87/213, 35 -> 36, 43 -> 45, 43/83 -> 43/83; plain 46 -> 47, 32/52 (flagged original) -> 44/94, 46/94 -> 46/92, 46/92 -> 47/90
+  morph RM       (original table-morph-rm.txt, counted values in parentheses) dark-photo 53 (rerun D 50) -> 45, dark-stripes 45 -> 41, light-photo 69 -> 56, light-stripes 60 -> 63; plain RM 54 -> 55, 58 -> 53, 84 -> 89, 77 -> 79
+  The moving-case counts scatter by recording (each re-run re-records native too): Flutter's own spring fits (response, damping ratio) of the measures failing in both runs agree to a maximum of 0.01 / 0.02 (merge, 26 measures), 0.02 / 0.04 (merge RM, 21 measures), 0.06 / 0.08 (morph, 182) and 0.08 / 0.11 (morph RM, 139), median 0.00, while native's own fits differ by up to 0.05 / 0.25, 0.24 / 0.41 and 0.17 / 0.13 between the two recordings.
+
+Why the guard cannot be what moved a moving count: it fires only for two registered members on the same rect (1e-3 pt) with the same outline. Nested glass puts such a pair at rest as well as in motion, and a rest frame with a dropped member differs from one without (the navbar frames differ by up to 241 levels); every rest frame above is byte-identical, so no scene here holds a nested pair. The two circles of the merge scene, the stack of the morph and the members of the union are distinct rects at every frame. A ghost (morph) sits on a partner's rect only as its spring ends, and the morph rest frames are identical. Not proven by bytes: the video frames of the moving cases (a re-recording changes every frame time), which is why their evidence is the spring fits.

@@ -1,3 +1,7 @@
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_shaders/flutter_shaders.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
@@ -8,7 +12,6 @@ import 'package:ios_liquid_glass/src/liquid_glass_render_scope.dart';
 import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:ios_liquid_glass/src/rendering/liquid_glass_render_object.dart';
 import 'package:ios_liquid_glass/src/shaders.dart';
-import 'package:meta/meta.dart';
 
 /// A widget that groups multiple liquid glass shapes for blending.
 ///
@@ -21,6 +24,7 @@ class LiquidGlassBlendGroup extends StatefulWidget {
   const LiquidGlassBlendGroup({
     required this.child,
     this.blend = 20.0,
+    this.blendMotion,
     super.key,
   });
 
@@ -29,6 +33,9 @@ class LiquidGlassBlendGroup extends StatefulWidget {
   /// Roughly corresponds to distance of logical pixels at which shapes start to
   /// blend.
   final double blend;
+
+  @internal
+  final ValueListenable<double>? blendMotion;
 
   /// The child widget containing liquid glass shapes.
   final Widget child;
@@ -82,6 +89,7 @@ class _LiquidGlassBlendGroupState extends State<LiquidGlassBlendGroup> {
       child: ShaderBuilder(
         (context, shader, child) => _RawLiquidGlassBlendGroup(
           blend: widget.blend,
+          blendMotion: widget.blendMotion,
           shader: shader,
           link: _geometryLink,
           renderLink: InheritedGeometryRenderLink.of(context)!,
@@ -124,12 +132,14 @@ class _RawLiquidGlassBlendGroup extends SingleChildRenderObjectWidget {
     required this.renderLink,
     required this.link,
     required this.settings,
+    this.blendMotion,
     this.visibility,
     this.settingsSource,
     super.child,
   });
 
   final double blend;
+  final ValueListenable<double>? blendMotion;
   final FragmentShader shader;
   final GeometryRenderLink renderLink;
   final GlassGroupLink link;
@@ -145,8 +155,9 @@ class _RawLiquidGlassBlendGroup extends SingleChildRenderObjectWidget {
       geometryShader: shader,
       settings: settings,
       link: link,
-      blend: blend,
+      blend: blendMotion?.value ?? blend,
     )
+      ..blendMotion = blendMotion
       ..visibility = visibility
       ..settingsSource = settingsSource;
   }
@@ -157,7 +168,8 @@ class _RawLiquidGlassBlendGroup extends SingleChildRenderObjectWidget {
     RenderLiquidGlassBlendGroup renderObject,
   ) {
     renderObject
-      ..blend = blend
+      ..blend = blendMotion?.value ?? blend
+      ..blendMotion = blendMotion
       ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context)
       ..settings = settings
       ..visibility = visibility
@@ -203,6 +215,33 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
     updateShaderWithSettings(settings, devicePixelRatio);
     markGeometryNeedsUpdate(force: true);
     markNeedsPaint();
+  }
+
+  ValueListenable<double>? _blendMotion;
+  set blendMotion(ValueListenable<double>? value) {
+    if (_blendMotion == value) return;
+    if (attached) _blendMotion?.removeListener(_followBlend);
+    _blendMotion = value;
+    if (attached) value?.addListener(_followBlend);
+    _followBlend();
+  }
+
+  void _followBlend() {
+    final motion = _blendMotion;
+    if (motion != null) blend = motion.value;
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _blendMotion?.addListener(_followBlend);
+    _followBlend();
+  }
+
+  @override
+  void detach() {
+    _blendMotion?.removeListener(_followBlend);
+    super.detach();
   }
 
   void _onLinkUpdate() {
@@ -263,48 +302,79 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
   }
 
   @override
+  bool shapesMoved() {
+    var moved = false;
+    for (final entry in link.shapeEntries) {
+      final renderObject = entry.key;
+      if (!renderObject.attached || !renderObject.hasSize) continue;
+      moved = (renderObject.motion?.syncMoved() ?? false) || moved;
+    }
+    return moved;
+  }
+
+  @override
   (Rect, List<ShapeGeometry>, bool) gatherShapeData() {
-    final shapes = <ShapeGeometry>[];
+    final candidates = <(ShapeGeometry, bool)>[];
     final cachedShapes = geometry?.shapes ?? [];
 
-    var anyShapeChangedInLayer =
-        cachedShapes.length != link.shapeEntries.length;
+    var anyShapeChangedInLayer = false;
 
     Rect? layerBounds;
 
-    for (final (
-          index,
-          MapEntry(
-            key: renderObject,
-            value: (shape, glassContainsChild),
-          )
-        ) in link.shapeEntries.indexed) {
+    for (final MapEntry(
+          key: renderObject,
+          value: (shape, glassContainsChild),
+        ) in link.shapeEntries) {
       if (!renderObject.attached || !renderObject.hasSize) continue;
 
       try {
-        final shapeData = _computeShapeInfo(
+        final union = renderObject.unionOutline;
+        if (union != null && !union.leads) continue;
+        final info = _computeShapeInfo(
           renderObject,
-          shape,
+          union?.shape ?? shape,
           glassContainsChild,
+          union?.rect ?? renderObject.drawnRect,
         );
-        shapes.add(shapeData);
-
-        layerBounds = layerBounds?.expandToInclude(shapeData.shapeBounds) ??
-            shapeData.shapeBounds;
-
-        final existingShape =
-            cachedShapes.length > index ? cachedShapes[index] : null;
-
-        if (existingShape == null) {
-          anyShapeChangedInLayer = true;
-        } else if (existingShape.shapeBounds != shapeData.shapeBounds ||
-            existingShape.shape != shapeData.shape) {
-          anyShapeChangedInLayer = true;
+        final transient = renderObject.motion?.isTransient ?? false;
+        final twin = candidates.indexWhere(
+          (candidate) => _coincident(candidate.$1, info),
+        );
+        if (twin == -1) {
+          candidates.add((info, transient));
+        } else if (candidates[twin].$2 && !transient) {
+          candidates[twin] = (info, transient);
         }
       } catch (e) {
         debugPrint('Failed to compute shape info: $e');
       }
     }
+
+    var excess = candidates.length - LiquidGlassBlendGroup.maxShapesPerLayer;
+    for (var i = candidates.length - 1; i >= 0 && excess > 0; i--) {
+      if (!candidates[i].$2) continue;
+      candidates.removeAt(i);
+      excess--;
+    }
+
+    final shapes = [for (final (shapeData, _) in candidates) shapeData];
+
+    for (final (index, shapeData) in shapes.indexed) {
+      layerBounds = layerBounds?.expandToInclude(shapeData.shapeBounds) ??
+          shapeData.shapeBounds;
+
+      final existingShape =
+          cachedShapes.length > index ? cachedShapes[index] : null;
+
+      if (existingShape == null) {
+        anyShapeChangedInLayer = true;
+      } else if (existingShape.shapeBounds != shapeData.shapeBounds ||
+          existingShape.shape != shapeData.shape) {
+        anyShapeChangedInLayer = true;
+      }
+    }
+
+    if (cachedShapes.length != shapes.length) anyShapeChangedInLayer = true;
 
     return (
       (layerBounds ?? Rect.zero).inflate(blend * .25 + settings.outlineWidth + 1),
@@ -339,6 +409,7 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
     RenderLiquidGlass renderObject,
     LiquidShape shape,
     bool glassContainsChild,
+    Rect drawnRect,
   ) {
     if (!hasSize) {
       throw StateError(
@@ -359,7 +430,7 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
 
     final blendGroupRect = MatrixUtils.transformRect(
       transformToGeometry,
-      renderObject.drawnRect,
+      drawnRect,
     );
 
     return ShapeGeometry(
@@ -369,6 +440,38 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
       shapeBounds: blendGroupRect,
       shapeToGeometry: transformToGeometry,
     );
+  }
+}
+
+const double _coincidentTolerance = 1e-3;
+
+bool _coincident(ShapeGeometry a, ShapeGeometry b) {
+  final boundsA = a.shapeBounds, boundsB = b.shapeBounds;
+  if ((boundsA.left - boundsB.left).abs() > _coincidentTolerance ||
+      (boundsA.top - boundsB.top).abs() > _coincidentTolerance ||
+      (boundsA.right - boundsB.right).abs() > _coincidentTolerance ||
+      (boundsA.bottom - boundsB.bottom).abs() > _coincidentTolerance) {
+    return false;
+  }
+  final outlineA = _canonicalOutline(a), outlineB = _canonicalOutline(b);
+  return outlineA.$1 == outlineB.$1 &&
+      (outlineA.$2 - outlineB.$2).abs() <= _coincidentTolerance;
+}
+
+(RawShapeType, double) _canonicalOutline(ShapeGeometry geometry) {
+  final bounds = geometry.shapeBounds;
+  final halfShort = math.min(bounds.width, bounds.height) / 2;
+  switch (geometry.rawShapeType) {
+    case RawShapeType.ellipse:
+      return (RawShapeType.ellipse, 0);
+    case RawShapeType.roundedRectangle:
+      final isSquare = (bounds.width - bounds.height).abs() <= _coincidentTolerance;
+      if (isSquare && geometry.rawCornerRadius >= halfShort - _coincidentTolerance) {
+        return (RawShapeType.ellipse, 0);
+      }
+      return (RawShapeType.roundedRectangle, math.min(geometry.rawCornerRadius, halfShort));
+    case RawShapeType.squircle:
+      return (RawShapeType.squircle, math.min(geometry.rawCornerRadius * 1.65, halfShort));
   }
 }
 

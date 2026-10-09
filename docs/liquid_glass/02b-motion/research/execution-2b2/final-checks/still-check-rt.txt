@@ -1,0 +1,27 @@
+20 scene, case and frame triples compared; 20 Flutter frames byte-identical to the 2A run
+identical flutter material.regular dark-black-reduce-transparency ready: native frame max difference 0.0
+identical flutter material.regular dark-black-reduce-transparency settled: native frame max difference 0.0
+identical flutter material.regular dark-photo-reduce-transparency ready: native frame max difference 0.0
+identical flutter material.regular dark-photo-reduce-transparency settled: native frame max difference 0.0
+identical flutter material.regular dark-stripes-reduce-transparency ready: native frame max difference 0.0
+identical flutter material.regular dark-stripes-reduce-transparency settled: native frame max difference 0.0
+identical flutter material.regular dark-text-reduce-transparency ready: native frame max difference 0.0
+identical flutter material.regular dark-text-reduce-transparency settled: native frame max difference 0.0
+identical flutter material.regular dark-white-reduce-transparency ready: native frame max difference 0.0
+identical flutter material.regular dark-white-reduce-transparency settled: native frame max difference 0.0
+identical flutter material.regular light-black-reduce-transparency ready: native frame max difference 0.0
+identical flutter material.regular light-black-reduce-transparency settled: native frame max difference 0.0
+identical flutter material.regular light-photo-reduce-transparency ready: native frame max difference 0.0
+identical flutter material.regular light-photo-reduce-transparency settled: native frame max difference 0.0
+identical flutter material.regular light-stripes-reduce-transparency ready: native frame max difference 0.0
+identical flutter material.regular light-stripes-reduce-transparency settled: native frame max difference 0.0
+identical flutter material.regular light-text-reduce-transparency ready: native frame max difference 0.0
+identical flutter material.regular light-text-reduce-transparency settled: native frame max difference 0.0
+identical flutter material.regular light-white-reduce-transparency ready: native frame max difference 0.0
+identical flutter material.regular light-white-reduce-transparency settled: native frame max difference 0.0
+material.regular light-photo-reduce-transparency ready bbox_pt: 2.00 -> 2.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.regular light-photo-reduce-transparency settled bbox_pt: 2.00 -> 2.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.regular light-text-reduce-transparency ready rim_rms: 7.90 -> 7.90 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.regular light-text-reduce-transparency settled rim_rms: 7.90 -> 7.90 (fail -> fail), flutter frame max difference 0.0, native 0.0
+missing: 0
+worse: 0

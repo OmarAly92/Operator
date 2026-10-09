@@ -1,0 +1,986 @@
+Task 25 Step 5: measures whose noise is above 3 x the median of the others, per case (gotcha 52)
+
+Source: read-only pass over build/glass_lab/runs/noise-2b2, the ten pair result.json files of each of the 62 cases (the values lab.case_noise takes the maximum of). For every case and every measure the maximum over the ten pairs equals the value in tool/glass_lab/noise.json (0 differences), so each worst value below is that case's noise.
+
+Definitions
+- outlier: a measure whose worst pair value is above 3 x the median of the other nine pairs' values.
+- median 0: 3 x 0 is 0, so any positive worst would count. Such a measure is skipped when its worst is below its fixed threshold in metrics.py (2046 measure-cases skipped) and listed when its worst is at or above it (46 listed, shown as med0 in the ratio column).
+- drivers: every pair above 3 x the median is an outlier pair. 'take N in K pairs' means take N is in all K outlier pairs. With K = 1 the pair names two takes and the likelier one is the take whose other three pairs have the higher mean (both means given); 'indistinguishable' means those means are equal. 'no common take' means the outlier pairs share no take.
+- sets limit: limit with = max(fixed, 1.5 x worst); limit without = max(fixed, 1.5 x the largest value among the non-outlier pairs). The outlier sets the limit when with > without; both limits are printed. The outlier measures of one take are not independent: removing that take would lower all of them together.
+
+Why they stay (gotcha 52)
+Gotcha 52 moved a take because it had a measured fault, a disappear onset 98 ms before the glass moved. Here no take has a measured fault (Task 25 Step 5 Ruling in ledger.md, noise-take-check.txt): all 40 morph takes have 2 touches and no zero-length touch window, no animation is squeezed, and the long first-frame gap that take_check flags is the still screen before the tap, which passing takes show too; respace windows are 25-74 ms with count 2; union and spacing have no touch steps and all their static mad are 0.0. The values below are therefore spread of sound takes in time, damping, overshoot, response and sharpness measures that the video reads in 8.3 ms steps (peak_ms and settle_ms values are multiples of 8.33), not a capture fault. They stay because no excluding criterion applies to the driving takes, and because choosing which of five takes to drop by one measure would pick the floor by the number instead of by the recording. The cost is real and is stated: 754 of the 841 outliers set a limit, so those limits are looser than the other takes alone would give (the with and without limits show by how much), and the counts in the Done table are judged under them. Reversible: recompute noise.json from the takes with any take excluded (R/noise_recompute.py).
+
+Summary by scene
+scene | cases | measure-cases checked | outliers | set a limit | one take drives every outlier pair
+material.merge | 8 | 1090 | 149 | 130 | 105
+material.morph | 8 | 2116 | 345 | 319 | 259
+material.morph.plain | 8 | 1906 | 346 | 304 | 292
+material.respace | 2 | 32 | 1 | 1 | 0
+material.spacing.10.a | 2 | 44 | 0 | 0 | 0
+material.spacing.12.a | 2 | 44 | 0 | 0 | 0
+material.spacing.16.a | 2 | 44 | 0 | 0 | 0
+material.spacing.20.a | 2 | 44 | 0 | 0 | 0
+material.spacing.20.b | 2 | 44 | 0 | 0 | 0
+material.spacing.20.c | 2 | 44 | 0 | 0 | 0
+material.spacing.4.a | 2 | 44 | 0 | 0 | 0
+material.spacing.40.d | 2 | 44 | 0 | 0 | 0
+material.spacing.40.e | 2 | 44 | 0 | 0 | 0
+material.spacing.6.a | 2 | 44 | 0 | 0 | 0
+material.spacing.8.a | 2 | 44 | 0 | 0 | 0
+material.spacing.80.a | 2 | 44 | 0 | 0 | 0
+material.spacing.80.b | 2 | 44 | 0 | 0 | 0
+material.spacing.80.c | 2 | 44 | 0 | 0 | 0
+material.spacing.80.d | 2 | 44 | 0 | 0 | 0
+material.spacing.80.e | 2 | 38 | 0 | 0 | 0
+material.spacing.default.d | 2 | 44 | 0 | 0 | 0
+material.union | 2 | 38 | 0 | 0 | 0
+total | 62 | 5924 | 841 | 754 | 656
+No outliers: material.union and the 17 recorded material.spacing scenes (36 cases). Outliers occur only in material.merge, material.morph, material.morph.plain and one in material.respace.
+
+Driving take per case (outliers by their driver; 'multi/none' = several takes or no common take; 'amb' = a one-pair outlier whose two takes cannot be told apart)
+material.merge dark-photo: 15 outliers; take 0: 3, take 2: 4, take 3: 4, take 4: 4
+material.merge dark-photo-reduce-motion: 28 outliers; take 0: 7, take 2: 17, take 3: 1, take 4: 3
+material.merge dark-stripes: 19 outliers; take 0: 2, take 1: 9, take 2: 3, take 3: 3, take 4: 2
+material.merge dark-stripes-reduce-motion: 40 outliers; take 1: 2, take 3: 19, take 4: 19
+material.merge light-photo: 22 outliers; take 1: 10, take 2: 1, take 3: 9, take 4: 2
+material.merge light-photo-reduce-motion: 4 outliers; take 4: 4
+material.merge light-stripes: 14 outliers; take 0: 1, take 2: 2, take 3: 10, take 4: 1
+material.merge light-stripes-reduce-motion: 7 outliers; take 1: 3, take 3: 2, take 4: 2
+material.morph dark-photo: 39 outliers; take 1: 13, take 2: 3, take 3: 12, take 4: 11
+material.morph dark-photo-reduce-motion: 17 outliers; take 0: 14, take 1: 1, take 3: 1, take 4: 1
+material.morph dark-stripes: 32 outliers; take 0: 12, take 1: 4, take 2: 4, take 3: 5, take 4: 7
+material.morph dark-stripes-reduce-motion: 42 outliers; take 0: 10, take 1: 3, take 2: 2, take 3: 23, take 4: 2, take amb: 2
+material.morph light-photo: 32 outliers; take 0: 7, take 1: 16, take 2: 3, take 3: 2, take 4: 4
+material.morph light-photo-reduce-motion: 58 outliers; take 0: 20, take 1: 7, take 2: 26, take 3: 5
+material.morph light-stripes: 33 outliers; take 0: 4, take 2: 1, take 3: 10, take 4: 17, take multi/none: 1
+material.morph light-stripes-reduce-motion: 92 outliers; take 0: 4, take 1: 47, take 2: 34, take 3: 1, take 4: 6
+material.morph.plain dark-photo: 45 outliers; take 0: 3, take 1: 37, take 2: 1, take 3: 1, take 4: 3
+material.morph.plain dark-photo-reduce-motion: 53 outliers; take 0: 1, take 2: 23, take 3: 26, take 4: 3
+material.morph.plain dark-stripes: 20 outliers; take 0: 10, take 1: 7, take 3: 3
+material.morph.plain dark-stripes-reduce-motion: 28 outliers; take 0: 22, take 1: 1, take 3: 3, take 4: 2
+material.morph.plain light-photo: 51 outliers; take 1: 17, take 2: 29, take 3: 5
+material.morph.plain light-photo-reduce-motion: 57 outliers; take 0: 4, take 1: 15, take 2: 36, take 3: 2
+material.morph.plain light-stripes: 17 outliers; take 0: 4, take 1: 7, take 2: 2, take 4: 4
+material.morph.plain light-stripes-reduce-motion: 75 outliers; take 0: 54, take 1: 6, take 2: 8, take 3: 1, take 4: 5, take multi/none: 1
+material.respace light-photo: 1 outliers; take amb: 1
+
+Outliers that set a limit, per case
+material.merge dark-photo (13): left.step1e0.progress.damping, left.step1e0.xmin.response_pct, pair.step3e0.luma.settle_ms, right.step1e0.cx.peak_ms, right.step1e0.cx.response_pct, right.step1e0.cy.response_pct, right.step1e0.xmax.peak_ms, right.step1e0.xmax.settle_ms, right.step3e0.cx.peak_ms, right.step3e0.height.peak_ms, right.step3e0.progress.damping, right.step3e0.xmax.peak_ms, step1e0.delay_ms
+material.merge dark-photo-reduce-motion (24): left.step1e0.cx.peak_ms, left.step1e0.xmin.peak_ms, left.step3e0.cx.response_pct, left.step3e0.luma.damping, left.step3e0.luma.response_pct, left.step3e0.progress.response_pct, left.step3e0.xmin.response_pct, pair.step1e0.width.peak_ms, pair.step3e0.luma.damping, pair.step3e0.luma.peak_ms, pair.step3e0.luma.response_pct, pair.step3e0.progress.response_pct, right.step1e0.cx.damping, right.step1e0.cx.peak_ms, right.step1e0.cx.response_pct, right.step1e0.cx.settle_ms, right.step1e0.height.response_pct, right.step1e0.xmax.peak_ms, right.step1e0.xmax.settle_ms, right.step3e0.cy.response_pct, right.step3e0.cy.settle_ms, right.step3e0.height.response_pct, right.step3e0.progress.response_pct, right.step3e0.xmax.response_pct
+material.merge dark-stripes (15): left.step1e0.cx.peak_ms, left.step1e0.progress.settle_ms, left.step1e0.xmin.peak_ms, left.step1e0.xmin.settle_ms, left.step3e0.cx.peak_ms, left.step3e0.xmin.settle_ms, pair.step1e0.width.peak_ms, pair.step3e0.progress.settle_ms, pair.step3e0.width.response_pct, pair.step3e0.width.settle_ms, right.step1e0.cx.peak_ms, right.step1e0.xmax.damping, right.step1e0.xmax.peak_ms, right.step3e0.cx.settle_ms, right.step3e0.xmax.response_pct
+material.merge dark-stripes-reduce-motion (37): left.step1e0.cx.damping, left.step1e0.cx.response_pct, left.step1e0.luma.damping, left.step1e0.luma.response_pct, left.step1e0.progress.damping, left.step1e0.progress.response_pct, left.step1e0.xmin.damping, left.step1e0.xmin.response_pct, left.step3e0.cx.damping, left.step3e0.luma.damping, left.step3e0.xmin.damping, left.step3e0.xmin.peak_ms, left.step3e0.xmin.settle_ms, pair.step1e0.progress.damping, pair.step1e0.progress.response_pct, pair.step1e0.progress.t10_90_ms, pair.step1e0.width.damping, pair.step1e0.width.response_pct, pair.step3e0.progress.response_pct, pair.step3e0.width.damping, pair.step3e0.width.peak_ms, pair.step3e0.width.settle_ms, right.step1e0.cx.damping, right.step1e0.cx.response_pct, right.step1e0.progress.damping, right.step1e0.progress.response_pct, right.step1e0.xmax.damping, right.step1e0.xmax.response_pct, right.step3e0.cx.damping, right.step3e0.cx.peak_ms, right.step3e0.cx.settle_ms, right.step3e0.progress.settle_ms, right.step3e0.progress.t10_90_ms, right.step3e0.xmax.damping, right.step3e0.xmax.peak_ms, right.step3e0.xmax.settle_ms, step3e0.delay_ms
+material.merge light-photo (21): left.step1e0.progress.damping, left.step3e0.cx.response_pct, left.step3e0.luma.damping, left.step3e0.luma.response_pct, left.step3e0.progress.damping, left.step3e0.xmin.damping, left.step3e0.xmin.response_pct, pair.step3e0.luma.response_pct, pair.step3e0.progress.response_pct, pair.step3e0.topology.neck_rms, pair.step3e0.width.peak_ms, pair.step3e0.width.response_pct, right.step1e0.cx.response_pct, right.step3e0.cx.peak_ms, right.step3e0.cx.response_pct, right.step3e0.progress.damping, right.step3e0.progress.response_pct, right.step3e0.progress.settle_ms, right.step3e0.xmax.peak_ms, right.step3e0.xmax.response_pct, step3e0.delay_ms
+material.merge light-photo-reduce-motion (3): left.step3e0.luma.settle_ms, left.step3e0.xmin.damping, right.step3e0.xmax.damping
+material.merge light-stripes (11): left.step1e0.progress.damping, left.step1e0.progress.response_pct, left.step3e0.cx.response_pct, left.step3e0.xmin.response_pct, pair.step3e0.progress.response_pct, pair.step3e0.topology.neck_rms, pair.step3e0.width.response_pct, right.step1e0.progress.damping, right.step1e0.progress.response_pct, right.step3e0.xmax.response_pct, step3e0.delay_ms
+material.merge light-stripes-reduce-motion (6): left.step1e0.cx.peak_ms, left.step1e0.xmin.peak_ms, left.step3e0.progress.damping, pair.step1e0.progress.settle_ms, right.step3e0.luma.damping, right.step3e0.luma.response_pct
+material.morph dark-photo (38): bolt.step1e0.cy.settle_ms, bolt.step1e0.height.settle_ms, bolt.step1e0.luma.settle_ms, bolt.step1e0.progress.overshoot_pct, bolt.step3e0.luma.peak_ms, bolt.step3e0.luma.settle_ms, bolt.step3e0.progress.overshoot_pct, bolt.step3e0.progress.rms, bolt.step3e0.progress.settle_ms, bolt.step3e0.progress.t10_90_ms, collapsed.step1e0.height.peak_ms, collapsed.step1e0.progress.response_pct, collapsed.step3e1.luma.overshoot_pct, collapsed.step3e1.luma.peak_ms, collapsed.step3e1.progress.settle_ms, heart.step1e0.progress.overshoot_pct, heart.step1e0.progress.sharpness, heart.step3e0.height.peak_ms, heart.step3e0.height.settle_ms, heart.step3e0.luma.overshoot_pct, heart.step3e0.progress.overshoot_pct, heart.step3e0.progress.settle_ms, heart.step3e0.progress.sharpness, stack.step1e0.progress.response_pct, stack.step1e0.topology.count, stack.step1e0.ymax.settle_ms, stack.step1e1.topology.count, stack.step3e0.height.peak_ms, stack.step3e0.luma.overshoot_pct, stack.step3e0.luma.peak_ms, stack.step3e0.luma.settle_ms, stack.step3e0.ymax.damping, stack.step3e0.ymax.response_pct, stack.step3e0.ymin.overshoot_pct, stack.step3e1.progress.settle_ms, star.step3e0.luma.damping, star.step3e0.luma.response_pct, toggle.step1e0.height.settle_ms
+material.morph dark-photo-reduce-motion (16): bolt.step1e0.height.settle_ms, bolt.step1e0.progress.overshoot_pct, bolt.step1e0.progress.settle_ms, collapsed.step3e0.progress.sharpness, collapsed.step3e1.luma.overshoot_pct, collapsed.step3e1.luma.settle_ms, heart.step1e0.cy.peak_ms, heart.step1e0.cy.settle_ms, heart.step3e0.progress.t10_90_ms, stack.step1e0.luma.overshoot_pct, stack.step1e0.ymin.settle_ms, stack.step3e0.progress.sharpness, star.step1e0.cy.settle_ms, star.step1e0.luma.settle_ms, toggle.step1e0.height.damping, toggle.step1e0.luma.overshoot_pct
+material.morph dark-stripes (24): bolt.step3e0.cy.settle_ms, bolt.step3e0.progress.rms, bolt.step3e0.progress.settle_ms, collapsed.step3e0.height.overshoot_pct, collapsed.step3e0.height.settle_ms, collapsed.step3e0.progress.rms, collapsed.step3e0.progress.t10_90_ms, collapsed.step3e1.luma.settle_ms, heart.step1e0.cy.settle_ms, heart.step1e0.height.overshoot_pct, stack.step1e0.height.peak_ms, stack.step1e0.topology.gap_rms, stack.step1e0.topology.join_ms, stack.step1e0.topology.split_ms, stack.step3e0.progress.rms, stack.step3e0.progress.t10_90_ms, stack.step3e0.ymax.damping, stack.step3e0.ymin.overshoot_pct, star.step1e0.luma.peak_ms, star.step3e0.luma.overshoot_pct, toggle.step1e0.height.settle_ms, toggle.step1e0.luma.peak_ms, toggle.step1e0.luma.settle_ms, toggle.step3e0.luma.overshoot_pct
+material.morph dark-stripes-reduce-motion (35): bolt.step1e0.progress.overshoot_pct, collapsed.step1e0.height.peak_ms, collapsed.step1e0.height.settle_ms, collapsed.step3e0.height.settle_ms, collapsed.step3e1.luma.settle_ms, heart.step3e0.cy.damping, heart.step3e0.cy.response_pct, heart.step3e0.height.damping, heart.step3e0.height.response_pct, heart.step3e0.height.settle_ms, stack.step1e0.height.response_pct, stack.step1e0.height.settle_ms, stack.step1e0.topology.count, stack.step1e0.topology.gap_rms, stack.step1e0.ymax.response_pct, stack.step1e0.ymin.response_pct, stack.step3e0.topology.join_ms, stack.step3e0.ymax.damping, stack.step3e0.ymax.response_pct, star.step1e0.cy.peak_ms, star.step1e0.luma.peak_ms, star.step1e0.luma.response_pct, star.step3e0.luma.settle_ms, star.step3e0.width.response_pct, step3e0.delay_ms, step3e1.delay_ms, toggle.step1e0.cy.settle_ms, toggle.step3e0.cy.response_pct, toggle.step3e0.height.peak_ms, toggle.step3e0.height.response_pct, toggle.step3e0.height.settle_ms, toggle.step3e0.luma.overshoot_pct, toggle.step3e0.luma.peak_ms, toggle.step3e0.width.peak_ms, toggle.step3e0.width.settle_ms
+material.morph light-photo (29): bolt.step1e0.height.peak_ms, bolt.step1e0.luma.peak_ms, bolt.step3e0.cy.peak_ms, bolt.step3e0.height.peak_ms, collapsed.step1e0.progress.t10_90_ms, collapsed.step3e0.luma.peak_ms, collapsed.step3e0.progress.sharpness, heart.step1e0.luma.peak_ms, heart.step1e0.progress.sharpness, heart.step3e0.luma.overshoot_pct, heart.step3e0.progress.overshoot_pct, heart.step3e0.progress.settle_ms, stack.step1e0.height.peak_ms, stack.step1e0.luma.peak_ms, stack.step1e0.progress.t10_90_ms, stack.step1e0.ymax.damping, stack.step1e0.ymin.overshoot_pct, stack.step1e0.ymin.peak_ms, stack.step1e0.ymin.settle_ms, stack.step1e1.height.settle_ms, stack.step1e1.ymin.settle_ms, stack.step3e0.progress.sharpness, stack.step3e0.ymax.peak_ms, stack.step3e0.ymin.overshoot_pct, star.step3e0.luma.settle_ms, toggle.step1e0.height.settle_ms, toggle.step1e0.width.peak_ms, toggle.step3e0.cy.response_pct, toggle.step3e0.height.response_pct
+material.morph light-photo-reduce-motion (57): bolt.step1e0.cy.response_pct, bolt.step1e0.height.response_pct, bolt.step1e0.progress.settle_ms, bolt.step1e0.progress.t10_90_ms, bolt.step3e0.progress.response_pct, bolt.step3e0.progress.settle_ms, collapsed.step1e0.height.response_pct, collapsed.step1e0.progress.sharpness, collapsed.step3e0.progress.response_pct, collapsed.step3e0.progress.sharpness, collapsed.step3e1.luma.peak_ms, collapsed.step3e1.luma.settle_ms, heart.step1e0.cy.response_pct, heart.step1e0.height.response_pct, heart.step1e0.height.settle_ms, heart.step1e0.luma.overshoot_pct, heart.step1e0.progress.settle_ms, heart.step3e0.cy.peak_ms, heart.step3e0.cy.response_pct, heart.step3e0.height.damping, heart.step3e0.height.peak_ms, heart.step3e0.height.response_pct, stack.step1e0.height.response_pct, stack.step1e0.height.settle_ms, stack.step1e0.luma.damping, stack.step1e0.luma.overshoot_pct, stack.step1e0.luma.settle_ms, stack.step1e0.progress.sharpness, stack.step1e0.topology.count, stack.step1e0.ymin.response_pct, stack.step1e0.ymin.settle_ms, stack.step3e0.luma.settle_ms, stack.step3e0.progress.response_pct, stack.step3e0.progress.sharpness, stack.step3e0.ymax.response_pct, stack.step3e0.ymin.peak_ms, star.step1e0.height.response_pct, star.step1e0.luma.peak_ms, star.step1e0.luma.settle_ms, star.step1e0.width.peak_ms, star.step3e0.height.peak_ms, star.step3e0.width.peak_ms, star.step3e0.width.response_pct, step1e0.delay_ms, step3e0.delay_ms, toggle.step1e0.height.peak_ms, toggle.step1e0.luma.overshoot_pct, toggle.step1e0.luma.peak_ms, toggle.step1e0.luma.settle_ms, toggle.step3e0.cy.peak_ms, toggle.step3e0.cy.response_pct, toggle.step3e0.cy.settle_ms, toggle.step3e0.height.response_pct, toggle.step3e0.height.settle_ms, toggle.step3e0.luma.peak_ms, toggle.step3e0.luma.settle_ms, toggle.step3e0.width.settle_ms
+material.morph light-stripes (31): bolt.step3e0.luma.peak_ms, bolt.step3e0.luma.settle_ms, bolt.step3e0.progress.response_pct, bolt.step3e0.progress.t10_90_ms, collapsed.step3e0.height.settle_ms, collapsed.step3e0.progress.t10_90_ms, heart.step1e0.progress.sharpness, heart.step3e0.cy.settle_ms, heart.step3e0.height.peak_ms, stack.step1e0.topology.count, stack.step1e0.topology.gap_rms, stack.step3e0.progress.t10_90_ms, stack.step3e0.ymax.response_pct, stack.step3e0.ymin.overshoot_pct, stack.step3e0.ymin.peak_ms, stack.step3e0.ymin.settle_ms, star.step3e0.height.peak_ms, star.step3e0.luma.overshoot_pct, star.step3e0.luma.peak_ms, star.step3e0.luma.response_pct, star.step3e0.luma.settle_ms, star.step3e0.width.peak_ms, step3e0.delay_ms, toggle.step1e0.height.peak_ms, toggle.step1e0.height.settle_ms, toggle.step3e0.cy.response_pct, toggle.step3e0.height.peak_ms, toggle.step3e0.height.response_pct, toggle.step3e0.height.settle_ms, toggle.step3e0.luma.peak_ms, toggle.step3e0.width.peak_ms
+material.morph light-stripes-reduce-motion (89): bolt.step1e0.cy.peak_ms, bolt.step1e0.cy.response_pct, bolt.step1e0.cy.settle_ms, bolt.step1e0.height.overshoot_pct, bolt.step1e0.height.peak_ms, bolt.step1e0.height.response_pct, bolt.step1e0.height.settle_ms, bolt.step1e0.luma.overshoot_pct, bolt.step1e0.luma.peak_ms, bolt.step1e0.luma.settle_ms, bolt.step1e0.progress.rms, bolt.step1e0.progress.settle_ms, bolt.step1e0.progress.sharpness, bolt.step1e0.progress.t10_90_ms, bolt.step3e0.cy.peak_ms, bolt.step3e0.height.peak_ms, bolt.step3e0.height.settle_ms, bolt.step3e0.luma.peak_ms, bolt.step3e0.progress.overshoot_pct, bolt.step3e0.progress.settle_ms, collapsed.step1e0.height.peak_ms, collapsed.step1e0.height.response_pct, collapsed.step1e0.height.settle_ms, collapsed.step1e0.progress.rms, collapsed.step1e0.progress.settle_ms, collapsed.step1e0.progress.t10_90_ms, collapsed.step3e0.height.peak_ms, collapsed.step3e0.progress.sharpness, collapsed.step3e1.luma.peak_ms, collapsed.step3e1.luma.settle_ms, heart.step1e0.cy.peak_ms, heart.step1e0.cy.response_pct, heart.step1e0.cy.settle_ms, heart.step1e0.height.overshoot_pct, heart.step1e0.height.peak_ms, heart.step1e0.height.response_pct, heart.step1e0.height.settle_ms, heart.step1e0.progress.overshoot_pct, heart.step1e0.progress.rms, heart.step1e0.progress.settle_ms, heart.step1e0.progress.sharpness, heart.step1e0.progress.t10_90_ms, heart.step3e0.cy.response_pct, heart.step3e0.cy.settle_ms, heart.step3e0.height.response_pct, heart.step3e0.height.settle_ms, heart.step3e0.progress.overshoot_pct, heart.step3e0.progress.sharpness, heart.step3e0.progress.t10_90_ms, stack.step1e0.height.response_pct, stack.step1e0.luma.overshoot_pct, stack.step1e0.luma.peak_ms, stack.step1e0.luma.response_pct, stack.step1e0.luma.settle_ms, stack.step1e0.progress.rms, stack.step1e0.progress.settle_ms, stack.step1e0.progress.t10_90_ms, stack.step1e0.topology.count, stack.step1e0.topology.neck_rms, stack.step1e0.ymax.response_pct, stack.step1e0.ymin.response_pct, stack.step3e0.height.peak_ms, stack.step3e0.luma.peak_ms, stack.step3e0.progress.sharpness, stack.step3e0.ymax.response_pct, star.step1e0.cy.response_pct, star.step1e0.height.peak_ms, star.step1e0.height.response_pct, star.step1e0.height.settle_ms, star.step1e0.luma.overshoot_pct, star.step1e0.luma.peak_ms, star.step1e0.luma.response_pct, star.step1e0.width.peak_ms, star.step1e0.width.settle_ms, step1e0.delay_ms, toggle.step1e0.cy.peak_ms, toggle.step1e0.cy.response_pct, toggle.step1e0.cy.settle_ms, toggle.step1e0.height.overshoot_pct, toggle.step1e0.height.peak_ms, toggle.step1e0.height.response_pct, toggle.step1e0.height.settle_ms, toggle.step1e0.luma.overshoot_pct, toggle.step1e0.luma.peak_ms, toggle.step1e0.luma.settle_ms, toggle.step1e0.width.peak_ms, toggle.step1e0.width.settle_ms, toggle.step3e0.cy.response_pct, toggle.step3e0.height.response_pct
+material.morph.plain dark-photo (37): bolt.step1e0.luma.overshoot_pct, bolt.step1e0.luma.peak_ms, bolt.step1e0.progress.overshoot_pct, bolt.step1e0.progress.t10_90_ms, bolt.step3e0.cy.response_pct, bolt.step3e0.luma.settle_ms, bolt.step3e0.progress.damping, bolt.step3e0.progress.overshoot_pct, bolt.step3e0.progress.response_pct, collapsed.step3e0.progress.settle_ms, collapsed.step3e0.progress.sharpness, heart.step1e0.cy.peak_ms, heart.step1e0.cy.response_pct, heart.step1e0.height.overshoot_pct, heart.step1e0.luma.response_pct, heart.step1e0.progress.overshoot_pct, heart.step3e0.progress.rms, heart.step3e0.progress.settle_ms, heart.step3e0.progress.t10_90_ms, stack.step1e0.height.damping, stack.step1e0.height.response_pct, stack.step1e0.luma.damping, stack.step1e0.luma.response_pct, stack.step1e0.topology.split_ms, stack.step1e0.ymax.damping, stack.step1e0.ymax.response_pct, stack.step3e0.progress.settle_ms, stack.step3e0.progress.sharpness, star.step1e0.cx.overshoot_pct, star.step1e0.cx.peak_ms, star.step1e0.cy.overshoot_pct, star.step3e0.luma.peak_ms, step1e0.delay_ms, toggle.step1e0.height.response_pct, toggle.step1e0.luma.damping, toggle.step1e0.luma.response_pct, toggle.step1e0.width.peak_ms
+material.morph.plain dark-photo-reduce-motion (49): bolt.step3e0.cy.peak_ms, bolt.step3e0.height.peak_ms, bolt.step3e0.height.settle_ms, collapsed.step1e0.progress.t10_90_ms, collapsed.step3e0.height.overshoot_pct, collapsed.step3e0.progress.damping, collapsed.step3e0.progress.response_pct, heart.step1e0.cy.overshoot_pct, heart.step1e0.cy.peak_ms, heart.step1e0.cy.response_pct, heart.step1e0.height.peak_ms, heart.step1e0.luma.response_pct, heart.step1e0.progress.sharpness, heart.step3e0.cy.response_pct, heart.step3e0.height.damping, stack.step1e0.height.damping, stack.step1e0.height.peak_ms, stack.step1e0.height.response_pct, stack.step1e0.luma.damping, stack.step1e0.luma.response_pct, stack.step1e0.luma.settle_ms, stack.step1e0.progress.t10_90_ms, stack.step1e0.ymax.damping, stack.step1e0.ymax.peak_ms, stack.step1e0.ymax.response_pct, stack.step1e0.ymin.damping, stack.step1e0.ymin.peak_ms, stack.step1e0.ymin.response_pct, stack.step3e0.height.peak_ms, stack.step3e0.height.response_pct, stack.step3e0.luma.damping, stack.step3e0.luma.response_pct, stack.step3e0.topology.count, stack.step3e0.ymax.damping, stack.step3e0.ymax.peak_ms, stack.step3e0.ymax.response_pct, star.step1e0.cx.peak_ms, star.step1e0.cy.peak_ms, star.step1e0.cy.settle_ms, star.step1e0.height.response_pct, star.step1e0.luma.response_pct, step1e0.delay_ms, toggle.step1e0.cy.peak_ms, toggle.step1e0.height.response_pct, toggle.step1e0.luma.response_pct, toggle.step1e0.width.peak_ms, toggle.step3e0.cy.response_pct, toggle.step3e0.height.response_pct, toggle.step3e0.width.response_pct
+material.morph.plain dark-stripes (15): bolt.step1e0.cy.response_pct, bolt.step1e0.height.response_pct, bolt.step3e0.cy.peak_ms, bolt.step3e0.cy.settle_ms, bolt.step3e0.height.peak_ms, collapsed.step1e0.progress.settle_ms, heart.step1e0.progress.sharpness, heart.step3e0.cy.settle_ms, stack.step1e0.progress.settle_ms, stack.step1e0.ymin.peak_ms, stack.step3e0.ymax.peak_ms, stack.step3e0.ymax.response_pct, toggle.step1e0.luma.damping, toggle.step1e0.width.settle_ms, toggle.step3e0.luma.response_pct
+material.morph.plain dark-stripes-reduce-motion (28): bolt.step1e0.cy.response_pct, bolt.step1e0.height.response_pct, bolt.step3e0.progress.damping, bolt.step3e0.progress.response_pct, bolt.step3e0.progress.sharpness, collapsed.step3e0.height.peak_ms, collapsed.step3e0.height.settle_ms, heart.step1e0.cy.response_pct, heart.step1e0.height.response_pct, heart.step1e0.progress.sharpness, heart.step3e0.cy.peak_ms, heart.step3e0.cy.settle_ms, heart.step3e0.height.peak_ms, heart.step3e0.height.settle_ms, stack.step1e0.height.damping, stack.step1e0.height.response_pct, stack.step1e0.ymax.damping, stack.step1e0.ymax.response_pct, stack.step1e0.ymin.damping, stack.step1e0.ymin.response_pct, stack.step3e0.height.peak_ms, stack.step3e0.height.settle_ms, stack.step3e0.ymin.peak_ms, star.step1e0.width.response_pct, star.step3e0.height.response_pct, star.step3e0.width.response_pct, toggle.step1e0.width.response_pct, toggle.step3e0.luma.peak_ms
+material.morph.plain light-photo (39): bolt.step1e0.cy.damping, bolt.step1e0.cy.peak_ms, bolt.step1e0.cy.response_pct, bolt.step1e0.height.damping, bolt.step1e0.height.response_pct, bolt.step1e0.height.settle_ms, bolt.step3e0.height.settle_ms, bolt.step3e0.luma.overshoot_pct, bolt.step3e0.luma.settle_ms, bolt.step3e0.progress.damping, bolt.step3e0.progress.response_pct, bolt.step3e0.progress.settle_ms, bolt.step3e0.progress.t10_90_ms, collapsed.step1e0.luma.peak_ms, collapsed.step1e0.progress.overshoot_pct, collapsed.step3e0.height.settle_ms, collapsed.step3e0.progress.settle_ms, collapsed.step3e0.progress.sharpness, heart.step1e0.cy.response_pct, heart.step1e0.height.response_pct, heart.step3e0.cy.overshoot_pct, heart.step3e0.progress.settle_ms, stack.step1e0.luma.response_pct, stack.step1e0.progress.overshoot_pct, stack.step1e0.ymin.response_pct, stack.step3e0.luma.response_pct, stack.step3e0.luma.settle_ms, stack.step3e0.progress.settle_ms, stack.step3e0.progress.sharpness, star.step1e0.cy.settle_ms, star.step1e0.width.settle_ms, star.step3e0.width.response_pct, toggle.step1e0.cy.damping, toggle.step1e0.cy.response_pct, toggle.step1e0.height.peak_ms, toggle.step1e0.luma.settle_ms, toggle.step1e0.width.damping, toggle.step1e0.width.overshoot_pct, toggle.step1e0.width.peak_ms
+material.morph.plain light-photo-reduce-motion (53): bolt.step1e0.cy.damping, bolt.step1e0.cy.response_pct, bolt.step1e0.height.damping, bolt.step1e0.height.response_pct, bolt.step1e0.progress.response_pct, bolt.step1e0.progress.sharpness, bolt.step3e0.cy.peak_ms, bolt.step3e0.cy.settle_ms, bolt.step3e0.height.peak_ms, bolt.step3e0.height.settle_ms, bolt.step3e0.luma.peak_ms, bolt.step3e0.progress.t10_90_ms, collapsed.step1e0.height.peak_ms, collapsed.step1e0.height.settle_ms, collapsed.step3e0.height.peak_ms, collapsed.step3e0.height.settle_ms, collapsed.step3e0.progress.settle_ms, heart.step1e0.cy.damping, heart.step1e0.cy.response_pct, heart.step1e0.height.damping, heart.step1e0.height.response_pct, heart.step1e0.luma.peak_ms, heart.step1e0.progress.response_pct, heart.step3e0.height.settle_ms, heart.step3e0.progress.response_pct, stack.step1e0.height.response_pct, stack.step1e0.luma.response_pct, stack.step1e0.topology.split_ms, stack.step1e0.ymax.response_pct, stack.step1e0.ymin.response_pct, stack.step3e0.height.peak_ms, stack.step3e0.luma.peak_ms, stack.step3e0.progress.settle_ms, stack.step3e0.ymax.peak_ms, star.step1e0.cy.damping, star.step1e0.cy.response_pct, star.step1e0.height.damping, star.step1e0.height.response_pct, star.step1e0.luma.peak_ms, star.step1e0.luma.response_pct, star.step1e0.width.peak_ms, star.step1e0.width.response_pct, star.step3e0.height.response_pct, star.step3e0.width.response_pct, step1e0.delay_ms, toggle.step1e0.cy.damping, toggle.step1e0.cy.response_pct, toggle.step1e0.cy.settle_ms, toggle.step1e0.height.response_pct, toggle.step1e0.luma.response_pct, toggle.step1e0.width.peak_ms, toggle.step1e0.width.response_pct, toggle.step1e0.width.settle_ms
+material.morph.plain light-stripes (11): bolt.step1e0.cy.damping, bolt.step3e0.luma.settle_ms, collapsed.step1e0.progress.damping, heart.step1e0.height.settle_ms, stack.step1e0.luma.damping, stack.step1e0.progress.damping, stack.step3e0.luma.response_pct, stack.step3e0.ymax.response_pct, toggle.step1e0.height.peak_ms, toggle.step3e0.height.response_pct, toggle.step3e0.luma.response_pct
+material.morph.plain light-stripes-reduce-motion (72): bolt.step1e0.cy.peak_ms, bolt.step1e0.height.peak_ms, bolt.step1e0.height.response_pct, bolt.step3e0.cy.peak_ms, bolt.step3e0.cy.response_pct, bolt.step3e0.cy.settle_ms, bolt.step3e0.height.peak_ms, bolt.step3e0.height.settle_ms, bolt.step3e0.luma.overshoot_pct, bolt.step3e0.luma.peak_ms, bolt.step3e0.luma.settle_ms, bolt.step3e0.progress.response_pct, bolt.step3e0.progress.rms, bolt.step3e0.progress.settle_ms, bolt.step3e0.progress.t10_90_ms, collapsed.step1e0.luma.peak_ms, collapsed.step1e0.progress.sharpness, collapsed.step3e0.height.overshoot_pct, collapsed.step3e0.progress.response_pct, collapsed.step3e0.progress.rms, collapsed.step3e0.progress.settle_ms, collapsed.step3e0.progress.sharpness, collapsed.step3e0.progress.t10_90_ms, heart.step1e0.cy.peak_ms, heart.step1e0.height.peak_ms, heart.step1e0.height.response_pct, heart.step3e0.cy.peak_ms, heart.step3e0.cy.settle_ms, heart.step3e0.height.damping, heart.step3e0.height.peak_ms, heart.step3e0.height.settle_ms, heart.step3e0.progress.response_pct, heart.step3e0.progress.rms, heart.step3e0.progress.settle_ms, heart.step3e0.progress.t10_90_ms, stack.step1e0.height.peak_ms, stack.step1e0.progress.sharpness, stack.step1e0.topology.count, stack.step1e0.topology.neck_rms, stack.step1e0.ymin.peak_ms, stack.step3e0.height.damping, stack.step3e0.height.peak_ms, stack.step3e0.height.response_pct, stack.step3e0.height.settle_ms, stack.step3e0.luma.damping, stack.step3e0.luma.peak_ms, stack.step3e0.luma.settle_ms, stack.step3e0.progress.damping, stack.step3e0.progress.response_pct, stack.step3e0.progress.rms, stack.step3e0.progress.settle_ms, stack.step3e0.progress.sharpness, stack.step3e0.progress.t10_90_ms, stack.step3e0.topology.count, stack.step3e0.ymax.damping, stack.step3e0.ymax.peak_ms, stack.step3e0.ymax.settle_ms, stack.step3e0.ymin.peak_ms, stack.step3e0.ymin.settle_ms, star.step1e0.cy.peak_ms, star.step3e0.height.peak_ms, star.step3e0.height.response_pct, star.step3e0.height.settle_ms, star.step3e0.luma.overshoot_pct, star.step3e0.luma.settle_ms, star.step3e0.width.damping, star.step3e0.width.peak_ms, star.step3e0.width.response_pct, star.step3e0.width.settle_ms, step1e0.delay_ms, toggle.step1e0.luma.peak_ms, toggle.step3e0.cy.response_pct
+material.respace light-photo (1): pair.step3e0.topology.count
+
+Detail. Line: measure | worst | median of the other nine | ratio | drivers | limit with / without | fixed | SETS or stays
+
+material.merge dark-photo: 15 outliers of 155 measures, 13 set a limit
+  left.step1e0.progress.damping | 0.25 | 0.08 | x3.12 | pair 1-3 only; take 3 likelier (its other pairs 0.1833 vs 0.06667) | 0.375 / 0.345 | 0.05 | SETS
+  left.step1e0.xmin.response_pct | 6.818 | 2.273 | x3.00 | take 3 in 2 pairs | 10.23 / 7.317 | 5 | SETS
+  pair.step1e0.progress.sharpness | 0.1264 | 0.03485 | x3.63 | take 0 in 3 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  pair.step3e0.luma.settle_ms | 33.33 | 8.333 | x4.00 | take 4 in 4 pairs | 50 / 17 | 17 | SETS
+  pair.step3e0.progress.sharpness | 0.1097 | 0.03015 | x3.64 | take 4 in 2 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  right.step1e0.cx.peak_ms | 116.7 | 25 | x4.67 | take 2 in 4 pairs | 175 / 37.5 | 17 | SETS
+  right.step1e0.cx.response_pct | 9.524 | 1.449 | x6.57 | take 0 in 4 pairs | 14.29 / 5 | 5 | SETS
+  right.step1e0.cy.response_pct | 11.11 | 3.448 | x3.22 | pair 2-4 only; take 2 likelier (its other pairs 8.612 vs 3.159) | 16.67 / 14.29 | 5 | SETS
+  right.step1e0.xmax.peak_ms | 116.7 | 25 | x4.67 | take 2 in 4 pairs | 175 / 37.5 | 17 | SETS
+  right.step1e0.xmax.settle_ms | 50 | 16.67 | x3.00 | take 2 in 3 pairs | 75 / 50 | 17 | SETS
+  right.step3e0.cx.peak_ms | 33.33 | 8.333 | x4.00 | pair 2-4 only; take 4 likelier (its other pairs 22.22 vs 11.11) | 50 / 37.5 | 17 | SETS
+  right.step3e0.height.peak_ms | 516.7 | 33.33 | x15.50 | take 0 in 4 pairs | 775 / 62.5 | 17 | SETS
+  right.step3e0.progress.damping | 0.13 | 0.04 | x3.25 | pair 1-3 only; take 3 likelier (its other pairs 0.08667 vs 0.04333) | 0.195 / 0.135 | 0.05 | SETS
+  right.step3e0.xmax.peak_ms | 33.33 | 8.333 | x4.00 | pair 2-4 only; take 4 likelier (its other pairs 22.22 vs 11.11) | 50 / 37.5 | 17 | SETS
+  step1e0.delay_ms | 18.33 | 1.667 | x11.00 | take 3 in 4 pairs | 27.5 / 17 | 17 | SETS
+
+material.merge dark-photo-reduce-motion: 28 outliers of 157 measures, 24 set a limit
+  left.step1e0.cx.peak_ms | 83.33 | 8.333 | x10.00 | take 0 in 4 pairs | 125 / 17 | 17 | SETS
+  left.step1e0.progress.sharpness | 0.07281 | 0.01308 | x5.57 | take 3 in 4 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  left.step1e0.xmin.peak_ms | 83.33 | 8.333 | x10.00 | take 0 in 4 pairs | 125 / 17 | 17 | SETS
+  left.step3e0.cx.response_pct | 29.41 | 5.882 | x5.00 | take 2 in 4 pairs | 44.12 / 13.24 | 5 | SETS
+  left.step3e0.luma.damping | 0.32 | 0.1 | x3.20 | pair 0-2 only; take 2 likelier (its other pairs 0.23 vs 0.09) | 0.48 / 0.375 | 0.05 | SETS
+  left.step3e0.luma.response_pct | 40 | 8 | x5.00 | take 2 in 3 pairs | 60 / 34.29 | 5 | SETS
+  left.step3e0.progress.overshoot_pct | 0.06882 | 0.00494 | x13.93 | take 2 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  left.step3e0.progress.response_pct | 35.48 | 9.677 | x3.67 | pair 0-2 only; take 2 likelier (its other pairs 19.37 vs 10.75) | 53.23 / 30 | 5 | SETS
+  left.step3e0.progress.sharpness | 0.1193 | 0.02959 | x4.03 | take 2 in 3 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  left.step3e0.xmin.response_pct | 41.38 | 10.34 | x4.00 | pair 0-2 only; take 2 likelier (its other pairs 23.53 vs 10.34) | 62.07 / 36.59 | 5 | SETS
+  pair.step1e0.width.peak_ms | 83.33 | 8.333 | x10.00 | take 0 in 4 pairs | 125 / 17 | 17 | SETS
+  pair.step3e0.luma.damping | 0.34 | 0.05 | x6.80 | take 2 in 4 pairs | 0.51 / 0.075 | 0.05 | SETS
+  pair.step3e0.luma.peak_ms | 58.33 | 16.67 | x3.50 | pair 0-2 only; take 2 likelier (its other pairs 41.67 vs 16.67) | 87.5 / 62.5 | 17 | SETS
+  pair.step3e0.luma.response_pct | 43.48 | 4.348 | x10.00 | take 2 in 4 pairs | 65.22 / 6.522 | 5 | SETS
+  pair.step3e0.progress.response_pct | 39.29 | 10.71 | x3.67 | pair 0-2 only; take 2 likelier (its other pairs 23.13 vs 9.524) | 58.93 / 38.71 | 5 | SETS
+  pair.step3e0.progress.sharpness | 0.08889 | 0.01764 | x5.04 | take 2 in 4 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  right.step1e0.cx.damping | 0.1 | 0.03 | x3.33 | pair 0-4 only; take 4 likelier (its other pairs 0.075 vs 0.025) | 0.15 / 0.12 | 0.05 | SETS
+  right.step1e0.cx.peak_ms | 141.7 | 25 | x5.67 | take 0 in 4 pairs | 212.5 / 37.5 | 17 | SETS
+  right.step1e0.cx.response_pct | 11.67 | 1.667 | x7.00 | take 4 in 3 pairs | 17.5 / 5 | 5 | SETS
+  right.step1e0.cx.settle_ms | 58.33 | 16.67 | x3.50 | take 0 in 3 pairs | 87.5 / 50 | 17 | SETS
+  right.step1e0.height.response_pct | 8.527 | 2.381 | x3.58 | take 4 in 2 pairs | 12.79 / 9.524 | 5 | SETS
+  right.step1e0.xmax.peak_ms | 141.7 | 25 | x5.67 | take 0 in 4 pairs | 212.5 / 37.5 | 17 | SETS
+  right.step1e0.xmax.settle_ms | 66.67 | 16.67 | x4.00 | take 0 in 4 pairs | 100 / 25 | 17 | SETS
+  right.step3e0.cy.response_pct | 58.33 | 8.333 | x7.00 | take 2 in 4 pairs | 87.5 / 12.5 | 5 | SETS
+  right.step3e0.cy.settle_ms | 350 | 108.3 | x3.23 | pair 2-4 only; take 2 likelier (its other pairs 241.7 vs 108.3) | 525 / 375 | 17 | SETS
+  right.step3e0.height.response_pct | 58.33 | 8.333 | x7.00 | take 2 in 4 pairs | 87.5 / 12.5 | 5 | SETS
+  right.step3e0.progress.response_pct | 42.31 | 11.54 | x3.67 | pair 0-2 only; take 2 likelier (its other pairs 24.51 vs 10.26) | 63.46 / 41.38 | 5 | SETS
+  right.step3e0.xmax.response_pct | 40 | 10 | x4.00 | pair 0-2 only; take 2 likelier (its other pairs 22.92 vs 10) | 60 / 35.71 | 5 | SETS
+
+material.merge dark-stripes: 19 outliers of 123 measures, 15 set a limit
+  left.step1e0.cx.peak_ms | 66.67 | 0 | med0 | take 1 in 4 pairs | 100 / 17 | 17 | SETS
+  left.step1e0.progress.settle_ms | 25 | 8.333 | x3.00 | take 0 in 2 pairs | 37.5 / 25 | 17 | SETS
+  left.step1e0.progress.sharpness | 0.04981 | 0.01494 | x3.33 | pair 0-2 only; take 0 likelier (its other pairs 0.03441 vs 0.0154) | 1 / 1 | 1 | stays (limit unchanged)
+  left.step1e0.xmin.peak_ms | 66.67 | 0 | med0 | take 1 in 4 pairs | 100 / 17 | 17 | SETS
+  left.step1e0.xmin.settle_ms | 33.33 | 8.333 | x4.00 | take 1 in 4 pairs | 50 / 17 | 17 | SETS
+  left.step3e0.cx.peak_ms | 100 | 16.67 | x6.00 | take 3 in 4 pairs | 150 / 25 | 17 | SETS
+  left.step3e0.progress.overshoot_pct | 0.04555 | 0.001984 | x22.96 | take 4 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  left.step3e0.xmin.settle_ms | 66.67 | 16.67 | x4.00 | pair 1-3 only; take 1 likelier (its other pairs 44.44 vs 22.22) | 100 / 75 | 17 | SETS
+  pair.step1e0.width.peak_ms | 66.67 | 0 | med0 | take 1 in 4 pairs | 100 / 17 | 17 | SETS
+  pair.step3e0.progress.settle_ms | 25 | 8.333 | x3.00 | take 3 in 3 pairs | 37.5 / 25 | 17 | SETS
+  pair.step3e0.width.response_pct | 10 | 3.226 | x3.10 | take 1 in 2 pairs | 15 / 10 | 5 | SETS
+  pair.step3e0.width.settle_ms | 58.33 | 16.67 | x3.50 | pair 1-3 only; take 1 likelier (its other pairs 36.11 vs 22.22) | 87.5 / 62.5 | 17 | SETS
+  right.step1e0.cx.peak_ms | 75 | 8.333 | x9.00 | take 2 in 4 pairs | 112.5 / 17 | 17 | SETS
+  right.step1e0.progress.sharpness | 0.2431 | 0.04336 | x5.61 | take 4 in 4 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  right.step1e0.xmax.damping | 0.07 | 0.01 | x7.00 | take 2 in 4 pairs | 0.105 / 0.05 | 0.05 | SETS
+  right.step1e0.xmax.peak_ms | 75 | 8.333 | x9.00 | take 2 in 4 pairs | 112.5 / 17 | 17 | SETS
+  right.step3e0.cx.settle_ms | 33.33 | 8.333 | x4.00 | pair 1-3 only; take 3 likelier (its other pairs 22.22 vs 11.11) | 50 / 37.5 | 17 | SETS
+  right.step3e0.progress.sharpness | 0.1655 | 0.04593 | x3.60 | pair 0-1 only; take 1 likelier (its other pairs 0.1207 vs 0.04481) | 1 / 1 | 1 | stays (limit unchanged)
+  right.step3e0.xmax.response_pct | 10 | 3.226 | x3.10 | take 1 in 2 pairs | 15 / 10 | 5 | SETS
+
+material.merge dark-stripes-reduce-motion: 40 outliers of 127 measures, 37 set a limit
+  left.step1e0.cx.damping | 0.15 | 0.03 | x5.00 | take 3 in 4 pairs | 0.225 / 0.05 | 0.05 | SETS
+  left.step1e0.cx.response_pct | 29.73 | 4.545 | x6.54 | take 3 in 4 pairs | 44.59 / 13.64 | 5 | SETS
+  left.step1e0.luma.damping | 0.09 | 0.02 | x4.50 | take 3 in 4 pairs | 0.135 / 0.05 | 0.05 | SETS
+  left.step1e0.luma.response_pct | 20 | 3.922 | x5.10 | take 3 in 3 pairs | 30 / 17.65 | 5 | SETS
+  left.step1e0.progress.damping | 0.54 | 0.06 | x9.00 | take 3 in 4 pairs | 0.81 / 0.105 | 0.05 | SETS
+  left.step1e0.progress.response_pct | 52 | 5.882 | x8.84 | take 3 in 4 pairs | 78 / 17.65 | 5 | SETS
+  left.step1e0.xmin.damping | 0.38 | 0.03 | x12.67 | take 3 in 4 pairs | 0.57 / 0.05 | 0.05 | SETS
+  left.step1e0.xmin.response_pct | 50 | 6.818 | x7.33 | take 3 in 4 pairs | 75 / 14.63 | 5 | SETS
+  left.step3e0.cx.damping | 0.12 | 0.03 | x4.00 | take 4 in 3 pairs | 0.18 / 0.135 | 0.05 | SETS
+  left.step3e0.luma.damping | 0.11 | 0.03 | x3.67 | pair 2-4 only; take 4 likelier (its other pairs 0.08333 vs 0.02667) | 0.165 / 0.135 | 0.05 | SETS
+  left.step3e0.progress.sharpness | 0.09204 | 0.02203 | x4.18 | take 1 in 4 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  left.step3e0.xmin.damping | 0.19 | 0.04 | x4.75 | take 4 in 4 pairs | 0.285 / 0.06 | 0.05 | SETS
+  left.step3e0.xmin.peak_ms | 108.3 | 8.333 | x13.00 | take 4 in 4 pairs | 162.5 / 17 | 17 | SETS
+  left.step3e0.xmin.settle_ms | 50 | 8.333 | x6.00 | take 4 in 4 pairs | 75 / 17 | 17 | SETS
+  pair.step1e0.progress.damping | 0.2 | 0.02 | x10.00 | take 3 in 4 pairs | 0.3 / 0.05 | 0.05 | SETS
+  pair.step1e0.progress.response_pct | 25.58 | 5.66 | x4.52 | take 3 in 3 pairs | 38.37 / 21 | 5 | SETS
+  pair.step1e0.progress.t10_90_ms | 16.67 | 5.684e-14 | x293203100740267.00 | take 3 in 4 pairs | 25 / 17 | 17 | SETS
+  pair.step1e0.width.damping | 0.37 | 0.05 | x7.40 | take 3 in 4 pairs | 0.555 / 0.09 | 0.05 | SETS
+  pair.step1e0.width.response_pct | 48.39 | 7.317 | x6.61 | take 3 in 4 pairs | 72.58 / 18.29 | 5 | SETS
+  pair.step3e0.progress.response_pct | 5 | 0 | med0 | take 4 in 4 pairs | 7.5 / 5 | 5 | SETS
+  pair.step3e0.progress.sharpness | 0.01671 | 0.004966 | x3.37 | pair 1-2 only; take 1 likelier (its other pairs 0.01154 vs 0.005179) | 1 / 1 | 1 | stays (limit unchanged)
+  pair.step3e0.width.damping | 0.2 | 0.05 | x4.00 | take 4 in 2 pairs | 0.3 / 0.225 | 0.05 | SETS
+  pair.step3e0.width.peak_ms | 108.3 | 8.333 | x13.00 | take 4 in 4 pairs | 162.5 / 17 | 17 | SETS
+  pair.step3e0.width.settle_ms | 50 | 8.333 | x6.00 | take 4 in 4 pairs | 75 / 17 | 17 | SETS
+  right.step1e0.cx.damping | 0.16 | 0.03 | x5.33 | take 3 in 4 pairs | 0.24 / 0.06 | 0.05 | SETS
+  right.step1e0.cx.response_pct | 29.73 | 6.383 | x4.66 | take 3 in 3 pairs | 44.59 / 23.86 | 5 | SETS
+  right.step1e0.progress.damping | 0.17 | 0.02 | x8.50 | take 3 in 4 pairs | 0.255 / 0.05 | 0.05 | SETS
+  right.step1e0.progress.response_pct | 22.92 | 5.172 | x4.43 | take 3 in 3 pairs | 34.38 / 19.09 | 5 | SETS
+  right.step1e0.xmax.damping | 0.39 | 0.04 | x9.75 | take 3 in 4 pairs | 0.585 / 0.075 | 0.05 | SETS
+  right.step1e0.xmax.response_pct | 48.39 | 6.667 | x7.26 | take 3 in 4 pairs | 72.58 / 14.29 | 5 | SETS
+  right.step3e0.cx.damping | 0.1 | 0.02 | x5.00 | take 4 in 4 pairs | 0.15 / 0.05 | 0.05 | SETS
+  right.step3e0.cx.peak_ms | 75 | 8.333 | x9.00 | take 4 in 4 pairs | 112.5 / 17 | 17 | SETS
+  right.step3e0.cx.settle_ms | 25 | 0 | med0 | take 4 in 4 pairs | 37.5 / 17 | 17 | SETS
+  right.step3e0.progress.settle_ms | 50 | 8.333 | x6.00 | take 4 in 4 pairs | 75 / 25 | 17 | SETS
+  right.step3e0.progress.t10_90_ms | 25 | 8.333 | x3.00 | pair 2-4 only; take 4 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  right.step3e0.xmax.damping | 0.2 | 0.04 | x5.00 | take 4 in 4 pairs | 0.3 / 0.075 | 0.05 | SETS
+  right.step3e0.xmax.peak_ms | 75 | 0 | med0 | take 4 in 4 pairs | 112.5 / 17 | 17 | SETS
+  right.step3e0.xmax.settle_ms | 50 | 8.333 | x6.00 | take 4 in 4 pairs | 75 / 17 | 17 | SETS
+  step1e0.delay_ms | 1.667 | 0.001 | x1667.00 | take 4 in 4 pairs | 17 / 17 | 17 | stays (limit unchanged)
+  step3e0.delay_ms | 20 | 3.333 | x6.00 | take 4 in 4 pairs | 30 / 17 | 17 | SETS
+
+material.merge light-photo: 22 outliers of 137 measures, 21 set a limit
+  left.step1e0.progress.damping | 0.05 | 0.01 | x5.00 | take 4 in 4 pairs | 0.075 / 0.05 | 0.05 | SETS
+  left.step3e0.cx.response_pct | 6.667 | 2.174 | x3.07 | pair 1-3 only; take 1 likelier (its other pairs 3.641 vs 2.853) | 10 / 6.667 | 5 | SETS
+  left.step3e0.luma.damping | 0.34 | 0.06 | x5.67 | take 1 in 4 pairs | 0.51 / 0.12 | 0.05 | SETS
+  left.step3e0.luma.response_pct | 32 | 6.25 | x5.12 | take 1 in 4 pairs | 48 / 15 | 5 | SETS
+  left.step3e0.progress.damping | 0.05 | 0.01 | x5.00 | take 1 in 3 pairs | 0.075 / 0.05 | 0.05 | SETS
+  left.step3e0.xmin.damping | 0.08 | 0.02 | x4.00 | take 1 in 2 pairs | 0.12 / 0.09 | 0.05 | SETS
+  left.step3e0.xmin.response_pct | 10.26 | 2.439 | x4.21 | take 1 in 2 pairs | 15.38 / 10.71 | 5 | SETS
+  pair.step3e0.luma.overshoot_pct | 0.3292 | 0.09002 | x3.66 | take 2 in 3 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  pair.step3e0.luma.response_pct | 5.263 | 0 | med0 | take 3 in 3 pairs | 7.895 / 5 | 5 | SETS
+  pair.step3e0.progress.response_pct | 7.317 | 2.381 | x3.07 | pair 1-3 only; take 1 likelier (its other pairs 3.989 vs 3.12) | 10.98 / 7.317 | 5 | SETS
+  pair.step3e0.topology.neck_rms | 6.091 | 2.028 | x3.00 | pair 1-3 only; take 3 likelier (its other pairs 4.795 vs 2.197) | 9.136 / 7.53 | 1 | SETS
+  pair.step3e0.width.peak_ms | 25 | 8.333 | x3.00 | pair 0-3 only; take 3 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  pair.step3e0.width.response_pct | 7.5 | 2.439 | x3.07 | pair 1-3 only; take 1 likelier (its other pairs 4.087 vs 3.195) | 11.25 / 7.5 | 5 | SETS
+  right.step1e0.cx.response_pct | 6.383 | 2.128 | x3.00 | take 4 in 2 pairs | 9.574 / 6.522 | 5 | SETS
+  right.step3e0.cx.peak_ms | 25 | 8.333 | x3.00 | pair 0-3 only; take 3 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  right.step3e0.cx.response_pct | 6.522 | 2.128 | x3.07 | pair 1-3 only; take 3 likelier (its other pairs 3.517 vs 2.883) | 9.783 / 6.522 | 5 | SETS
+  right.step3e0.progress.damping | 0.07 | 0.02 | x3.50 | pair 0-1 only; take 1 likelier (its other pairs 0.05 vs 0.02) | 0.105 / 0.09 | 0.05 | SETS
+  right.step3e0.progress.response_pct | 10 | 2.381 | x4.20 | take 1 in 2 pairs | 15 / 10.47 | 5 | SETS
+  right.step3e0.progress.settle_ms | 25 | 8.333 | x3.00 | take 3 in 2 pairs | 37.5 / 25 | 17 | SETS
+  right.step3e0.xmax.peak_ms | 25 | 8.333 | x3.00 | pair 0-3 only; take 3 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  right.step3e0.xmax.response_pct | 7.317 | 2.381 | x3.07 | pair 1-3 only; take 3 likelier (its other pairs 3.932 vs 3.233) | 10.98 / 7.317 | 5 | SETS
+  step3e0.delay_ms | 21.67 | 1.667 | x13.00 | take 3 in 4 pairs | 32.5 / 17 | 17 | SETS
+
+material.merge light-photo-reduce-motion: 4 outliers of 137 measures, 3 set a limit
+  left.step1e0.progress.sharpness | 0.1927 | 0.02135 | x9.03 | take 4 in 4 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  left.step3e0.luma.settle_ms | 25 | 8.333 | x3.00 | pair 3-4 only; take 4 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  left.step3e0.xmin.damping | 0.16 | 0.05 | x3.20 | pair 2-4 only; take 4 likelier (its other pairs 0.1 vs 0.06) | 0.24 / 0.18 | 0.05 | SETS
+  right.step3e0.xmax.damping | 0.13 | 0.04 | x3.25 | pair 2-4 only; take 4 likelier (its other pairs 0.09333 vs 0.03667) | 0.195 / 0.165 | 0.05 | SETS
+
+material.merge light-stripes: 14 outliers of 127 measures, 11 set a limit
+  left.step1e0.progress.damping | 0.09 | 0.02 | x4.50 | take 3 in 3 pairs | 0.135 / 0.09 | 0.05 | SETS
+  left.step1e0.progress.response_pct | 10.81 | 2.703 | x4.00 | pair 0-3 only; take 3 likelier (its other pairs 6.78 vs 3.604) | 16.22 / 11.84 | 5 | SETS
+  left.step1e0.progress.sharpness | 0.1266 | 0.01218 | x10.39 | take 0 in 4 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  left.step3e0.cx.response_pct | 6.383 | 2.041 | x3.13 | pair 3-4 only; take 3 likelier (its other pairs 4.721 vs 1.361) | 9.574 / 9 | 5 | SETS
+  left.step3e0.progress.sharpness | 0.1021 | 0.02486 | x4.11 | take 3 in 3 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  left.step3e0.xmin.response_pct | 7.317 | 2.381 | x3.07 | pair 3-4 only; take 3 likelier (its other pairs 4.617 vs 2.362) | 10.98 / 10.23 | 5 | SETS
+  pair.step3e0.progress.response_pct | 7.317 | 2.326 | x3.15 | pair 3-4 only; take 3 likelier (its other pairs 5.374 vs 1.55) | 10.98 / 10.23 | 5 | SETS
+  pair.step3e0.topology.neck_rms | 3.475 | 1.133 | x3.07 | pair 2-4 only; take 4 likelier (its other pairs 3.364 vs 1.086) | 5.212 / 5.066 | 1 | SETS
+  pair.step3e0.width.response_pct | 7.317 | 2.326 | x3.15 | pair 3-4 only; take 3 likelier (its other pairs 5.374 vs 1.55) | 10.98 / 10.23 | 5 | SETS
+  right.step1e0.progress.damping | 0.27 | 0.07 | x3.86 | take 3 in 2 pairs | 0.405 / 0.3 | 0.05 | SETS
+  right.step1e0.progress.response_pct | 17.39 | 4.167 | x4.17 | take 3 in 2 pairs | 26.09 / 18.75 | 5 | SETS
+  right.step3e0.progress.sharpness | 0.2315 | 0.05877 | x3.94 | take 2 in 3 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  right.step3e0.xmax.response_pct | 7.317 | 2.326 | x3.15 | pair 3-4 only; take 3 likelier (its other pairs 5.374 vs 1.55) | 10.98 / 10.23 | 5 | SETS
+  step3e0.delay_ms | 18.33 | 1.667 | x11.00 | take 2 in 4 pairs | 27.5 / 17 | 17 | SETS
+
+material.merge light-stripes-reduce-motion: 7 outliers of 127 measures, 6 set a limit
+  left.step1e0.cx.peak_ms | 25 | 0 | med0 | take 4 in 4 pairs | 37.5 / 17 | 17 | SETS
+  left.step1e0.xmin.peak_ms | 25 | 0 | med0 | take 4 in 4 pairs | 37.5 / 17 | 17 | SETS
+  left.step3e0.progress.damping | 0.1 | 0.03 | x3.33 | pair 1-3 only; take 3 likelier (its other pairs 0.07333 vs 0.02667) | 0.15 / 0.12 | 0.05 | SETS
+  pair.step1e0.progress.settle_ms | 25 | 8.333 | x3.00 | take 1 in 3 pairs | 37.5 / 25 | 17 | SETS
+  pair.step1e0.progress.sharpness | 0.03987 | 0.007458 | x5.35 | take 3 in 4 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  right.step3e0.luma.damping | 0.08 | 0.02 | x4.00 | take 1 in 3 pairs | 0.12 / 0.09 | 0.05 | SETS
+  right.step3e0.luma.response_pct | 10.26 | 2.857 | x3.59 | pair 1-3 only; take 1 likelier (its other pairs 6.93 vs 3.68) | 15.38 / 11.54 | 5 | SETS
+
+material.morph dark-photo: 39 outliers of 295 measures, 38 set a limit
+  bolt.step1e0.cy.overshoot_pct | 0.8333 | 2.083e-05 | x39999.00 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  bolt.step1e0.cy.settle_ms | 158.3 | 16.67 | x9.50 | take 4 in 4 pairs | 237.5 / 25 | 17 | SETS
+  bolt.step1e0.height.settle_ms | 166.7 | 8.333 | x20.00 | take 4 in 4 pairs | 250 / 25 | 17 | SETS
+  bolt.step1e0.luma.settle_ms | 208.3 | 33.33 | x6.25 | take 4 in 4 pairs | 312.5 / 62.5 | 17 | SETS
+  bolt.step1e0.progress.overshoot_pct | 3.144 | 0.6363 | x4.94 | take 1 in 4 pairs | 4.716 / 2 | 2 | SETS
+  bolt.step3e0.luma.peak_ms | 50 | 16.67 | x3.00 | pair 1-2 only; take 1 likelier (its other pairs 37.5 vs 12.5) | 75 / 62.5 | 17 | SETS
+  bolt.step3e0.luma.settle_ms | 58.33 | 16.67 | x3.50 | pair 1-2 only; take 1 likelier (its other pairs 41.67 vs 16.67) | 87.5 / 62.5 | 17 | SETS
+  bolt.step3e0.progress.overshoot_pct | 4.443 | 0 | med0 | take 3 in 4 pairs | 6.665 / 2 | 2 | SETS
+  bolt.step3e0.progress.rms | 0.2506 | 0.06207 | x4.04 | take 3 in 4 pairs | 0.3759 / 0.1055 | 0.05 | SETS
+  bolt.step3e0.progress.settle_ms | 158.3 | 50 | x3.17 | pair 1-3 only; take 3 likelier (its other pairs 108.3 vs 50) | 237.5 / 175 | 17 | SETS
+  bolt.step3e0.progress.t10_90_ms | 275 | 50 | x5.50 | take 3 in 4 pairs | 412.5 / 100 | 17 | SETS
+  collapsed.step1e0.height.peak_ms | 75 | 8.333 | x9.00 | take 1 in 4 pairs | 112.5 / 17 | 17 | SETS
+  collapsed.step1e0.progress.response_pct | 9.589 | 2.597 | x3.69 | take 1 in 2 pairs | 14.38 / 11.39 | 5 | SETS
+  collapsed.step3e1.luma.overshoot_pct | 2.094 | 0.5297 | x3.95 | take 2 in 3 pairs | 3.141 / 2.347 | 2 | SETS
+  collapsed.step3e1.luma.peak_ms | 300 | 16.67 | x18.00 | take 2 in 4 pairs | 450 / 25 | 17 | SETS
+  collapsed.step3e1.progress.settle_ms | 91.67 | 25 | x3.67 | pair 3-4 only; take 3 likelier (its other pairs 70.83 vs 20.83) | 137.5 / 112.5 | 17 | SETS
+  heart.step1e0.progress.overshoot_pct | 4.289 | 1.251 | x3.43 | pair 1-4 only; take 4 likelier (its other pairs 2.968 vs 1.321) | 6.434 / 4.895 | 2 | SETS
+  heart.step1e0.progress.sharpness | 3.198 | 0.1171 | x27.32 | take 1 in 4 pairs | 4.797 / 1 | 1 | SETS
+  heart.step3e0.height.peak_ms | 25 | 8.333 | x3.00 | take 1 in 2 pairs | 37.5 / 25 | 17 | SETS
+  heart.step3e0.height.settle_ms | 100 | 33.33 | x3.00 | pair 1-3 only; take 3 likelier (its other pairs 63.89 vs 36.11) | 150 / 100 | 17 | SETS
+  heart.step3e0.luma.overshoot_pct | 27.11 | 2.136 | x12.69 | take 3 in 4 pairs | 40.67 / 4.266 | 2 | SETS
+  heart.step3e0.progress.overshoot_pct | 10.68 | 0 | med0 | take 2 in 4 pairs | 16.02 / 2 | 2 | SETS
+  heart.step3e0.progress.settle_ms | 91.67 | 25 | x3.67 | pair 1-3 only; take 3 likelier (its other pairs 66.67 vs 25) | 137.5 / 112.5 | 17 | SETS
+  heart.step3e0.progress.sharpness | 1.301 | 0.1064 | x12.22 | take 1 in 4 pairs | 1.951 / 1 | 1 | SETS
+  stack.step1e0.progress.response_pct | 9.722 | 2.597 | x3.74 | take 1 in 3 pairs | 14.58 / 10.42 | 5 | SETS
+  stack.step1e0.topology.count | 21 | 1 | x21.00 | take 4 in 4 pairs | 31.5 / 1.5 | 0 | SETS
+  stack.step1e0.ymax.settle_ms | 41.67 | 8.333 | x5.00 | take 1 in 4 pairs | 62.5 / 17 | 17 | SETS
+  stack.step1e1.topology.count | 1 | 0 | med0 | take 4 in 4 pairs | 1.5 / 0 | 0 | SETS
+  stack.step3e0.height.peak_ms | 58.33 | 8.333 | x7.00 | take 4 in 4 pairs | 87.5 / 17 | 17 | SETS
+  stack.step3e0.luma.overshoot_pct | 3.376 | 0 | med0 | take 3 in 4 pairs | 5.064 / 2 | 2 | SETS
+  stack.step3e0.luma.peak_ms | 258.3 | 41.67 | x6.20 | take 3 in 4 pairs | 387.5 / 75 | 17 | SETS
+  stack.step3e0.luma.settle_ms | 175 | 41.67 | x4.20 | take 3 in 3 pairs | 262.5 / 175 | 17 | SETS
+  stack.step3e0.ymax.damping | 0.04 | 0.01 | x4.00 | pair 1-3 only; take 1 likelier (its other pairs 0.03 vs 0.01) | 0.06 / 0.05 | 0.05 | SETS
+  stack.step3e0.ymax.response_pct | 5.66 | 1.802 | x3.14 | pair 1-3 only; take 1 likelier (its other pairs 3.703 vs 1.813) | 8.491 / 6.757 | 5 | SETS
+  stack.step3e0.ymin.overshoot_pct | 6.313 | 1.392 | x4.53 | take 4 in 4 pairs | 9.469 / 2.088 | 2 | SETS
+  stack.step3e1.progress.settle_ms | 91.67 | 25 | x3.67 | pair 3-4 only; take 3 likelier (its other pairs 70.83 vs 20.83) | 137.5 / 112.5 | 17 | SETS
+  star.step3e0.luma.damping | 0.58 | 0.02 | x29.00 | take 4 in 4 pairs | 0.87 / 0.05 | 0.05 | SETS
+  star.step3e0.luma.response_pct | 58.82 | 3.96 | x14.85 | take 4 in 4 pairs | 88.24 / 7.732 | 5 | SETS
+  toggle.step1e0.height.settle_ms | 100 | 16.67 | x6.00 | take 4 in 4 pairs | 150 / 25 | 17 | SETS
+
+material.morph dark-photo-reduce-motion: 17 outliers of 268 measures, 16 set a limit
+  bolt.step1e0.height.settle_ms | 125 | 41.67 | x3.00 | take 0 in 2 pairs | 187.5 / 162.5 | 17 | SETS
+  bolt.step1e0.progress.overshoot_pct | 5.218 | 1.633 | x3.19 | pair 0-3 only; take 0 likelier (its other pairs 3.489 vs 1.729) | 7.827 / 6.217 | 2 | SETS
+  bolt.step1e0.progress.settle_ms | 108.3 | 25 | x4.33 | take 0 in 3 pairs | 162.5 / 100 | 17 | SETS
+  collapsed.step3e0.progress.sharpness | 2.325 | 0.468 | x4.97 | take 0 in 4 pairs | 3.487 / 1 | 1 | SETS
+  collapsed.step3e1.luma.overshoot_pct | 2.41 | 0.7125 | x3.38 | pair 0-4 only; take 0 likelier (its other pairs 1.788 vs 0.6221) | 3.615 / 3.055 | 2 | SETS
+  collapsed.step3e1.luma.settle_ms | 41.67 | 8.333 | x5.00 | take 4 in 4 pairs | 62.5 / 17 | 17 | SETS
+  heart.step1e0.cy.peak_ms | 158.3 | 25 | x6.33 | take 1 in 4 pairs | 237.5 / 50 | 17 | SETS
+  heart.step1e0.cy.settle_ms | 116.7 | 16.67 | x7.00 | take 0 in 4 pairs | 175 / 50 | 17 | SETS
+  heart.step3e0.progress.t10_90_ms | 400 | 16.67 | x24.00 | take 0 in 4 pairs | 600 / 25 | 17 | SETS
+  stack.step1e0.luma.overshoot_pct | 16.68 | 0.8386 | x19.89 | take 0 in 4 pairs | 25.02 / 2 | 2 | SETS
+  stack.step1e0.ymin.settle_ms | 41.67 | 8.333 | x5.00 | take 0 in 4 pairs | 62.5 / 17 | 17 | SETS
+  stack.step3e0.progress.sharpness | 2.324 | 0.4679 | x4.97 | take 0 in 4 pairs | 3.486 / 1 | 1 | SETS
+  star.step1e0.cy.settle_ms | 116.7 | 8.333 | x14.00 | take 0 in 4 pairs | 175 / 25 | 17 | SETS
+  star.step1e0.luma.overshoot_pct | 0.4016 | 0.1095 | x3.67 | take 0 in 2 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  star.step1e0.luma.settle_ms | 50 | 8.333 | x6.00 | take 0 in 4 pairs | 75 / 25 | 17 | SETS
+  toggle.step1e0.height.damping | 0.04 | 0.01 | x4.00 | pair 3-4 only; take 3 likelier (its other pairs 0.02667 vs 0.01333) | 0.06 / 0.05 | 0.05 | SETS
+  toggle.step1e0.luma.overshoot_pct | 63.61 | 3.27 | x19.45 | take 0 in 4 pairs | 95.41 / 5.132 | 2 | SETS
+
+material.morph dark-stripes: 32 outliers of 232 measures, 24 set a limit
+  bolt.step3e0.cy.settle_ms | 33.33 | 8.333 | x4.00 | take 4 in 3 pairs | 50 / 37.5 | 17 | SETS
+  bolt.step3e0.progress.overshoot_pct | 0.5798 | 0.03883 | x14.93 | take 4 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  bolt.step3e0.progress.rms | 0.1535 | 0.03016 | x5.09 | take 0 in 4 pairs | 0.2303 / 0.05 | 0.05 | SETS
+  bolt.step3e0.progress.settle_ms | 41.67 | 0 | med0 | take 0 in 4 pairs | 62.5 / 17 | 17 | SETS
+  collapsed.step1e0.progress.sharpness | 0.3797 | 0.09836 | x3.86 | pair 1-4 only; take 1 likelier (its other pairs 0.2774 vs 0.1023) | 1 / 1 | 1 | stays (limit unchanged)
+  collapsed.step3e0.height.overshoot_pct | 44.95 | 12.95 | x3.47 | pair 1-3 only; take 3 likelier (its other pairs 32.43 vs 12.52) | 67.43 / 50 | 2 | SETS
+  collapsed.step3e0.height.settle_ms | 66.67 | 16.67 | x4.00 | take 0 in 4 pairs | 100 / 25 | 17 | SETS
+  collapsed.step3e0.progress.rms | 0.1252 | 0.02829 | x4.42 | take 0 in 4 pairs | 0.1878 / 0.05 | 0.05 | SETS
+  collapsed.step3e0.progress.t10_90_ms | 33.33 | 8.333 | x4.00 | take 0 in 4 pairs | 50 / 17 | 17 | SETS
+  collapsed.step3e1.luma.overshoot_pct | 1.161 | 0.1996 | x5.82 | take 3 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  collapsed.step3e1.luma.settle_ms | 175 | 41.67 | x4.20 | take 3 in 3 pairs | 262.5 / 175 | 17 | SETS
+  heart.step1e0.cy.settle_ms | 208.3 | 50 | x4.17 | take 3 in 3 pairs | 312.5 / 187.5 | 17 | SETS
+  heart.step1e0.height.overshoot_pct | 2.196 | 0.5189 | x4.23 | take 2 in 3 pairs | 3.293 / 2.283 | 2 | SETS
+  stack.step1e0.height.overshoot_pct | 0.7957 | 0.2563 | x3.10 | pair 0-2 only; take 2 likelier (its other pairs 0.5559 vs 0.2398) | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step1e0.height.peak_ms | 33.33 | 8.333 | x4.00 | pair 1-3 only; take 3 likelier (its other pairs 22.22 vs 11.11) | 50 / 37.5 | 17 | SETS
+  stack.step1e0.progress.sharpness | 0.3798 | 0.09837 | x3.86 | pair 1-4 only; take 1 likelier (its other pairs 0.2774 vs 0.1023) | 1 / 1 | 1 | stays (limit unchanged)
+  stack.step1e0.topology.gap_rms | 3.836 | 0.9554 | x4.02 | take 4 in 2 pairs | 5.754 / 3.627 | 1 | SETS
+  stack.step1e0.topology.join_ms | 191.7 | 50 | x3.83 | take 4 in 3 pairs | 287.5 / 200 | 17 | SETS
+  stack.step1e0.topology.split_ms | 175 | 33.33 | x5.25 | take 4 in 4 pairs | 262.5 / 62.5 | 17 | SETS
+  stack.step3e0.height.overshoot_pct | 0.6516 | 0.1541 | x4.23 | take 0 in 3 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step3e0.progress.rms | 0.1251 | 0.02832 | x4.42 | take 0 in 4 pairs | 0.1877 / 0.05 | 0.05 | SETS
+  stack.step3e0.progress.t10_90_ms | 33.33 | 8.333 | x4.00 | take 0 in 4 pairs | 50 / 17 | 17 | SETS
+  stack.step3e0.ymax.damping | 0.06 | 0.02 | x3.00 | take 0 in 2 pairs | 0.09 / 0.06 | 0.05 | SETS
+  stack.step3e0.ymin.overshoot_pct | 4.331 | 0.9202 | x4.71 | take 0 in 4 pairs | 6.496 / 2 | 2 | SETS
+  star.step1e0.luma.peak_ms | 133.3 | 33.33 | x4.00 | pair 1-2 only; take 2 likelier (its other pairs 94.44 vs 38.89) | 200 / 150 | 17 | SETS
+  star.step3e0.luma.overshoot_pct | 7.803 | 2.128 | x3.67 | take 0 in 2 pairs | 11.71 / 9.489 | 2 | SETS
+  step3e0.delay_ms | 5.001 | 1.667 | x3.00 | pair 2-4 only; take 2 likelier (its other pairs 3.334 vs 1.667) | 17 / 17 | 17 | stays (limit unchanged)
+  toggle.step1e0.height.overshoot_pct | 0.5917 | 0.00344 | x172.00 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  toggle.step1e0.height.settle_ms | 33.33 | 8.333 | x4.00 | take 4 in 4 pairs | 50 / 17 | 17 | SETS
+  toggle.step1e0.luma.peak_ms | 108.3 | 33.33 | x3.25 | pair 0-1 only; take 1 likelier (its other pairs 80.56 vs 27.78) | 162.5 / 137.5 | 17 | SETS
+  toggle.step1e0.luma.settle_ms | 225 | 33.33 | x6.75 | take 4 in 4 pairs | 337.5 / 75 | 17 | SETS
+  toggle.step3e0.luma.overshoot_pct | 72.56 | 3.08 | x23.56 | take 0 in 4 pairs | 108.8 / 4.635 | 2 | SETS
+
+material.morph dark-stripes-reduce-motion: 42 outliers of 220 measures, 35 set a limit
+  bolt.step1e0.progress.overshoot_pct | 8.392 | 2.61 | x3.21 | pair 1-2 only; take 2 likelier (its other pairs 5.287 vs 3.105) | 12.59 / 8.687 | 2 | SETS
+  bolt.step3e0.progress.overshoot_pct | 0.3621 | 0.09645 | x3.75 | take 0 in 2 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  collapsed.step1e0.height.peak_ms | 25 | 8.333 | x3.00 | pair 0-1 only; take 0 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  collapsed.step1e0.height.settle_ms | 25 | 8.333 | x3.00 | pair 0-1 only; take 0 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  collapsed.step3e0.height.settle_ms | 41.67 | 8.333 | x5.00 | take 0 in 3 pairs | 62.5 / 37.5 | 17 | SETS
+  collapsed.step3e0.progress.overshoot_pct | 0.2963 | 0.01875 | x15.80 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  collapsed.step3e0.progress.sharpness | 0.579 | 0.09094 | x6.37 | take 4 in 4 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  collapsed.step3e1.luma.settle_ms | 41.67 | 8.333 | x5.00 | take 3 in 3 pairs | 62.5 / 37.5 | 17 | SETS
+  heart.step3e0.cy.damping | 0.07 | 0.01 | x7.00 | take 3 in 4 pairs | 0.105 / 0.05 | 0.05 | SETS
+  heart.step3e0.cy.response_pct | 20.22 | 4.902 | x4.13 | take 3 in 3 pairs | 30.34 / 19.12 | 5 | SETS
+  heart.step3e0.height.damping | 0.07 | 0.01 | x7.00 | take 3 in 4 pairs | 0.105 / 0.05 | 0.05 | SETS
+  heart.step3e0.height.response_pct | 18.1 | 5.085 | x3.56 | take 3 in 2 pairs | 27.14 / 18.75 | 5 | SETS
+  heart.step3e0.height.settle_ms | 91.67 | 8.333 | x11.00 | take 3 in 4 pairs | 137.5 / 25 | 17 | SETS
+  heart.step3e0.progress.overshoot_pct | 0.1182 | 0.02812 | x4.21 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step1e0.height.response_pct | 8.081 | 2.198 | x3.68 | pair 0-1 only; take 0 likelier (its other pairs 5.387 vs 2.93) | 12.12 / 9.091 | 5 | SETS
+  stack.step1e0.height.settle_ms | 33.33 | 8.333 | x4.00 | pair 0-3 only; take 0 likelier (its other pairs 22.22 vs 11.11) | 50 / 37.5 | 17 | SETS
+  stack.step1e0.topology.count | 1 | 0 | med0 | pair 0-4 only; takes indistinguishable | 1.5 / 0 | 0 | SETS
+  stack.step1e0.topology.gap_rms | 7 | 0 | med0 | pair 0-4 only; takes indistinguishable | 10.5 / 1 | 1 | SETS
+  stack.step1e0.ymax.response_pct | 7.071 | 2.174 | x3.25 | pair 0-1 only; take 0 likelier (its other pairs 4.714 vs 2.536) | 10.61 / 7.576 | 5 | SETS
+  stack.step1e0.ymin.response_pct | 8.081 | 2.198 | x3.68 | pair 0-1 only; take 0 likelier (its other pairs 5.387 vs 2.93) | 12.12 / 9.091 | 5 | SETS
+  stack.step3e0.progress.overshoot_pct | 0.296 | 0.01875 | x15.79 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step3e0.progress.sharpness | 0.579 | 0.09093 | x6.37 | take 4 in 4 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  stack.step3e0.topology.join_ms | 33.33 | 0 | med0 | take 3 in 4 pairs | 50 / 17 | 17 | SETS
+  stack.step3e0.ymax.damping | 0.06 | 0.01 | x6.00 | take 3 in 4 pairs | 0.09 / 0.05 | 0.05 | SETS
+  stack.step3e0.ymax.response_pct | 19.59 | 5.455 | x3.59 | take 3 in 2 pairs | 29.38 / 21.24 | 5 | SETS
+  star.step1e0.cy.peak_ms | 133.3 | 8.333 | x16.00 | take 0 in 4 pairs | 200 / 17 | 17 | SETS
+  star.step1e0.luma.peak_ms | 33.33 | 8.333 | x4.00 | take 2 in 4 pairs | 50 / 17 | 17 | SETS
+  star.step1e0.luma.response_pct | 5.983 | 1.77 | x3.38 | pair 0-1 only; take 0 likelier (its other pairs 4.558 vs 1.515) | 8.974 / 7.692 | 5 | SETS
+  star.step3e0.luma.settle_ms | 50 | 16.67 | x3.00 | take 3 in 2 pairs | 75 / 62.5 | 17 | SETS
+  star.step3e0.width.response_pct | 15.62 | 3.546 | x4.41 | take 3 in 3 pairs | 23.44 / 13.83 | 5 | SETS
+  step3e0.delay_ms | 31.67 | 8.333 | x3.80 | take 3 in 2 pairs | 47.5 / 35 | 17 | SETS
+  step3e1.delay_ms | 16.67 | 5.001 | x3.33 | pair 1-3 only; take 3 likelier (its other pairs 13.33 vs 3.333) | 25 / 22.5 | 17 | SETS
+  toggle.step1e0.cy.settle_ms | 58.33 | 8.333 | x7.00 | take 3 in 4 pairs | 87.5 / 25 | 17 | SETS
+  toggle.step1e0.height.overshoot_pct | 0.5917 | 5.848e-05 | x10119.15 | take 3 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  toggle.step3e0.cy.response_pct | 24.62 | 6.579 | x3.74 | take 3 in 2 pairs | 36.92 / 25 | 5 | SETS
+  toggle.step3e0.height.peak_ms | 33.33 | 8.333 | x4.00 | take 3 in 4 pairs | 50 / 17 | 17 | SETS
+  toggle.step3e0.height.response_pct | 22.22 | 6.024 | x3.69 | take 3 in 2 pairs | 33.33 / 22.94 | 5 | SETS
+  toggle.step3e0.height.settle_ms | 33.33 | 8.333 | x4.00 | take 3 in 4 pairs | 50 / 17 | 17 | SETS
+  toggle.step3e0.luma.overshoot_pct | 1.856 | 0.4748 | x3.91 | take 3 in 2 pairs | 2.783 / 2.071 | 2 | SETS
+  toggle.step3e0.luma.peak_ms | 33.33 | 8.333 | x4.00 | take 3 in 4 pairs | 50 / 17 | 17 | SETS
+  toggle.step3e0.width.peak_ms | 33.33 | 8.333 | x4.00 | take 3 in 4 pairs | 50 / 17 | 17 | SETS
+  toggle.step3e0.width.settle_ms | 33.33 | 8.333 | x4.00 | take 3 in 4 pairs | 50 / 17 | 17 | SETS
+
+material.morph light-photo: 32 outliers of 250 measures, 29 set a limit
+  bolt.step1e0.height.peak_ms | 25 | 0 | med0 | take 1 in 4 pairs | 37.5 / 17 | 17 | SETS
+  bolt.step1e0.luma.peak_ms | 33.33 | 8.333 | x4.00 | take 1 in 4 pairs | 50 / 17 | 17 | SETS
+  bolt.step3e0.cy.peak_ms | 83.33 | 25 | x3.33 | pair 1-4 only; take 4 likelier (its other pairs 58.33 vs 25) | 125 / 87.5 | 17 | SETS
+  bolt.step3e0.height.peak_ms | 83.33 | 25 | x3.33 | pair 1-4 only; take 4 likelier (its other pairs 58.33 vs 25) | 125 / 87.5 | 17 | SETS
+  bolt.step3e0.luma.overshoot_pct | 0.3007 | 0.07906 | x3.80 | take 2 in 3 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  collapsed.step1e0.progress.t10_90_ms | 41.67 | 8.333 | x5.00 | take 0 in 4 pairs | 62.5 / 17 | 17 | SETS
+  collapsed.step3e0.luma.peak_ms | 275 | 8.333 | x33.00 | take 1 in 4 pairs | 412.5 / 17 | 17 | SETS
+  collapsed.step3e0.progress.sharpness | 1.757 | 0.2823 | x6.23 | take 1 in 4 pairs | 2.636 / 1 | 1 | SETS
+  heart.step1e0.luma.peak_ms | 25 | 8.333 | x3.00 | pair 1-3 only; take 1 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  heart.step1e0.progress.sharpness | 10.59 | 1.354 | x7.82 | take 1 in 4 pairs | 15.89 / 2.04 | 1 | SETS
+  heart.step3e0.luma.overshoot_pct | 8.382 | 2.161 | x3.88 | take 2 in 2 pairs | 12.57 / 9.332 | 2 | SETS
+  heart.step3e0.progress.overshoot_pct | 7.604 | 1.727 | x4.40 | take 4 in 4 pairs | 11.41 / 2.606 | 2 | SETS
+  heart.step3e0.progress.settle_ms | 50 | 8.333 | x6.00 | take 2 in 4 pairs | 75 / 25 | 17 | SETS
+  stack.step1e0.height.peak_ms | 116.7 | 33.33 | x3.50 | take 0 in 2 pairs | 175 / 137.5 | 17 | SETS
+  stack.step1e0.luma.peak_ms | 141.7 | 41.67 | x3.40 | pair 0-3 only; take 0 likelier (its other pairs 102.8 vs 38.89) | 212.5 / 175 | 17 | SETS
+  stack.step1e0.progress.t10_90_ms | 41.67 | 8.333 | x5.00 | take 0 in 4 pairs | 62.5 / 17 | 17 | SETS
+  stack.step1e0.ymax.damping | 0.04 | 0.01 | x4.00 | pair 1-3 only; take 1 likelier (its other pairs 0.02667 vs 0.01333) | 0.06 / 0.05 | 0.05 | SETS
+  stack.step1e0.ymin.overshoot_pct | 8.669 | 2.665 | x3.25 | take 0 in 2 pairs | 13 / 10.52 | 2 | SETS
+  stack.step1e0.ymin.peak_ms | 83.33 | 25 | x3.33 | pair 0-1 only; take 0 likelier (its other pairs 58.33 vs 25) | 125 / 87.5 | 17 | SETS
+  stack.step1e0.ymin.settle_ms | 300 | 91.67 | x3.27 | pair 0-3 only; take 0 likelier (its other pairs 227.8 vs 72.22) | 450 / 400 | 17 | SETS
+  stack.step1e1.height.settle_ms | 166.7 | 50 | x3.33 | take 3 in 3 pairs | 250 / 175 | 17 | SETS
+  stack.step1e1.ymin.settle_ms | 158.3 | 50 | x3.17 | take 3 in 2 pairs | 237.5 / 162.5 | 17 | SETS
+  stack.step3e0.progress.sharpness | 1.755 | 0.2825 | x6.21 | take 1 in 4 pairs | 2.632 / 1 | 1 | SETS
+  stack.step3e0.ymax.peak_ms | 83.33 | 25 | x3.33 | pair 1-4 only; take 4 likelier (its other pairs 58.33 vs 25) | 125 / 87.5 | 17 | SETS
+  stack.step3e0.ymin.overshoot_pct | 3.664 | 0.8333 | x4.40 | take 1 in 4 pairs | 5.496 / 2 | 2 | SETS
+  star.step3e0.luma.overshoot_pct | 0.3431 | 0.0378 | x9.08 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  star.step3e0.luma.settle_ms | 33.33 | 8.333 | x4.00 | take 1 in 4 pairs | 50 / 17 | 17 | SETS
+  toggle.step1e0.height.settle_ms | 33.33 | 8.333 | x4.00 | pair 1-3 only; take 1 likelier (its other pairs 22.22 vs 11.11) | 50 / 37.5 | 17 | SETS
+  toggle.step1e0.width.peak_ms | 41.67 | 8.333 | x5.00 | take 1 in 3 pairs | 62.5 / 37.5 | 17 | SETS
+  toggle.step3e0.cy.response_pct | 11.9 | 3.896 | x3.06 | pair 1-3 only; take 1 likelier (its other pairs 8.062 vs 4.309) | 17.86 / 14.29 | 5 | SETS
+  toggle.step3e0.height.response_pct | 14.13 | 3.797 | x3.72 | pair 1-3 only; take 1 likelier (its other pairs 10.86 vs 4.092) | 21.2 / 16.3 | 5 | SETS
+  toggle.step3e0.luma.overshoot_pct | 0.2327 | 0.07352 | x3.17 | pair 1-4 only; take 1 likelier (its other pairs 0.1617 vs 0.07105) | 2 / 2 | 2 | stays (limit unchanged)
+
+material.morph light-photo-reduce-motion: 58 outliers of 269 measures, 57 set a limit
+  bolt.step1e0.cy.response_pct | 32.69 | 10.34 | x3.16 | pair 2-3 only; take 2 likelier (its other pairs 18.88 vs 10.46) | 49.04 / 43.27 | 5 | SETS
+  bolt.step1e0.height.response_pct | 25.45 | 8.333 | x3.05 | pair 2-3 only; take 2 likelier (its other pairs 14.74 vs 8.57) | 38.18 / 32.73 | 5 | SETS
+  bolt.step1e0.progress.settle_ms | 83.33 | 25 | x3.33 | pair 1-2 only; take 2 likelier (its other pairs 66.67 vs 16.67) | 125 / 112.5 | 17 | SETS
+  bolt.step1e0.progress.t10_90_ms | 33.33 | 8.333 | x4.00 | take 2 in 3 pairs | 50 / 25 | 17 | SETS
+  bolt.step3e0.progress.response_pct | 30.88 | 2.247 | x13.74 | take 0 in 4 pairs | 46.32 / 5 | 5 | SETS
+  bolt.step3e0.progress.settle_ms | 83.33 | 25 | x3.33 | pair 0-1 only; take 0 likelier (its other pairs 50 vs 33.33) | 125 / 87.5 | 17 | SETS
+  collapsed.step1e0.height.response_pct | 51.43 | 16.67 | x3.09 | pair 2-3 only; take 2 likelier (its other pairs 30.77 vs 12.83) | 77.14 / 72.86 | 5 | SETS
+  collapsed.step1e0.progress.sharpness | 1.319 | 0.3532 | x3.74 | pair 3-4 only; take 3 likelier (its other pairs 0.9637 vs 0.3555) | 1.979 / 1.536 | 1 | SETS
+  collapsed.step3e0.progress.response_pct | 18.27 | 3.361 | x5.44 | take 0 in 4 pairs | 27.4 / 6.098 | 5 | SETS
+  collapsed.step3e0.progress.sharpness | 1.135 | 0.2906 | x3.90 | take 1 in 2 pairs | 1.702 / 1.299 | 1 | SETS
+  collapsed.step3e1.luma.peak_ms | 233.3 | 41.67 | x5.60 | take 1 in 4 pairs | 350 / 87.5 | 17 | SETS
+  collapsed.step3e1.luma.settle_ms | 133.3 | 41.67 | x3.20 | pair 1-4 only; take 1 likelier (its other pairs 105.6 vs 27.78) | 200 / 187.5 | 17 | SETS
+  heart.step1e0.cy.response_pct | 32.69 | 10.34 | x3.16 | pair 2-3 only; take 2 likelier (its other pairs 18.88 vs 10.46) | 49.04 / 43.27 | 5 | SETS
+  heart.step1e0.height.response_pct | 25.45 | 8.333 | x3.05 | pair 2-3 only; take 2 likelier (its other pairs 14.74 vs 8.57) | 38.18 / 32.73 | 5 | SETS
+  heart.step1e0.height.settle_ms | 66.67 | 8.333 | x8.00 | take 3 in 4 pairs | 100 / 25 | 17 | SETS
+  heart.step1e0.luma.overshoot_pct | 3.902 | 0.9512 | x4.10 | take 1 in 4 pairs | 5.852 / 2 | 2 | SETS
+  heart.step1e0.progress.settle_ms | 83.33 | 25 | x3.33 | pair 1-2 only; take 2 likelier (its other pairs 63.89 vs 19.44) | 125 / 112.5 | 17 | SETS
+  heart.step3e0.cy.peak_ms | 133.3 | 33.33 | x4.00 | take 2 in 2 pairs | 200 / 150 | 17 | SETS
+  heart.step3e0.cy.response_pct | 23.86 | 6.863 | x3.48 | pair 0-3 only; take 0 likelier (its other pairs 16.29 vs 6.31) | 35.8 / 28.98 | 5 | SETS
+  heart.step3e0.height.damping | 0.05 | 0.01 | x5.00 | take 0 in 3 pairs | 0.075 / 0.05 | 0.05 | SETS
+  heart.step3e0.height.peak_ms | 133.3 | 33.33 | x4.00 | take 2 in 2 pairs | 200 / 150 | 17 | SETS
+  heart.step3e0.height.response_pct | 18.45 | 5.738 | x3.21 | pair 0-3 only; take 0 likelier (its other pairs 13.27 vs 4.497) | 27.67 / 24.76 | 5 | SETS
+  stack.step1e0.height.response_pct | 23.86 | 7.921 | x3.01 | pair 2-3 only; take 2 likelier (its other pairs 12.81 vs 9.082) | 35.8 / 27.27 | 5 | SETS
+  stack.step1e0.height.settle_ms | 66.67 | 16.67 | x4.00 | take 2 in 3 pairs | 100 / 62.5 | 17 | SETS
+  stack.step1e0.luma.damping | 0.1 | 0.01 | x10.00 | take 2 in 4 pairs | 0.15 / 0.05 | 0.05 | SETS
+  stack.step1e0.luma.overshoot_pct | 7.709 | 0.2962 | x26.03 | take 2 in 4 pairs | 11.56 / 2 | 2 | SETS
+  stack.step1e0.luma.settle_ms | 241.7 | 50 | x4.83 | take 2 in 4 pairs | 362.5 / 87.5 | 17 | SETS
+  stack.step1e0.progress.sharpness | 1.321 | 0.3546 | x3.73 | pair 3-4 only; take 3 likelier (its other pairs 0.9644 vs 0.3565) | 1.981 / 1.539 | 1 | SETS
+  stack.step1e0.topology.count | 3 | 0 | med0 | take 2 in 2 pairs | 4.5 / 0 | 0 | SETS
+  stack.step1e0.ymin.response_pct | 25.29 | 8.421 | x3.00 | pair 2-3 only; take 2 likelier (its other pairs 13.94 vs 9.082) | 37.93 / 29.31 | 5 | SETS
+  stack.step1e0.ymin.settle_ms | 75 | 16.67 | x4.50 | take 2 in 4 pairs | 112.5 / 37.5 | 17 | SETS
+  stack.step3e0.luma.settle_ms | 25 | 8.333 | x3.00 | pair 0-1 only; take 1 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  stack.step3e0.progress.response_pct | 18.27 | 3.361 | x5.44 | take 0 in 4 pairs | 27.4 / 6.098 | 5 | SETS
+  stack.step3e0.progress.sharpness | 1.137 | 0.2919 | x3.89 | take 1 in 2 pairs | 1.705 / 1.301 | 1 | SETS
+  stack.step3e0.ymax.response_pct | 22.11 | 6.422 | x3.44 | pair 0-3 only; take 0 likelier (its other pairs 15.44 vs 5.612) | 33.16 / 28.42 | 5 | SETS
+  stack.step3e0.ymin.peak_ms | 133.3 | 33.33 | x4.00 | take 2 in 2 pairs | 200 / 150 | 17 | SETS
+  star.step1e0.height.response_pct | 19.67 | 6.4 | x3.07 | pair 2-3 only; take 3 likelier (its other pairs 12.67 vs 5.857) | 29.51 / 25.2 | 5 | SETS
+  star.step1e0.luma.peak_ms | 58.33 | 16.67 | x3.50 | pair 2-3 only; take 2 likelier (its other pairs 44.44 vs 13.89) | 87.5 / 75 | 17 | SETS
+  star.step1e0.luma.settle_ms | 158.3 | 16.67 | x9.50 | take 2 in 4 pairs | 237.5 / 37.5 | 17 | SETS
+  star.step1e0.width.peak_ms | 341.7 | 100 | x3.42 | pair 0-1 only; take 1 likelier (its other pairs 255.6 vs 86.11) | 512.5 / 450 | 17 | SETS
+  star.step3e0.height.peak_ms | 41.67 | 8.333 | x5.00 | take 0 in 3 pairs | 62.5 / 37.5 | 17 | SETS
+  star.step3e0.width.peak_ms | 41.67 | 8.333 | x5.00 | take 0 in 3 pairs | 62.5 / 37.5 | 17 | SETS
+  star.step3e0.width.response_pct | 16.04 | 3.361 | x4.77 | take 0 in 3 pairs | 24.06 / 5.042 | 5 | SETS
+  step1e0.delay_ms | 40 | 10 | x4.00 | take 2 in 2 pairs | 60 / 45 | 17 | SETS
+  step3e0.delay_ms | 33.33 | 9.999 | x3.33 | take 0 in 2 pairs | 50 / 42.5 | 17 | SETS
+  toggle.step1e0.height.peak_ms | 125 | 16.67 | x7.50 | take 2 in 4 pairs | 187.5 / 37.5 | 17 | SETS
+  toggle.step1e0.luma.overshoot_pct | 18.42 | 0.0513 | x359.13 | take 2 in 4 pairs | 27.64 / 2 | 2 | SETS
+  toggle.step1e0.luma.peak_ms | 58.33 | 16.67 | x3.50 | pair 2-3 only; take 2 likelier (its other pairs 44.44 vs 13.89) | 87.5 / 75 | 17 | SETS
+  toggle.step1e0.luma.settle_ms | 325 | 50 | x6.50 | take 2 in 4 pairs | 487.5 / 75 | 17 | SETS
+  toggle.step3e0.cy.peak_ms | 33.33 | 8.333 | x4.00 | take 0 in 2 pairs | 50 / 37.5 | 17 | SETS
+  toggle.step3e0.cy.response_pct | 28.13 | 7.317 | x3.84 | take 0 in 2 pairs | 42.19 / 28.12 | 5 | SETS
+  toggle.step3e0.cy.settle_ms | 33.33 | 8.333 | x4.00 | pair 0-1 only; take 0 likelier (its other pairs 25 vs 8.333) | 50 / 37.5 | 17 | SETS
+  toggle.step3e0.height.response_pct | 23.94 | 5.814 | x4.12 | take 0 in 2 pairs | 35.92 / 25.35 | 5 | SETS
+  toggle.step3e0.height.settle_ms | 33.33 | 8.333 | x4.00 | take 0 in 4 pairs | 50 / 17 | 17 | SETS
+  toggle.step3e0.luma.overshoot_pct | 0.1015 | 0.03249 | x3.13 | pair 2-3 only; take 3 likelier (its other pairs 0.06501 vs 0.03654) | 2 / 2 | 2 | stays (limit unchanged)
+  toggle.step3e0.luma.peak_ms | 33.33 | 8.333 | x4.00 | take 0 in 4 pairs | 50 / 17 | 17 | SETS
+  toggle.step3e0.luma.settle_ms | 33.33 | 8.333 | x4.00 | take 0 in 4 pairs | 50 / 17 | 17 | SETS
+  toggle.step3e0.width.settle_ms | 33.33 | 8.333 | x4.00 | take 0 in 4 pairs | 50 / 17 | 17 | SETS
+
+material.morph light-stripes: 33 outliers of 346 measures, 31 set a limit
+  bolt.step3e0.luma.overshoot_pct | 0.419 | 0.093 | x4.51 | take 3 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  bolt.step3e0.luma.peak_ms | 300 | 25 | x12.00 | take 3 in 4 pairs | 450 / 50 | 17 | SETS
+  bolt.step3e0.luma.settle_ms | 175 | 33.33 | x5.25 | take 3 in 4 pairs | 262.5 / 50 | 17 | SETS
+  bolt.step3e0.progress.response_pct | 15.44 | 2.685 | x5.75 | take 4 in 3 pairs | 23.15 / 5 | 5 | SETS
+  bolt.step3e0.progress.t10_90_ms | 25 | 8.333 | x3.00 | pair 0-1 only; take 0 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  collapsed.step3e0.height.settle_ms | 233.3 | 33.33 | x7.00 | take 3 in 4 pairs | 350 / 50 | 17 | SETS
+  collapsed.step3e0.progress.t10_90_ms | 33.33 | 8.333 | x4.00 | take 3 in 2 pairs | 50 / 37.5 | 17 | SETS
+  heart.step1e0.progress.sharpness | 3.529 | 0.102 | x34.59 | take 0 in 4 pairs | 5.293 / 1 | 1 | SETS
+  heart.step3e0.cy.settle_ms | 50 | 8.333 | x6.00 | take 4 in 4 pairs | 75 / 17 | 17 | SETS
+  heart.step3e0.height.peak_ms | 41.67 | 8.333 | x5.00 | take 4 in 4 pairs | 62.5 / 17 | 17 | SETS
+  stack.step1e0.topology.count | 3 | 0 | med0 | take 2 in 2 pairs | 4.5 / 0 | 0 | SETS
+  stack.step1e0.topology.gap_rms | 1.186 | 0 | med0 | no common take (3 pairs) | 1.78 / 1 | 1 | SETS
+  stack.step3e0.height.overshoot_pct | 0.4649 | 0.1546 | x3.01 | take 3 in 2 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step3e0.progress.t10_90_ms | 33.33 | 8.333 | x4.00 | take 3 in 2 pairs | 50 / 37.5 | 17 | SETS
+  stack.step3e0.ymax.response_pct | 17.27 | 1.869 | x9.24 | take 4 in 4 pairs | 25.91 / 5 | 5 | SETS
+  stack.step3e0.ymin.overshoot_pct | 3.49 | 0.7408 | x4.71 | take 3 in 4 pairs | 5.236 / 2 | 2 | SETS
+  stack.step3e0.ymin.peak_ms | 25 | 8.333 | x3.00 | pair 1-4 only; take 4 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  stack.step3e0.ymin.settle_ms | 41.67 | 8.333 | x5.00 | take 4 in 4 pairs | 62.5 / 17 | 17 | SETS
+  star.step3e0.height.peak_ms | 25 | 8.333 | x3.00 | pair 1-4 only; take 4 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  star.step3e0.luma.overshoot_pct | 7.085 | 0.8965 | x7.90 | take 3 in 4 pairs | 10.63 / 2 | 2 | SETS
+  star.step3e0.luma.peak_ms | 83.33 | 25 | x3.33 | pair 3-4 only; take 3 likelier (its other pairs 55.56 vs 27.78) | 125 / 87.5 | 17 | SETS
+  star.step3e0.luma.response_pct | 18.31 | 2.817 | x6.50 | take 4 in 3 pairs | 27.46 / 5 | 5 | SETS
+  star.step3e0.luma.settle_ms | 33.33 | 8.333 | x4.00 | take 4 in 4 pairs | 50 / 17 | 17 | SETS
+  star.step3e0.width.peak_ms | 25 | 8.333 | x3.00 | pair 1-4 only; take 4 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  step3e0.delay_ms | 35 | 8.333 | x4.20 | take 4 in 4 pairs | 52.5 / 17 | 17 | SETS
+  toggle.step1e0.height.peak_ms | 450 | 50 | x9.00 | take 0 in 3 pairs | 675 / 75 | 17 | SETS
+  toggle.step1e0.height.settle_ms | 291.7 | 16.67 | x17.50 | take 0 in 3 pairs | 437.5 / 25 | 17 | SETS
+  toggle.step3e0.cy.response_pct | 21.52 | 4 | x5.38 | take 4 in 4 pairs | 32.28 / 8 | 5 | SETS
+  toggle.step3e0.height.peak_ms | 41.67 | 8.333 | x5.00 | take 4 in 4 pairs | 62.5 / 17 | 17 | SETS
+  toggle.step3e0.height.response_pct | 22.99 | 6.098 | x3.77 | take 4 in 2 pairs | 34.48 / 27.44 | 5 | SETS
+  toggle.step3e0.height.settle_ms | 33.33 | 0 | med0 | take 4 in 4 pairs | 50 / 17 | 17 | SETS
+  toggle.step3e0.luma.peak_ms | 33.33 | 8.333 | x4.00 | take 4 in 4 pairs | 50 / 17 | 17 | SETS
+  toggle.step3e0.width.peak_ms | 41.67 | 8.333 | x5.00 | take 4 in 4 pairs | 62.5 / 17 | 17 | SETS
+
+material.morph light-stripes-reduce-motion: 92 outliers of 236 measures, 89 set a limit
+  bolt.step1e0.cy.peak_ms | 583.3 | 16.67 | x35.00 | take 1 in 4 pairs | 875 / 25 | 17 | SETS
+  bolt.step1e0.cy.response_pct | 12.28 | 1.587 | x7.74 | take 2 in 3 pairs | 18.42 / 5 | 5 | SETS
+  bolt.step1e0.cy.settle_ms | 25 | 0 | med0 | take 1 in 4 pairs | 37.5 / 17 | 17 | SETS
+  bolt.step1e0.height.overshoot_pct | 20.2 | 0 | med0 | take 1 in 4 pairs | 30.3 / 2 | 2 | SETS
+  bolt.step1e0.height.peak_ms | 583.3 | 16.67 | x35.00 | take 1 in 4 pairs | 875 / 25 | 17 | SETS
+  bolt.step1e0.height.response_pct | 8.333 | 0 | med0 | take 2 in 3 pairs | 12.5 / 5 | 5 | SETS
+  bolt.step1e0.height.settle_ms | 75 | 0 | med0 | take 1 in 4 pairs | 112.5 / 17 | 17 | SETS
+  bolt.step1e0.luma.overshoot_pct | 204.4 | 1.837 | x111.25 | take 1 in 4 pairs | 306.6 / 2.76 | 2 | SETS
+  bolt.step1e0.luma.peak_ms | 441.7 | 8.333 | x53.00 | take 1 in 4 pairs | 662.5 / 25 | 17 | SETS
+  bolt.step1e0.luma.settle_ms | 166.7 | 41.67 | x4.00 | take 1 in 3 pairs | 250 / 150 | 17 | SETS
+  bolt.step1e0.progress.overshoot_pct | 0.2525 | 0.003174 | x79.55 | take 2 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  bolt.step1e0.progress.rms | 0.3046 | 0.03493 | x8.72 | take 1 in 4 pairs | 0.457 / 0.05355 | 0.05 | SETS
+  bolt.step1e0.progress.settle_ms | 116.7 | 16.67 | x7.00 | take 1 in 4 pairs | 175 / 37.5 | 17 | SETS
+  bolt.step1e0.progress.sharpness | 26.12 | 0.3413 | x76.52 | take 1 in 4 pairs | 39.18 / 1 | 1 | SETS
+  bolt.step1e0.progress.t10_90_ms | 141.7 | 16.67 | x8.50 | take 1 in 4 pairs | 212.5 / 25 | 17 | SETS
+  bolt.step3e0.cy.peak_ms | 108.3 | 25 | x4.33 | take 2 in 3 pairs | 162.5 / 37.5 | 17 | SETS
+  bolt.step3e0.height.peak_ms | 108.3 | 25 | x4.33 | take 2 in 3 pairs | 162.5 / 37.5 | 17 | SETS
+  bolt.step3e0.height.settle_ms | 58.33 | 8.333 | x7.00 | take 2 in 3 pairs | 87.5 / 17 | 17 | SETS
+  bolt.step3e0.luma.peak_ms | 150 | 50 | x3.00 | pair 2-4 only; take 2 likelier (its other pairs 104.2 vs 45.83) | 225 / 162.5 | 17 | SETS
+  bolt.step3e0.progress.overshoot_pct | 2.523 | 0.2279 | x11.07 | take 2 in 3 pairs | 3.784 / 2 | 2 | SETS
+  bolt.step3e0.progress.settle_ms | 75 | 16.67 | x4.50 | take 2 in 3 pairs | 112.5 / 25 | 17 | SETS
+  collapsed.step1e0.height.peak_ms | 25 | 8.333 | x3.00 | pair 2-3 only; take 2 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  collapsed.step1e0.height.response_pct | 16.67 | 4.167 | x4.00 | take 2 in 3 pairs | 25 / 6.25 | 5 | SETS
+  collapsed.step1e0.height.settle_ms | 25 | 8.333 | x3.00 | pair 2-3 only; take 2 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  collapsed.step1e0.progress.overshoot_pct | 0.1103 | 0.0009652 | x114.26 | take 2 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  collapsed.step1e0.progress.rms | 0.1977 | 0.02622 | x7.54 | take 1 in 4 pairs | 0.2965 / 0.05 | 0.05 | SETS
+  collapsed.step1e0.progress.settle_ms | 91.67 | 16.67 | x5.50 | take 1 in 4 pairs | 137.5 / 37.5 | 17 | SETS
+  collapsed.step1e0.progress.t10_90_ms | 33.33 | 8.333 | x4.00 | take 1 in 3 pairs | 50 / 37.5 | 17 | SETS
+  collapsed.step3e0.height.peak_ms | 183.3 | 50 | x3.67 | pair 2-4 only; take 2 likelier (its other pairs 137.5 vs 45.83) | 275 / 212.5 | 17 | SETS
+  collapsed.step3e0.progress.sharpness | 8.782 | 0.7055 | x12.45 | take 0 in 3 pairs | 13.17 / 1.058 | 1 | SETS
+  collapsed.step3e1.luma.peak_ms | 225 | 8.333 | x27.00 | take 2 in 3 pairs | 337.5 / 17 | 17 | SETS
+  collapsed.step3e1.luma.settle_ms | 158.3 | 50 | x3.17 | take 2 in 2 pairs | 237.5 / 162.5 | 17 | SETS
+  heart.step1e0.cy.peak_ms | 583.3 | 16.67 | x35.00 | take 1 in 4 pairs | 875 / 25 | 17 | SETS
+  heart.step1e0.cy.response_pct | 12.28 | 1.587 | x7.74 | take 2 in 3 pairs | 18.42 / 5 | 5 | SETS
+  heart.step1e0.cy.settle_ms | 50 | 16.67 | x3.00 | take 1 in 2 pairs | 75 / 50 | 17 | SETS
+  heart.step1e0.height.overshoot_pct | 20 | 0 | med0 | take 1 in 4 pairs | 30 / 2 | 2 | SETS
+  heart.step1e0.height.peak_ms | 583.3 | 16.67 | x35.00 | take 1 in 4 pairs | 875 / 25 | 17 | SETS
+  heart.step1e0.height.response_pct | 8.333 | 1.563 | x5.33 | take 2 in 3 pairs | 12.5 / 5 | 5 | SETS
+  heart.step1e0.height.settle_ms | 58.33 | 8.333 | x7.00 | take 1 in 4 pairs | 87.5 / 25 | 17 | SETS
+  heart.step1e0.progress.overshoot_pct | 22.69 | 1.383 | x16.41 | take 1 in 4 pairs | 34.03 / 2.204 | 2 | SETS
+  heart.step1e0.progress.rms | 0.543 | 0.05766 | x9.42 | take 1 in 4 pairs | 0.8145 / 0.09942 | 0.05 | SETS
+  heart.step1e0.progress.settle_ms | 108.3 | 33.33 | x3.25 | pair 1-2 only; take 1 likelier (its other pairs 80.56 vs 27.78) | 162.5 / 150 | 17 | SETS
+  heart.step1e0.progress.sharpness | 2.643 | 0.6609 | x4.00 | take 3 in 3 pairs | 3.965 / 2.894 | 1 | SETS
+  heart.step1e0.progress.t10_90_ms | 283.3 | 8.333 | x34.00 | take 1 in 4 pairs | 425 / 17 | 17 | SETS
+  heart.step3e0.cy.response_pct | 9 | 1.961 | x4.59 | take 4 in 3 pairs | 13.5 / 5 | 5 | SETS
+  heart.step3e0.cy.settle_ms | 75 | 16.67 | x4.50 | take 4 in 3 pairs | 112.5 / 25 | 17 | SETS
+  heart.step3e0.height.response_pct | 7.895 | 1.724 | x4.58 | take 4 in 3 pairs | 11.84 / 5 | 5 | SETS
+  heart.step3e0.height.settle_ms | 58.33 | 16.67 | x3.50 | pair 2-4 only; take 2 likelier (its other pairs 41.67 vs 16.67) | 87.5 / 62.5 | 17 | SETS
+  heart.step3e0.progress.overshoot_pct | 3.124 | 0.5576 | x5.60 | take 2 in 3 pairs | 4.687 / 2 | 2 | SETS
+  heart.step3e0.progress.sharpness | 1.741 | 0.06713 | x25.94 | take 0 in 3 pairs | 2.612 / 1 | 1 | SETS
+  heart.step3e0.progress.t10_90_ms | 25 | 5.684e-14 | x439804651110400.00 | take 2 in 3 pairs | 37.5 / 17 | 17 | SETS
+  stack.step1e0.height.response_pct | 7.447 | 2.02 | x3.69 | pair 2-4 only; take 2 likelier (its other pairs 5.185 vs 2.02) | 11.17 / 7.979 | 5 | SETS
+  stack.step1e0.luma.overshoot_pct | 50.64 | 0.8695 | x58.24 | take 1 in 4 pairs | 75.97 / 2 | 2 | SETS
+  stack.step1e0.luma.peak_ms | 483.3 | 16.67 | x29.00 | take 1 in 4 pairs | 725 / 25 | 17 | SETS
+  stack.step1e0.luma.response_pct | 9.836 | 1.515 | x6.49 | take 2 in 3 pairs | 14.75 / 5 | 5 | SETS
+  stack.step1e0.luma.settle_ms | 58.33 | 16.67 | x3.50 | take 1 in 3 pairs | 87.5 / 62.5 | 17 | SETS
+  stack.step1e0.progress.overshoot_pct | 0.1102 | 0.0009622 | x114.51 | take 2 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step1e0.progress.rms | 0.1992 | 0.02626 | x7.58 | take 1 in 4 pairs | 0.2988 / 0.05 | 0.05 | SETS
+  stack.step1e0.progress.settle_ms | 91.67 | 16.67 | x5.50 | take 1 in 4 pairs | 137.5 / 37.5 | 17 | SETS
+  stack.step1e0.progress.t10_90_ms | 33.33 | 8.333 | x4.00 | take 1 in 3 pairs | 50 / 37.5 | 17 | SETS
+  stack.step1e0.topology.count | 99 | 0 | med0 | take 1 in 4 pairs | 148.5 / 0 | 0 | SETS
+  stack.step1e0.topology.neck_rms | 2.803 | 0.6495 | x4.32 | take 2 in 3 pairs | 4.204 / 1.511 | 1 | SETS
+  stack.step1e0.ymax.response_pct | 7.447 | 2.02 | x3.69 | pair 2-4 only; take 2 likelier (its other pairs 5.185 vs 2.02) | 11.17 / 7.979 | 5 | SETS
+  stack.step1e0.ymin.response_pct | 7.447 | 2.02 | x3.69 | pair 2-4 only; take 2 likelier (its other pairs 5.185 vs 2.02) | 11.17 / 7.979 | 5 | SETS
+  stack.step3e0.height.peak_ms | 183.3 | 50 | x3.67 | pair 2-4 only; take 2 likelier (its other pairs 137.5 vs 45.83) | 275 / 212.5 | 17 | SETS
+  stack.step3e0.luma.peak_ms | 141.7 | 41.67 | x3.40 | pair 2-4 only; take 2 likelier (its other pairs 104.2 vs 37.5) | 212.5 / 162.5 | 17 | SETS
+  stack.step3e0.progress.sharpness | 8.805 | 0.7005 | x12.57 | take 0 in 3 pairs | 13.21 / 1.051 | 1 | SETS
+  stack.step3e0.ymax.response_pct | 7.407 | 0.9174 | x8.07 | take 4 in 3 pairs | 11.11 / 5 | 5 | SETS
+  star.step1e0.cy.response_pct | 7.246 | 1.37 | x5.29 | take 2 in 3 pairs | 10.87 / 5 | 5 | SETS
+  star.step1e0.height.peak_ms | 66.67 | 8.333 | x8.00 | take 1 in 4 pairs | 100 / 17 | 17 | SETS
+  star.step1e0.height.response_pct | 5.691 | 0.7752 | x7.34 | take 2 in 3 pairs | 8.537 / 5 | 5 | SETS
+  star.step1e0.height.settle_ms | 116.7 | 8.333 | x14.00 | take 1 in 4 pairs | 175 / 17 | 17 | SETS
+  star.step1e0.luma.overshoot_pct | 7.592 | 0.3981 | x19.07 | take 1 in 4 pairs | 11.39 / 2 | 2 | SETS
+  star.step1e0.luma.peak_ms | 25 | 8.333 | x3.00 | take 0 in 2 pairs | 37.5 / 25 | 17 | SETS
+  star.step1e0.luma.response_pct | 5.357 | 1.724 | x3.11 | pair 2-4 only; take 2 likelier (its other pairs 3.51 vs 1.724) | 8.036 / 5.357 | 5 | SETS
+  star.step1e0.width.peak_ms | 325 | 16.67 | x19.50 | take 1 in 4 pairs | 487.5 / 25 | 17 | SETS
+  star.step1e0.width.settle_ms | 341.7 | 16.67 | x20.50 | take 1 in 4 pairs | 512.5 / 25 | 17 | SETS
+  step1e0.delay_ms | 3558 | 18.33 | x194.09 | take 1 in 4 pairs | 5338 / 27.5 | 17 | SETS
+  toggle.step1e0.cy.peak_ms | 550 | 91.67 | x6.00 | take 1 in 4 pairs | 825 / 187.5 | 17 | SETS
+  toggle.step1e0.cy.response_pct | 7.971 | 1.361 | x5.86 | take 2 in 3 pairs | 11.96 / 5 | 5 | SETS
+  toggle.step1e0.cy.settle_ms | 358.3 | 41.67 | x8.60 | take 1 in 4 pairs | 537.5 / 75 | 17 | SETS
+  toggle.step1e0.height.overshoot_pct | 1.599 | 0.4428 | x3.61 | pair 1-2 only; take 1 likelier (its other pairs 1.118 vs 0.4813) | 2.398 / 2 | 2 | SETS
+  toggle.step1e0.height.peak_ms | 183.3 | 8.333 | x22.00 | take 1 in 4 pairs | 275 / 17 | 17 | SETS
+  toggle.step1e0.height.response_pct | 6.557 | 1.563 | x4.20 | take 2 in 3 pairs | 9.836 / 5 | 5 | SETS
+  toggle.step1e0.height.settle_ms | 141.7 | 16.67 | x8.50 | take 1 in 4 pairs | 212.5 / 37.5 | 17 | SETS
+  toggle.step1e0.luma.overshoot_pct | 29.95 | 0.2912 | x102.84 | take 1 in 4 pairs | 44.92 / 2 | 2 | SETS
+  toggle.step1e0.luma.peak_ms | 141.7 | 16.67 | x8.50 | take 1 in 4 pairs | 212.5 / 25 | 17 | SETS
+  toggle.step1e0.luma.settle_ms | 341.7 | 16.67 | x20.50 | take 1 in 4 pairs | 512.5 / 37.5 | 17 | SETS
+  toggle.step1e0.width.peak_ms | 83.33 | 16.67 | x5.00 | take 1 in 4 pairs | 125 / 25 | 17 | SETS
+  toggle.step1e0.width.settle_ms | 100 | 8.333 | x12.00 | take 1 in 4 pairs | 150 / 25 | 17 | SETS
+  toggle.step3e0.cy.response_pct | 10.81 | 2.632 | x4.11 | take 4 in 3 pairs | 16.22 / 5 | 5 | SETS
+  toggle.step3e0.height.response_pct | 9.877 | 2.41 | x4.10 | take 4 in 2 pairs | 14.81 / 10.84 | 5 | SETS
+
+material.morph.plain dark-photo: 45 outliers of 234 measures, 37 set a limit
+  bolt.step1e0.cy.overshoot_pct | 0.8403 | 0.1864 | x4.51 | take 0 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  bolt.step1e0.luma.overshoot_pct | 6.004 | 0.5919 | x10.14 | take 1 in 4 pairs | 9.007 / 2 | 2 | SETS
+  bolt.step1e0.luma.peak_ms | 33.33 | 8.333 | x4.00 | take 1 in 4 pairs | 50 / 17 | 17 | SETS
+  bolt.step1e0.progress.overshoot_pct | 1.617 | 0.1544 | x10.48 | take 1 in 4 pairs | 2.425 / 2 | 2 | SETS
+  bolt.step1e0.progress.t10_90_ms | 58.33 | 16.67 | x3.50 | take 1 in 2 pairs | 87.5 / 62.5 | 17 | SETS
+  bolt.step3e0.cy.response_pct | 5.469 | 1.653 | x3.31 | pair 1-2 only; take 1 likelier (its other pairs 3.438 vs 2.195) | 8.203 / 6.098 | 5 | SETS
+  bolt.step3e0.luma.settle_ms | 33.33 | 8.333 | x4.00 | pair 1-4 only; take 1 likelier (its other pairs 22.22 vs 11.11) | 50 / 37.5 | 17 | SETS
+  bolt.step3e0.progress.damping | 0.04 | 0.01 | x4.00 | take 1 in 4 pairs | 0.06 / 0.05 | 0.05 | SETS
+  bolt.step3e0.progress.overshoot_pct | 1.616 | 0.4006 | x4.03 | take 1 in 3 pairs | 2.424 / 2 | 2 | SETS
+  bolt.step3e0.progress.response_pct | 4.959 | 0.8264 | x6.00 | take 1 in 4 pairs | 7.438 / 5 | 5 | SETS
+  collapsed.step1e0.progress.overshoot_pct | 0.4641 | 0.04768 | x9.73 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  collapsed.step3e0.progress.settle_ms | 33.33 | 8.333 | x4.00 | take 1 in 4 pairs | 50 / 17 | 17 | SETS
+  collapsed.step3e0.progress.sharpness | 1.572 | 0.3075 | x5.11 | take 1 in 4 pairs | 2.359 / 1 | 1 | SETS
+  heart.step1e0.cy.peak_ms | 50 | 16.67 | x3.00 | pair 0-1 only; take 1 likelier (its other pairs 33.33 vs 16.67) | 75 / 62.5 | 17 | SETS
+  heart.step1e0.cy.response_pct | 25.45 | 3.636 | x7.00 | take 1 in 4 pairs | 38.18 / 5.455 | 5 | SETS
+  heart.step1e0.height.overshoot_pct | 2.753 | 0.8421 | x3.27 | pair 2-4 only; take 4 likelier (its other pairs 1.782 vs 0.9708) | 4.129 / 2.866 | 2 | SETS
+  heart.step1e0.luma.response_pct | 20.37 | 3.704 | x5.50 | take 1 in 4 pairs | 30.56 / 5.556 | 5 | SETS
+  heart.step1e0.progress.overshoot_pct | 1.642 | 0.4146 | x3.96 | take 2 in 2 pairs | 2.463 / 2 | 2 | SETS
+  heart.step3e0.progress.rms | 0.09739 | 0.0312 | x3.12 | take 1 in 2 pairs | 0.1461 / 0.1366 | 0.05 | SETS
+  heart.step3e0.progress.settle_ms | 41.67 | 8.333 | x5.00 | take 1 in 3 pairs | 62.5 / 37.5 | 17 | SETS
+  heart.step3e0.progress.t10_90_ms | 558.3 | 16.67 | x33.50 | take 1 in 4 pairs | 837.5 / 25 | 17 | SETS
+  stack.step1e0.height.damping | 0.04 | 0.01 | x4.00 | take 1 in 4 pairs | 0.06 / 0.05 | 0.05 | SETS
+  stack.step1e0.height.overshoot_pct | 0.1546 | 0.02576 | x6.00 | take 0 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step1e0.height.response_pct | 17.71 | 3.125 | x5.67 | take 1 in 4 pairs | 26.56 / 6.25 | 5 | SETS
+  stack.step1e0.luma.damping | 0.17 | 0.03 | x5.67 | take 1 in 4 pairs | 0.255 / 0.05 | 0.05 | SETS
+  stack.step1e0.luma.response_pct | 31.34 | 1.493 | x21.00 | take 1 in 4 pairs | 47.01 / 5 | 5 | SETS
+  stack.step1e0.progress.overshoot_pct | 0.4595 | 0.0474 | x9.69 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step1e0.topology.split_ms | 33.33 | 8.333 | x4.00 | take 1 in 2 pairs | 50 / 37.5 | 17 | SETS
+  stack.step1e0.ymax.damping | 0.64 | 0.01 | x64.00 | take 1 in 3 pairs | 0.96 / 0.05 | 0.05 | SETS
+  stack.step1e0.ymax.response_pct | 74.07 | 3.704 | x20.00 | take 1 in 3 pairs | 111.1 / 5.556 | 5 | SETS
+  stack.step3e0.height.overshoot_pct | 0.1565 | 0.03864 | x4.05 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step3e0.luma.overshoot_pct | 0.623 | 0.1969 | x3.16 | take 1 in 2 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step3e0.progress.settle_ms | 33.33 | 8.333 | x4.00 | take 1 in 4 pairs | 50 / 17 | 17 | SETS
+  stack.step3e0.progress.sharpness | 1.573 | 0.3076 | x5.11 | take 1 in 4 pairs | 2.36 / 1 | 1 | SETS
+  star.step1e0.cx.overshoot_pct | 1.754 | 3.571e-05 | x49123.77 | take 4 in 3 pairs | 2.632 / 2 | 2 | SETS
+  star.step1e0.cx.peak_ms | 166.7 | 16.67 | x10.00 | take 1 in 3 pairs | 250 / 25 | 17 | SETS
+  star.step1e0.cy.overshoot_pct | 5.584 | 1.117 | x5.00 | take 0 in 4 pairs | 8.376 / 2 | 2 | SETS
+  star.step1e0.width.overshoot_pct | 0.5492 | 0.1667 | x3.29 | take 4 in 3 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  star.step3e0.luma.overshoot_pct | 0.01324 | 0.001802 | x7.35 | take 3 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  star.step3e0.luma.peak_ms | 66.67 | 16.67 | x4.00 | take 1 in 4 pairs | 100 / 25 | 17 | SETS
+  step1e0.delay_ms | 43.33 | 13.33 | x3.25 | pair 1-2 only; take 1 likelier (its other pairs 32.78 vs 10.56) | 65 / 57.5 | 17 | SETS
+  toggle.step1e0.height.response_pct | 16.19 | 4.762 | x3.40 | pair 0-1 only; take 1 likelier (its other pairs 11.75 vs 2.54) | 24.29 / 20.9 | 5 | SETS
+  toggle.step1e0.luma.damping | 0.05 | 0.01 | x5.00 | take 1 in 4 pairs | 0.075 / 0.05 | 0.05 | SETS
+  toggle.step1e0.luma.response_pct | 22.22 | 3.704 | x6.00 | take 1 in 4 pairs | 33.33 / 9.259 | 5 | SETS
+  toggle.step1e0.width.peak_ms | 50 | 16.67 | x3.00 | take 1 in 2 pairs | 75 / 50 | 17 | SETS
+
+material.morph.plain dark-photo-reduce-motion: 53 outliers of 257 measures, 49 set a limit
+  bolt.step1e0.progress.overshoot_pct | 0.1008 | 0.01458 | x6.92 | take 4 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  bolt.step3e0.cy.peak_ms | 25 | 8.333 | x3.00 | take 2 in 3 pairs | 37.5 / 25 | 17 | SETS
+  bolt.step3e0.height.peak_ms | 25 | 8.333 | x3.00 | take 2 in 3 pairs | 37.5 / 25 | 17 | SETS
+  bolt.step3e0.height.settle_ms | 75 | 0 | med0 | take 2 in 4 pairs | 112.5 / 17 | 17 | SETS
+  collapsed.step1e0.progress.overshoot_pct | 0.05282 | 0.009495 | x5.56 | take 4 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  collapsed.step1e0.progress.t10_90_ms | 25 | 8.333 | x3.00 | take 2 in 3 pairs | 37.5 / 25 | 17 | SETS
+  collapsed.step3e0.height.overshoot_pct | 14.43 | 1.795 | x8.04 | take 2 in 4 pairs | 21.65 / 4.751 | 2 | SETS
+  collapsed.step3e0.progress.damping | 1.07 | 0.09 | x11.89 | take 2 in 4 pairs | 1.605 / 0.21 | 0.05 | SETS
+  collapsed.step3e0.progress.response_pct | 100 | 8.491 | x11.78 | take 2 in 4 pairs | 150 / 16.98 | 5 | SETS
+  heart.step1e0.cy.overshoot_pct | 10.74 | 1.964 | x5.47 | take 3 in 4 pairs | 16.11 / 2.948 | 2 | SETS
+  heart.step1e0.cy.peak_ms | 166.7 | 16.67 | x10.00 | take 3 in 4 pairs | 250 / 25 | 17 | SETS
+  heart.step1e0.cy.response_pct | 8.333 | 0 | med0 | take 2 in 4 pairs | 12.5 / 5 | 5 | SETS
+  heart.step1e0.height.peak_ms | 250 | 0 | med0 | take 3 in 4 pairs | 375 / 17 | 17 | SETS
+  heart.step1e0.luma.response_pct | 21.05 | 4.167 | x5.05 | take 3 in 4 pairs | 31.58 / 6.522 | 5 | SETS
+  heart.step1e0.progress.sharpness | 2.832 | 0.06513 | x43.47 | take 2 in 4 pairs | 4.247 / 1 | 1 | SETS
+  heart.step3e0.cy.response_pct | 8.824 | 1.471 | x6.00 | take 3 in 4 pairs | 13.24 / 5 | 5 | SETS
+  heart.step3e0.height.damping | 0.43 | 0.1 | x4.30 | take 0 in 3 pairs | 0.645 / 0.405 | 0.05 | SETS
+  heart.step3e0.progress.t10_90_ms | 8.333 | 1.421e-14 | x586406201480535.00 | take 2 in 4 pairs | 17 / 17 | 17 | stays (limit unchanged)
+  stack.step1e0.height.damping | 0.5 | 0.06 | x8.33 | take 3 in 4 pairs | 0.75 / 0.12 | 0.05 | SETS
+  stack.step1e0.height.peak_ms | 25 | 8.333 | x3.00 | take 2 in 3 pairs | 37.5 / 25 | 17 | SETS
+  stack.step1e0.height.response_pct | 48.28 | 2.381 | x20.28 | take 3 in 4 pairs | 72.41 / 6.818 | 5 | SETS
+  stack.step1e0.luma.damping | 0.11 | 0.03 | x3.67 | take 3 in 3 pairs | 0.165 / 0.105 | 0.05 | SETS
+  stack.step1e0.luma.response_pct | 16.28 | 2.041 | x7.98 | take 3 in 4 pairs | 24.42 / 5.882 | 5 | SETS
+  stack.step1e0.luma.settle_ms | 25 | 8.333 | x3.00 | pair 2-4 only; take 2 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  stack.step1e0.progress.overshoot_pct | 0.05269 | 0.009776 | x5.39 | take 4 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step1e0.progress.t10_90_ms | 25 | 8.333 | x3.00 | take 2 in 3 pairs | 37.5 / 25 | 17 | SETS
+  stack.step1e0.ymax.damping | 0.44 | 0.12 | x3.67 | take 3 in 3 pairs | 0.66 / 0.465 | 0.05 | SETS
+  stack.step1e0.ymax.peak_ms | 25 | 8.333 | x3.00 | take 2 in 3 pairs | 37.5 / 25 | 17 | SETS
+  stack.step1e0.ymax.response_pct | 43.33 | 7.5 | x5.78 | take 3 in 4 pairs | 65 / 13.64 | 5 | SETS
+  stack.step1e0.ymin.damping | 0.47 | 0.01 | x47.00 | take 3 in 4 pairs | 0.705 / 0.05 | 0.05 | SETS
+  stack.step1e0.ymin.peak_ms | 25 | 8.333 | x3.00 | take 2 in 3 pairs | 37.5 / 25 | 17 | SETS
+  stack.step1e0.ymin.response_pct | 48.28 | 2.326 | x20.76 | take 3 in 4 pairs | 72.41 / 5 | 5 | SETS
+  stack.step3e0.height.peak_ms | 25 | 8.333 | x3.00 | take 2 in 3 pairs | 37.5 / 25 | 17 | SETS
+  stack.step3e0.height.response_pct | 5.455 | 1.818 | x3.00 | pair 0-2 only; take 2 likelier (its other pairs 3.489 vs 1.818) | 8.182 / 5.357 | 5 | SETS
+  stack.step3e0.luma.damping | 0.12 | 0.02 | x6.00 | take 3 in 4 pairs | 0.18 / 0.05 | 0.05 | SETS
+  stack.step3e0.luma.response_pct | 19.51 | 2.439 | x8.00 | take 3 in 4 pairs | 29.27 / 7.317 | 5 | SETS
+  stack.step3e0.topology.count | 1 | 0 | med0 | take 3 in 4 pairs | 1.5 / 0 | 0 | SETS
+  stack.step3e0.ymax.damping | 0.08 | 0.02 | x4.00 | take 3 in 3 pairs | 0.12 / 0.075 | 0.05 | SETS
+  stack.step3e0.ymax.peak_ms | 25 | 8.333 | x3.00 | take 2 in 3 pairs | 37.5 / 25 | 17 | SETS
+  stack.step3e0.ymax.response_pct | 12.07 | 3.39 | x3.56 | pair 0-3 only; take 3 likelier (its other pairs 8.831 vs 2.874) | 18.1 / 15.25 | 5 | SETS
+  star.step1e0.cx.peak_ms | 325 | 16.67 | x19.50 | take 2 in 4 pairs | 487.5 / 37.5 | 17 | SETS
+  star.step1e0.cy.peak_ms | 25 | 8.333 | x3.00 | take 2 in 3 pairs | 37.5 / 25 | 17 | SETS
+  star.step1e0.cy.settle_ms | 25 | 0 | med0 | take 2 in 4 pairs | 37.5 / 17 | 17 | SETS
+  star.step1e0.height.response_pct | 4.762 | 1.22 | x3.90 | take 3 in 2 pairs | 7.143 / 5.422 | 5 | SETS
+  star.step1e0.luma.response_pct | 5.797 | 1.389 | x4.17 | take 3 in 3 pairs | 8.696 / 6.25 | 5 | SETS
+  step1e0.delay_ms | 15 | 3.334 | x4.50 | take 2 in 4 pairs | 22.5 / 17 | 17 | SETS
+  toggle.step1e0.cy.peak_ms | 25 | 8.333 | x3.00 | pair 2-4 only; take 2 likelier (its other pairs 13.89 vs 11.11) | 37.5 / 25 | 17 | SETS
+  toggle.step1e0.height.response_pct | 4.124 | 1.031 | x4.00 | take 3 in 4 pairs | 6.186 / 5 | 5 | SETS
+  toggle.step1e0.luma.response_pct | 5.333 | 1.282 | x4.16 | take 3 in 3 pairs | 8 / 5.769 | 5 | SETS
+  toggle.step1e0.width.peak_ms | 25 | 8.333 | x3.00 | pair 3-4 only; take 3 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  toggle.step3e0.cy.response_pct | 15.15 | 3.03 | x5.00 | take 3 in 3 pairs | 22.73 / 11.84 | 5 | SETS
+  toggle.step3e0.height.response_pct | 10.81 | 2.703 | x4.00 | pair 0-3 only; take 3 likelier (its other pairs 7.702 vs 2.703) | 16.22 / 11.84 | 5 | SETS
+  toggle.step3e0.width.response_pct | 12.77 | 4.167 | x3.06 | pair 2-3 only; take 3 likelier (its other pairs 8.08 vs 4.183) | 19.15 / 15.63 | 5 | SETS
+
+material.morph.plain dark-stripes: 20 outliers of 208 measures, 15 set a limit
+  bolt.step1e0.cy.response_pct | 21.43 | 6.25 | x3.43 | take 0 in 2 pairs | 32.14 / 21.43 | 5 | SETS
+  bolt.step1e0.height.response_pct | 17.65 | 5 | x3.53 | pair 0-2 only; take 0 likelier (its other pairs 11.76 vs 5.088) | 26.47 / 17.65 | 5 | SETS
+  bolt.step1e0.progress.sharpness | 0.3268 | 0.06178 | x5.29 | take 0 in 4 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  bolt.step3e0.cy.peak_ms | 58.33 | 16.67 | x3.50 | take 1 in 2 pairs | 87.5 / 75 | 17 | SETS
+  bolt.step3e0.cy.settle_ms | 33.33 | 0 | med0 | take 1 in 4 pairs | 50 / 17 | 17 | SETS
+  bolt.step3e0.height.peak_ms | 58.33 | 16.67 | x3.50 | take 1 in 2 pairs | 87.5 / 75 | 17 | SETS
+  bolt.step3e0.progress.sharpness | 0.6213 | 0.08432 | x7.37 | take 3 in 4 pairs | 1 / 1 | 1 | stays (limit unchanged)
+  collapsed.step1e0.progress.settle_ms | 25 | 8.333 | x3.00 | take 0 in 2 pairs | 37.5 / 25 | 17 | SETS
+  heart.step1e0.progress.sharpness | 0.9185 | 0.2554 | x3.60 | take 3 in 2 pairs | 1.378 / 1.004 | 1 | SETS
+  heart.step3e0.cy.settle_ms | 25 | 8.333 | x3.00 | pair 0-1 only; take 0 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  heart.step3e0.progress.sharpness | 0.1598 | 0.05066 | x3.15 | pair 0-2 only; take 0 likelier (its other pairs 0.1133 vs 0.04653) | 1 / 1 | 1 | stays (limit unchanged)
+  stack.step1e0.progress.settle_ms | 25 | 8.333 | x3.00 | take 0 in 2 pairs | 37.5 / 25 | 17 | SETS
+  stack.step1e0.ymin.overshoot_pct | 0.3851 | 0.06859 | x5.61 | take 0 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step1e0.ymin.peak_ms | 33.33 | 8.333 | x4.00 | pair 0-2 only; take 0 likelier (its other pairs 22.22 vs 11.11) | 50 / 37.5 | 17 | SETS
+  stack.step3e0.ymax.peak_ms | 41.67 | 8.333 | x5.00 | take 1 in 4 pairs | 62.5 / 17 | 17 | SETS
+  stack.step3e0.ymax.response_pct | 6.78 | 1.695 | x4.00 | pair 0-1 only; take 1 likelier (its other pairs 4.762 vs 1.695) | 10.17 / 7.143 | 5 | SETS
+  toggle.step1e0.cy.overshoot_pct | 0.04664 | 0.01469 | x3.17 | pair 0-3 only; take 0 likelier (its other pairs 0.03194 vs 0.01469) | 2 / 2 | 2 | stays (limit unchanged)
+  toggle.step1e0.luma.damping | 0.04 | 0.01 | x4.00 | take 1 in 2 pairs | 0.06 / 0.05 | 0.05 | SETS
+  toggle.step1e0.width.settle_ms | 225 | 33.33 | x6.75 | take 3 in 4 pairs | 337.5 / 62.5 | 17 | SETS
+  toggle.step3e0.luma.response_pct | 6.977 | 2.326 | x3.00 | pair 0-1 only; take 1 likelier (its other pairs 4.348 vs 2.326) | 10.47 / 6.522 | 5 | SETS
+
+material.morph.plain dark-stripes-reduce-motion: 28 outliers of 226 measures, 28 set a limit
+  bolt.step1e0.cy.response_pct | 23.53 | 4.762 | x4.94 | take 0 in 4 pairs | 35.29 / 7.5 | 5 | SETS
+  bolt.step1e0.height.response_pct | 21.05 | 4.348 | x4.84 | take 0 in 4 pairs | 31.58 / 6.818 | 5 | SETS
+  bolt.step3e0.progress.damping | 1.14 | 0.04 | x28.50 | take 4 in 4 pairs | 1.71 / 0.075 | 0.05 | SETS
+  bolt.step3e0.progress.response_pct | 55.32 | 4.444 | x12.45 | take 4 in 4 pairs | 82.98 / 8.427 | 5 | SETS
+  bolt.step3e0.progress.sharpness | 5.417 | 0.8491 | x6.38 | take 1 in 4 pairs | 8.126 / 1.621 | 1 | SETS
+  collapsed.step3e0.height.peak_ms | 25 | 8.333 | x3.00 | take 0 in 2 pairs | 37.5 / 25 | 17 | SETS
+  collapsed.step3e0.height.settle_ms | 33.33 | 8.333 | x4.00 | pair 0-1 only; take 0 likelier (its other pairs 25 vs 8.333) | 50 / 37.5 | 17 | SETS
+  heart.step1e0.cy.response_pct | 23.53 | 4.762 | x4.94 | take 0 in 4 pairs | 35.29 / 7.143 | 5 | SETS
+  heart.step1e0.height.response_pct | 21.05 | 4.348 | x4.84 | take 0 in 4 pairs | 31.58 / 6.818 | 5 | SETS
+  heart.step1e0.progress.sharpness | 1.263 | 0.2197 | x5.75 | take 0 in 4 pairs | 1.895 / 1 | 1 | SETS
+  heart.step3e0.cy.peak_ms | 66.67 | 16.67 | x4.00 | take 0 in 4 pairs | 100 / 25 | 17 | SETS
+  heart.step3e0.cy.settle_ms | 33.33 | 8.333 | x4.00 | take 0 in 3 pairs | 50 / 25 | 17 | SETS
+  heart.step3e0.height.peak_ms | 66.67 | 16.67 | x4.00 | take 0 in 4 pairs | 100 / 25 | 17 | SETS
+  heart.step3e0.height.settle_ms | 116.7 | 16.67 | x7.00 | take 0 in 4 pairs | 175 / 25 | 17 | SETS
+  stack.step1e0.height.damping | 0.34 | 0.09 | x3.78 | take 0 in 2 pairs | 0.51 / 0.375 | 0.05 | SETS
+  stack.step1e0.height.response_pct | 31.25 | 4.762 | x6.56 | take 0 in 4 pairs | 46.87 / 7.5 | 5 | SETS
+  stack.step1e0.ymax.damping | 0.33 | 0.09 | x3.67 | take 0 in 2 pairs | 0.495 / 0.405 | 0.05 | SETS
+  stack.step1e0.ymax.response_pct | 31.25 | 4.762 | x6.56 | take 0 in 4 pairs | 46.87 / 7.5 | 5 | SETS
+  stack.step1e0.ymin.damping | 0.34 | 0.1 | x3.40 | take 0 in 2 pairs | 0.51 / 0.375 | 0.05 | SETS
+  stack.step1e0.ymin.response_pct | 31.25 | 4.762 | x6.56 | take 0 in 4 pairs | 46.87 / 7.5 | 5 | SETS
+  stack.step3e0.height.peak_ms | 25 | 8.333 | x3.00 | take 0 in 2 pairs | 37.5 / 25 | 17 | SETS
+  stack.step3e0.height.settle_ms | 25 | 8.333 | x3.00 | take 0 in 2 pairs | 37.5 / 25 | 17 | SETS
+  stack.step3e0.ymin.peak_ms | 66.67 | 16.67 | x4.00 | take 0 in 4 pairs | 100 / 25 | 17 | SETS
+  star.step1e0.width.response_pct | 10.42 | 1.887 | x5.52 | take 0 in 4 pairs | 15.63 / 5 | 5 | SETS
+  star.step3e0.height.response_pct | 7.767 | 1.942 | x4.00 | take 3 in 2 pairs | 11.65 / 8.571 | 5 | SETS
+  star.step3e0.width.response_pct | 12.5 | 2.273 | x5.50 | take 3 in 4 pairs | 18.75 / 5.114 | 5 | SETS
+  toggle.step1e0.width.response_pct | 10.42 | 1.887 | x5.52 | take 0 in 4 pairs | 15.63 / 5 | 5 | SETS
+  toggle.step3e0.luma.peak_ms | 391.7 | 50 | x7.83 | take 3 in 4 pairs | 587.5 / 75 | 17 | SETS
+
+material.morph.plain light-photo: 51 outliers of 236 measures, 39 set a limit
+  bolt.step1e0.cy.damping | 0.16 | 0.02 | x8.00 | take 2 in 4 pairs | 0.24 / 0.05 | 0.05 | SETS
+  bolt.step1e0.cy.peak_ms | 50 | 0 | med0 | take 1 in 4 pairs | 75 / 17 | 17 | SETS
+  bolt.step1e0.cy.response_pct | 54.55 | 6.25 | x8.73 | take 2 in 4 pairs | 81.82 / 9.375 | 5 | SETS
+  bolt.step1e0.height.damping | 0.05 | 0.01 | x5.00 | take 2 in 3 pairs | 0.075 / 0.05 | 0.05 | SETS
+  bolt.step1e0.height.response_pct | 42.86 | 5.556 | x7.71 | take 2 in 4 pairs | 64.29 / 16.67 | 5 | SETS
+  bolt.step1e0.height.settle_ms | 50 | 8.333 | x6.00 | take 1 in 4 pairs | 75 / 17 | 17 | SETS
+  bolt.step1e0.luma.overshoot_pct | 1.17 | 0.1791 | x6.53 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  bolt.step1e0.progress.overshoot_pct | 0.3005 | 0.03597 | x8.36 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  bolt.step3e0.height.settle_ms | 25 | 8.333 | x3.00 | pair 1-3 only; take 3 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  bolt.step3e0.luma.overshoot_pct | 2.459 | 0.363 | x6.77 | take 2 in 4 pairs | 3.688 / 2 | 2 | SETS
+  bolt.step3e0.luma.settle_ms | 308.3 | 8.333 | x37.00 | take 2 in 4 pairs | 462.5 / 17 | 17 | SETS
+  bolt.step3e0.progress.damping | 0.13 | 0.01 | x13.00 | take 2 in 4 pairs | 0.195 / 0.05 | 0.05 | SETS
+  bolt.step3e0.progress.response_pct | 5.833 | 1.667 | x3.50 | pair 1-2 only; take 2 likelier (its other pairs 4.089 vs 1.966) | 8.75 / 6.637 | 5 | SETS
+  bolt.step3e0.progress.settle_ms | 250 | 8.333 | x30.00 | take 2 in 4 pairs | 375 / 17 | 17 | SETS
+  bolt.step3e0.progress.t10_90_ms | 25 | 8.333 | x3.00 | pair 2-3 only; take 2 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  collapsed.step1e0.luma.peak_ms | 308.3 | 8.333 | x37.00 | take 1 in 4 pairs | 462.5 / 25 | 17 | SETS
+  collapsed.step1e0.progress.overshoot_pct | 4.57 | 0.131 | x34.88 | take 1 in 4 pairs | 6.855 / 2 | 2 | SETS
+  collapsed.step3e0.height.settle_ms | 66.67 | 16.67 | x4.00 | take 3 in 4 pairs | 100 / 25 | 17 | SETS
+  collapsed.step3e0.progress.overshoot_pct | 0.1334 | 0.03322 | x4.02 | take 1 in 3 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  collapsed.step3e0.progress.settle_ms | 50 | 8.333 | x6.00 | take 2 in 4 pairs | 75 / 17 | 17 | SETS
+  collapsed.step3e0.progress.sharpness | 1.444 | 0.4655 | x3.10 | take 3 in 3 pairs | 2.166 / 1.463 | 1 | SETS
+  heart.step1e0.cy.response_pct | 5.882 | 1.408 | x4.18 | take 2 in 2 pairs | 8.824 / 6.338 | 5 | SETS
+  heart.step1e0.height.response_pct | 9.091 | 1.695 | x5.36 | take 2 in 4 pairs | 13.64 / 5 | 5 | SETS
+  heart.step3e0.cy.overshoot_pct | 8.333 | 1.667 | x5.00 | take 1 in 4 pairs | 12.5 / 3.759 | 2 | SETS
+  heart.step3e0.progress.overshoot_pct | 0.6546 | 0.1585 | x4.13 | take 2 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  heart.step3e0.progress.settle_ms | 25 | 8.333 | x3.00 | pair 1-2 only; take 2 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  heart.step3e0.progress.t10_90_ms | 8.333 | 1.137e-13 | x73300775185067.50 | take 2 in 4 pairs | 17 / 17 | 17 | stays (limit unchanged)
+  stack.step1e0.height.response_pct | 3.261 | 1.064 | x3.07 | pair 2-3 only; take 2 likelier (its other pairs 2.486 vs 0.7055) | 5 / 5 | 5 | stays (limit unchanged)
+  stack.step1e0.luma.overshoot_pct | 0.3847 | 0.03297 | x11.67 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step1e0.luma.response_pct | 35.29 | 6.818 | x5.18 | take 2 in 3 pairs | 52.94 / 25.61 | 5 | SETS
+  stack.step1e0.progress.overshoot_pct | 4.579 | 0.1312 | x34.91 | take 1 in 4 pairs | 6.868 / 2 | 2 | SETS
+  stack.step1e0.ymin.response_pct | 5.303 | 0.7576 | x7.00 | take 1 in 4 pairs | 7.955 / 5 | 5 | SETS
+  stack.step3e0.luma.overshoot_pct | 0.7862 | 0.1954 | x4.02 | take 2 in 3 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step3e0.luma.response_pct | 5.357 | 1.786 | x3.00 | pair 0-1 only; take 1 likelier (its other pairs 3.955 vs 1.19) | 8.036 / 7.627 | 5 | SETS
+  stack.step3e0.luma.settle_ms | 41.67 | 8.333 | x5.00 | take 2 in 3 pairs | 62.5 / 37.5 | 17 | SETS
+  stack.step3e0.progress.overshoot_pct | 0.1335 | 0.03333 | x4.01 | take 1 in 3 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step3e0.progress.settle_ms | 50 | 8.333 | x6.00 | take 2 in 4 pairs | 75 / 17 | 17 | SETS
+  stack.step3e0.progress.sharpness | 1.444 | 0.4655 | x3.10 | take 3 in 3 pairs | 2.166 / 1.463 | 1 | SETS
+  star.step1e0.cy.settle_ms | 25 | 8.333 | x3.00 | take 1 in 2 pairs | 37.5 / 25 | 17 | SETS
+  star.step1e0.width.overshoot_pct | 0.7067 | 0.06381 | x11.07 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  star.step1e0.width.settle_ms | 50 | 16.67 | x3.00 | pair 1-2 only; take 1 likelier (its other pairs 33.33 vs 16.67) | 75 / 50 | 17 | SETS
+  star.step3e0.width.response_pct | 4.054 | 1.351 | x3.00 | pair 1-2 only; take 2 likelier (its other pairs 2.791 vs 1.358) | 6.081 / 5 | 5 | SETS
+  toggle.step1e0.cy.damping | 0.04 | 0.01 | x4.00 | take 2 in 4 pairs | 0.06 / 0.05 | 0.05 | SETS
+  toggle.step1e0.cy.overshoot_pct | 0.09432 | 0.0297 | x3.18 | pair 2-3 only; take 2 likelier (its other pairs 0.06257 vs 0.03175) | 2 / 2 | 2 | stays (limit unchanged)
+  toggle.step1e0.cy.response_pct | 7.143 | 1.887 | x3.79 | take 2 in 2 pairs | 10.71 / 8.491 | 5 | SETS
+  toggle.step1e0.height.peak_ms | 58.33 | 16.67 | x3.50 | take 3 in 3 pairs | 87.5 / 62.5 | 17 | SETS
+  toggle.step1e0.luma.overshoot_pct | 0.08759 | 0.01821 | x4.81 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  toggle.step1e0.luma.settle_ms | 25 | 8.333 | x3.00 | take 2 in 2 pairs | 37.5 / 25 | 17 | SETS
+  toggle.step1e0.width.damping | 0.04 | 0.01 | x4.00 | pair 2-3 only; take 2 likelier (its other pairs 0.03 vs 0.01) | 0.06 / 0.05 | 0.05 | SETS
+  toggle.step1e0.width.overshoot_pct | 2.267 | 0.5232 | x4.33 | take 2 in 4 pairs | 3.401 / 2 | 2 | SETS
+  toggle.step1e0.width.peak_ms | 33.33 | 8.333 | x4.00 | take 2 in 4 pairs | 50 / 17 | 17 | SETS
+
+material.morph.plain light-photo-reduce-motion: 57 outliers of 265 measures, 53 set a limit
+  bolt.step1e0.cy.damping | 0.08 | 0.02 | x4.00 | take 2 in 3 pairs | 0.12 / 0.075 | 0.05 | SETS
+  bolt.step1e0.cy.response_pct | 85 | 10 | x8.50 | take 2 in 4 pairs | 127.5 / 19.57 | 5 | SETS
+  bolt.step1e0.height.damping | 0.09 | 0.01 | x9.00 | take 2 in 4 pairs | 0.135 / 0.05 | 0.05 | SETS
+  bolt.step1e0.height.response_pct | 90.91 | 9.091 | x10.00 | take 2 in 4 pairs | 136.4 / 18 | 5 | SETS
+  bolt.step1e0.progress.response_pct | 23.68 | 5.263 | x4.50 | take 2 in 3 pairs | 35.53 / 22.34 | 5 | SETS
+  bolt.step1e0.progress.sharpness | 3.403 | 1.03 | x3.31 | pair 0-2 only; take 0 likelier (its other pairs 2.18 vs 1.223) | 5.105 / 3.811 | 1 | SETS
+  bolt.step3e0.cy.peak_ms | 108.3 | 8.333 | x13.00 | take 1 in 4 pairs | 162.5 / 25 | 17 | SETS
+  bolt.step3e0.cy.settle_ms | 41.67 | 8.333 | x5.00 | take 1 in 4 pairs | 62.5 / 17 | 17 | SETS
+  bolt.step3e0.height.peak_ms | 108.3 | 8.333 | x13.00 | take 1 in 4 pairs | 162.5 / 25 | 17 | SETS
+  bolt.step3e0.height.settle_ms | 33.33 | 8.333 | x4.00 | pair 1-3 only; take 1 likelier (its other pairs 22.22 vs 11.11) | 50 / 37.5 | 17 | SETS
+  bolt.step3e0.luma.peak_ms | 33.33 | 8.333 | x4.00 | take 1 in 2 pairs | 50 / 37.5 | 17 | SETS
+  bolt.step3e0.progress.overshoot_pct | 0.2451 | 0.04784 | x5.12 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  bolt.step3e0.progress.t10_90_ms | 25 | 8.333 | x3.00 | pair 0-4 only; take 0 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  collapsed.step1e0.height.peak_ms | 41.67 | 8.333 | x5.00 | take 2 in 4 pairs | 62.5 / 17 | 17 | SETS
+  collapsed.step1e0.height.settle_ms | 41.67 | 0 | med0 | take 2 in 4 pairs | 62.5 / 17 | 17 | SETS
+  collapsed.step3e0.height.peak_ms | 108.3 | 8.333 | x13.00 | take 1 in 4 pairs | 162.5 / 25 | 17 | SETS
+  collapsed.step3e0.height.settle_ms | 108.3 | 16.67 | x6.50 | take 1 in 4 pairs | 162.5 / 25 | 17 | SETS
+  collapsed.step3e0.progress.settle_ms | 33.33 | 8.333 | x4.00 | pair 1-3 only; take 1 likelier (its other pairs 22.22 vs 11.11) | 50 / 37.5 | 17 | SETS
+  heart.step1e0.cy.damping | 0.09 | 0.02 | x4.50 | take 2 in 3 pairs | 0.135 / 0.09 | 0.05 | SETS
+  heart.step1e0.cy.response_pct | 85 | 10 | x8.50 | take 2 in 4 pairs | 127.5 / 19.57 | 5 | SETS
+  heart.step1e0.height.damping | 0.09 | 0.01 | x9.00 | take 2 in 4 pairs | 0.135 / 0.05 | 0.05 | SETS
+  heart.step1e0.height.response_pct | 90.91 | 9.091 | x10.00 | take 2 in 4 pairs | 136.4 / 18 | 5 | SETS
+  heart.step1e0.luma.peak_ms | 41.67 | 8.333 | x5.00 | take 2 in 4 pairs | 62.5 / 17 | 17 | SETS
+  heart.step1e0.progress.response_pct | 88.89 | 11.11 | x8.00 | take 2 in 4 pairs | 133.3 / 27.27 | 5 | SETS
+  heart.step1e0.progress.t10_90_ms | 8.333 | 1.421e-14 | x586406201480533.00 | take 1 in 4 pairs | 17 / 17 | 17 | stays (limit unchanged)
+  heart.step3e0.height.settle_ms | 25 | 8.333 | x3.00 | pair 2-3 only; take 3 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  heart.step3e0.luma.overshoot_pct | 0.7898 | 0.1276 | x6.19 | take 1 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  heart.step3e0.progress.response_pct | 6.364 | 1.818 | x3.50 | take 2 in 2 pairs | 9.545 / 7.282 | 5 | SETS
+  stack.step1e0.height.response_pct | 60.98 | 10.87 | x5.61 | take 2 in 3 pairs | 91.46 / 47.73 | 5 | SETS
+  stack.step1e0.luma.response_pct | 41.03 | 5.128 | x8.00 | take 2 in 4 pairs | 61.54 / 10.71 | 5 | SETS
+  stack.step1e0.topology.split_ms | 41.67 | 8.333 | x5.00 | take 2 in 4 pairs | 62.5 / 17 | 17 | SETS
+  stack.step1e0.ymax.response_pct | 60.98 | 10.87 | x5.61 | take 2 in 3 pairs | 91.46 / 47.73 | 5 | SETS
+  stack.step1e0.ymin.response_pct | 60.98 | 10.87 | x5.61 | take 2 in 3 pairs | 91.46 / 47.73 | 5 | SETS
+  stack.step3e0.height.peak_ms | 108.3 | 8.333 | x13.00 | take 1 in 4 pairs | 162.5 / 25 | 17 | SETS
+  stack.step3e0.luma.peak_ms | 58.33 | 16.67 | x3.50 | pair 2-3 only; take 3 likelier (its other pairs 44.44 vs 13.89) | 87.5 / 75 | 17 | SETS
+  stack.step3e0.progress.settle_ms | 33.33 | 8.333 | x4.00 | pair 1-3 only; take 1 likelier (its other pairs 22.22 vs 11.11) | 50 / 37.5 | 17 | SETS
+  stack.step3e0.ymax.peak_ms | 108.3 | 8.333 | x13.00 | take 1 in 4 pairs | 162.5 / 25 | 17 | SETS
+  star.step1e0.cy.damping | 0.05 | 0.01 | x5.00 | take 2 in 4 pairs | 0.075 / 0.05 | 0.05 | SETS
+  star.step1e0.cy.response_pct | 20.43 | 3.191 | x6.40 | take 2 in 4 pairs | 30.65 / 6.452 | 5 | SETS
+  star.step1e0.height.damping | 0.04 | 0.01 | x4.00 | pair 2-3 only; take 2 likelier (its other pairs 0.02667 vs 0.01333) | 0.06 / 0.05 | 0.05 | SETS
+  star.step1e0.height.response_pct | 22.5 | 3.614 | x6.22 | take 2 in 4 pairs | 33.75 / 5.625 | 5 | SETS
+  star.step1e0.luma.overshoot_pct | 0.09344 | 0.02907 | x3.21 | pair 0-2 only; take 0 likelier (its other pairs 0.06358 vs 0.02986) | 2 / 2 | 2 | stays (limit unchanged)
+  star.step1e0.luma.peak_ms | 50 | 16.67 | x3.00 | pair 1-2 only; take 2 likelier (its other pairs 33.33 vs 16.67) | 75 / 62.5 | 17 | SETS
+  star.step1e0.luma.response_pct | 23.29 | 3.947 | x5.90 | take 2 in 4 pairs | 34.93 / 6.164 | 5 | SETS
+  star.step1e0.width.peak_ms | 58.33 | 16.67 | x3.50 | pair 1-2 only; take 1 likelier (its other pairs 36.11 vs 22.22) | 87.5 / 62.5 | 17 | SETS
+  star.step1e0.width.response_pct | 35.29 | 5.556 | x6.35 | take 2 in 4 pairs | 52.94 / 8.824 | 5 | SETS
+  star.step3e0.height.response_pct | 4.598 | 1.111 | x4.14 | take 2 in 2 pairs | 6.897 / 5 | 5 | SETS
+  star.step3e0.width.response_pct | 6.41 | 1.37 | x4.68 | take 0 in 4 pairs | 9.615 / 5 | 5 | SETS
+  step1e0.delay_ms | 36.67 | 11.67 | x3.14 | pair 0-2 only; take 2 likelier (its other pairs 26.11 vs 10.56) | 55 / 47.5 | 17 | SETS
+  toggle.step1e0.cy.damping | 0.05 | 0.01 | x5.00 | take 2 in 4 pairs | 0.075 / 0.05 | 0.05 | SETS
+  toggle.step1e0.cy.response_pct | 21.51 | 2.151 | x10.00 | take 2 in 4 pairs | 32.26 / 6.452 | 5 | SETS
+  toggle.step1e0.cy.settle_ms | 41.67 | 8.333 | x5.00 | take 2 in 4 pairs | 62.5 / 17 | 17 | SETS
+  toggle.step1e0.height.response_pct | 22.5 | 3.614 | x6.22 | take 2 in 4 pairs | 33.75 / 5.625 | 5 | SETS
+  toggle.step1e0.luma.response_pct | 21.52 | 3.659 | x5.88 | take 2 in 4 pairs | 32.28 / 5.696 | 5 | SETS
+  toggle.step1e0.width.peak_ms | 41.67 | 8.333 | x5.00 | take 2 in 4 pairs | 62.5 / 17 | 17 | SETS
+  toggle.step1e0.width.response_pct | 33.33 | 5.556 | x6.00 | take 2 in 4 pairs | 50 / 8.824 | 5 | SETS
+  toggle.step1e0.width.settle_ms | 50 | 8.333 | x6.00 | take 2 in 4 pairs | 75 / 17 | 17 | SETS
+
+material.morph.plain light-stripes: 17 outliers of 230 measures, 11 set a limit
+  bolt.step1e0.cy.damping | 0.09 | 0.02 | x4.50 | take 0 in 4 pairs | 0.135 / 0.05 | 0.05 | SETS
+  bolt.step1e0.progress.overshoot_pct | 0.1015 | 0.02904 | x3.50 | take 0 in 2 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  bolt.step3e0.luma.settle_ms | 41.67 | 8.333 | x5.00 | take 0 in 4 pairs | 62.5 / 17 | 17 | SETS
+  collapsed.step1e0.progress.damping | 0.16 | 0.04 | x4.00 | take 4 in 2 pairs | 0.24 / 0.18 | 0.05 | SETS
+  heart.step1e0.height.overshoot_pct | 1.119 | 0.2727 | x4.10 | take 4 in 3 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  heart.step1e0.height.settle_ms | 58.33 | 16.67 | x3.50 | take 2 in 2 pairs | 87.5 / 62.5 | 17 | SETS
+  stack.step1e0.luma.damping | 0.08 | 0.02 | x4.00 | take 1 in 3 pairs | 0.12 / 0.075 | 0.05 | SETS
+  stack.step1e0.progress.damping | 0.16 | 0.04 | x4.00 | pair 1-4 only; take 4 likelier (its other pairs 0.12 vs 0.04) | 0.24 / 0.18 | 0.05 | SETS
+  stack.step3e0.height.overshoot_pct | 0.08233 | 2.061e-05 | x3994.99 | take 2 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  stack.step3e0.luma.response_pct | 4.478 | 1.493 | x3.00 | pair 0-1 only; take 1 likelier (its other pairs 3.333 vs 0.995) | 6.716 / 6.429 | 5 | SETS
+  stack.step3e0.ymax.response_pct | 6.667 | 1.667 | x4.00 | take 1 in 2 pairs | 10 / 7.031 | 5 | SETS
+  toggle.step1e0.height.peak_ms | 108.3 | 16.67 | x6.50 | take 1 in 4 pairs | 162.5 / 37.5 | 17 | SETS
+  toggle.step1e0.luma.overshoot_pct | 0.0973 | 0.03204 | x3.04 | pair 0-1 only; take 1 likelier (its other pairs 0.07498 vs 0.02232) | 2 / 2 | 2 | stays (limit unchanged)
+  toggle.step1e0.width.overshoot_pct | 1.198 | 0.284 | x4.22 | take 4 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  toggle.step3e0.height.response_pct | 6.977 | 2.326 | x3.00 | pair 0-1 only; take 1 likelier (its other pairs 5.072 vs 1.55) | 10.47 / 9.783 | 5 | SETS
+  toggle.step3e0.luma.overshoot_pct | 0.3027 | 0.02296 | x13.19 | take 0 in 4 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  toggle.step3e0.luma.response_pct | 6.977 | 2.326 | x3.00 | pair 0-1 only; take 1 likelier (its other pairs 5.072 vs 1.55) | 10.47 / 9.783 | 5 | SETS
+
+material.morph.plain light-stripes-reduce-motion: 75 outliers of 250 measures, 72 set a limit
+  bolt.step1e0.cy.peak_ms | 25 | 0 | med0 | take 2 in 3 pairs | 37.5 / 17 | 17 | SETS
+  bolt.step1e0.height.peak_ms | 25 | 0 | med0 | take 2 in 3 pairs | 37.5 / 17 | 17 | SETS
+  bolt.step1e0.height.response_pct | 9.091 | 0 | med0 | take 4 in 3 pairs | 13.64 / 5 | 5 | SETS
+  bolt.step1e0.luma.overshoot_pct | 0.8492 | 0.1188 | x7.15 | take 2 in 3 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  bolt.step1e0.progress.overshoot_pct | 0.02717 | 0.001641 | x16.56 | take 1 in 3 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  bolt.step3e0.cy.peak_ms | 291.7 | 8.333 | x35.00 | take 0 in 4 pairs | 437.5 / 17 | 17 | SETS
+  bolt.step3e0.cy.response_pct | 20 | 4.348 | x4.60 | take 0 in 4 pairs | 30 / 7.609 | 5 | SETS
+  bolt.step3e0.cy.settle_ms | 233.3 | 25 | x9.33 | take 0 in 4 pairs | 350 / 50 | 17 | SETS
+  bolt.step3e0.height.peak_ms | 291.7 | 8.333 | x35.00 | take 0 in 4 pairs | 437.5 / 17 | 17 | SETS
+  bolt.step3e0.height.settle_ms | 250 | 16.67 | x15.00 | take 0 in 4 pairs | 375 / 25 | 17 | SETS
+  bolt.step3e0.luma.overshoot_pct | 2.16 | 0.5659 | x3.82 | take 0 in 2 pairs | 3.239 / 2.391 | 2 | SETS
+  bolt.step3e0.luma.peak_ms | 75 | 8.333 | x9.00 | take 0 in 4 pairs | 112.5 / 25 | 17 | SETS
+  bolt.step3e0.luma.settle_ms | 258.3 | 8.333 | x31.00 | take 0 in 4 pairs | 387.5 / 17 | 17 | SETS
+  bolt.step3e0.progress.response_pct | 3.478 | 0.8621 | x4.03 | take 4 in 2 pairs | 5.217 / 5 | 5 | SETS
+  bolt.step3e0.progress.rms | 0.2061 | 0.01549 | x13.31 | take 0 in 4 pairs | 0.3092 / 0.05 | 0.05 | SETS
+  bolt.step3e0.progress.settle_ms | 216.7 | 16.67 | x13.00 | take 0 in 4 pairs | 325 / 25 | 17 | SETS
+  bolt.step3e0.progress.t10_90_ms | 308.3 | 16.67 | x18.50 | take 0 in 4 pairs | 462.5 / 25 | 17 | SETS
+  collapsed.step1e0.luma.peak_ms | 91.67 | 25 | x3.67 | take 3 in 2 pairs | 137.5 / 100 | 17 | SETS
+  collapsed.step1e0.progress.overshoot_pct | 0.0005229 | 0.0001612 | x3.24 | take 4 in 2 pairs | 2 / 2 | 2 | stays (limit unchanged)
+  collapsed.step1e0.progress.sharpness | 1.45 | 0.4102 | x3.53 | take 2 in 2 pairs | 2.175 / 1.559 | 1 | SETS
+  collapsed.step3e0.height.overshoot_pct | 3.401 | 0 | med0 | take 4 in 3 pairs | 5.102 / 2 | 2 | SETS
+  collapsed.step3e0.progress.response_pct | 86.11 | 2.239 | x38.46 | take 0 in 4 pairs | 129.2 / 5 | 5 | SETS
+  collapsed.step3e0.progress.rms | 0.1333 | 0.01026 | x12.99 | take 0 in 4 pairs | 0.2 / 0.05 | 0.05 | SETS
+  collapsed.step3e0.progress.settle_ms | 300 | 8.333 | x36.00 | take 0 in 4 pairs | 450 / 17 | 17 | SETS
+  collapsed.step3e0.progress.sharpness | 9.11 | 1.202 | x7.58 | take 0 in 4 pairs | 13.67 / 1.952 | 1 | SETS
+  collapsed.step3e0.progress.t10_90_ms | 225 | 16.67 | x13.50 | take 0 in 4 pairs | 337.5 / 25 | 17 | SETS
+  heart.step1e0.cy.peak_ms | 25 | 0 | med0 | take 2 in 3 pairs | 37.5 / 17 | 17 | SETS
+  heart.step1e0.height.peak_ms | 25 | 0 | med0 | take 2 in 3 pairs | 37.5 / 17 | 17 | SETS
+  heart.step1e0.height.response_pct | 9.091 | 0 | med0 | take 4 in 3 pairs | 13.64 / 5 | 5 | SETS
+  heart.step3e0.cy.peak_ms | 350 | 100 | x3.50 | take 0 in 3 pairs | 525 / 350 | 17 | SETS
+  heart.step3e0.cy.settle_ms | 150 | 33.33 | x4.50 | take 0 in 4 pairs | 225 / 50 | 17 | SETS
+  heart.step3e0.height.damping | 0.14 | 0.04 | x3.50 | pair 0-3 only; take 0 likelier (its other pairs 0.09667 vs 0.04333) | 0.21 / 0.15 | 0.05 | SETS
+  heart.step3e0.height.peak_ms | 350 | 100 | x3.50 | take 0 in 3 pairs | 525 / 350 | 17 | SETS
+  heart.step3e0.height.settle_ms | 158.3 | 25 | x6.33 | take 0 in 4 pairs | 237.5 / 37.5 | 17 | SETS
+  heart.step3e0.progress.response_pct | 5.109 | 1.538 | x3.32 | pair 1-3 only; take 1 likelier (its other pairs 3.65 vs 1.527) | 7.664 / 5.474 | 5 | SETS
+  heart.step3e0.progress.rms | 0.1463 | 0.01598 | x9.16 | take 0 in 4 pairs | 0.2195 / 0.05 | 0.05 | SETS
+  heart.step3e0.progress.settle_ms | 250 | 8.333 | x30.00 | take 0 in 4 pairs | 375 / 17 | 17 | SETS
+  heart.step3e0.progress.t10_90_ms | 183.3 | 8.333 | x22.00 | take 0 in 4 pairs | 275 / 17 | 17 | SETS
+  stack.step1e0.height.peak_ms | 25 | 8.333 | x3.00 | pair 1-4 only; take 1 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  stack.step1e0.progress.sharpness | 1.764 | 0.4111 | x4.29 | take 2 in 3 pairs | 2.646 / 1 | 1 | SETS
+  stack.step1e0.topology.count | 38 | 0 | med0 | take 0 in 4 pairs | 57 / 0 | 0 | SETS
+  stack.step1e0.topology.neck_rms | 2.926 | 0.518 | x5.65 | no common take (5 pairs) | 4.39 / 1 | 1 | SETS
+  stack.step1e0.ymin.peak_ms | 25 | 8.333 | x3.00 | pair 1-4 only; take 1 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  stack.step3e0.height.damping | 0.11 | 0.02 | x5.50 | take 0 in 4 pairs | 0.165 / 0.05 | 0.05 | SETS
+  stack.step3e0.height.peak_ms | 350 | 50 | x7.00 | take 0 in 4 pairs | 525 / 100 | 17 | SETS
+  stack.step3e0.height.response_pct | 95.24 | 3.252 | x29.29 | take 0 in 4 pairs | 142.9 / 6.098 | 5 | SETS
+  stack.step3e0.height.settle_ms | 116.7 | 16.67 | x7.00 | take 0 in 4 pairs | 175 / 25 | 17 | SETS
+  stack.step3e0.luma.damping | 0.08 | 0.02 | x4.00 | take 0 in 3 pairs | 0.12 / 0.09 | 0.05 | SETS
+  stack.step3e0.luma.peak_ms | 358.3 | 25 | x14.33 | take 0 in 4 pairs | 537.5 / 37.5 | 17 | SETS
+  stack.step3e0.luma.settle_ms | 200 | 16.67 | x12.00 | take 0 in 4 pairs | 300 / 25 | 17 | SETS
+  stack.step3e0.progress.damping | 0.06 | 0.01 | x6.00 | take 0 in 4 pairs | 0.09 / 0.05 | 0.05 | SETS
+  stack.step3e0.progress.response_pct | 86.11 | 1.515 | x56.83 | take 0 in 4 pairs | 129.2 / 5 | 5 | SETS
+  stack.step3e0.progress.rms | 0.1334 | 0.01029 | x12.97 | take 0 in 4 pairs | 0.2001 / 0.05 | 0.05 | SETS
+  stack.step3e0.progress.settle_ms | 300 | 8.333 | x36.00 | take 0 in 4 pairs | 450 / 17 | 17 | SETS
+  stack.step3e0.progress.sharpness | 9.111 | 1.202 | x7.58 | take 0 in 4 pairs | 13.67 / 1.952 | 1 | SETS
+  stack.step3e0.progress.t10_90_ms | 225 | 8.333 | x27.00 | take 0 in 4 pairs | 337.5 / 17 | 17 | SETS
+  stack.step3e0.topology.count | 25 | 3 | x8.33 | take 0 in 4 pairs | 37.5 / 7.5 | 0 | SETS
+  stack.step3e0.ymax.damping | 0.13 | 0.02 | x6.50 | take 0 in 4 pairs | 0.195 / 0.05 | 0.05 | SETS
+  stack.step3e0.ymax.peak_ms | 333.3 | 41.67 | x8.00 | take 0 in 4 pairs | 500 / 75 | 17 | SETS
+  stack.step3e0.ymax.settle_ms | 150 | 8.333 | x18.00 | take 0 in 4 pairs | 225 / 17 | 17 | SETS
+  stack.step3e0.ymin.peak_ms | 350 | 100 | x3.50 | take 0 in 3 pairs | 525 / 350 | 17 | SETS
+  stack.step3e0.ymin.settle_ms | 75 | 8.333 | x9.00 | take 0 in 4 pairs | 112.5 / 17 | 17 | SETS
+  star.step1e0.cy.peak_ms | 25 | 8.333 | x3.00 | pair 1-4 only; take 1 likelier (its other pairs 16.67 vs 8.333) | 37.5 / 25 | 17 | SETS
+  star.step3e0.height.peak_ms | 58.33 | 8.333 | x7.00 | take 0 in 4 pairs | 87.5 / 17 | 17 | SETS
+  star.step3e0.height.response_pct | 45.95 | 4.63 | x9.92 | take 0 in 4 pairs | 68.92 / 8.333 | 5 | SETS
+  star.step3e0.height.settle_ms | 75 | 16.67 | x4.50 | take 0 in 4 pairs | 112.5 / 25 | 17 | SETS
+  star.step3e0.luma.overshoot_pct | 5.701 | 0.4688 | x12.16 | take 0 in 4 pairs | 8.551 / 2 | 2 | SETS
+  star.step3e0.luma.settle_ms | 125 | 8.333 | x15.00 | take 0 in 4 pairs | 187.5 / 17 | 17 | SETS
+  star.step3e0.width.damping | 0.1 | 0.02 | x5.00 | take 0 in 4 pairs | 0.15 / 0.05 | 0.05 | SETS
+  star.step3e0.width.peak_ms | 58.33 | 8.333 | x7.00 | take 0 in 4 pairs | 87.5 / 17 | 17 | SETS
+  star.step3e0.width.response_pct | 59.32 | 2.128 | x27.88 | take 0 in 4 pairs | 88.98 / 5 | 5 | SETS
+  star.step3e0.width.settle_ms | 83.33 | 16.67 | x5.00 | take 0 in 4 pairs | 125 / 25 | 17 | SETS
+  step1e0.delay_ms | 1208 | 23.33 | x51.78 | take 0 in 4 pairs | 1813 / 35 | 17 | SETS
+  toggle.step1e0.luma.peak_ms | 283.3 | 33.33 | x8.50 | take 2 in 3 pairs | 425 / 50 | 17 | SETS
+  toggle.step3e0.cy.response_pct | 5.556 | 0 | med0 | take 1 in 4 pairs | 8.333 / 5 | 5 | SETS
+
+material.respace light-photo: 1 outliers of 19 measures, 1 set a limit
+  pair.step3e0.topology.count | 2 | 0 | med0 | pair 1-4 only; takes indistinguishable | 3 / 0 | 0 | SETS

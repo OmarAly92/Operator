@@ -1,16 +1,21 @@
 const double ios27BlurRampExponent = 1.0;
 
+const double ios27MorphContentBlur = 1.5;
+
 const double ios27DefaultDisappearExponent = 3.1;
+const double ios27DefaultAppearExponent = 1.85;
 const double ios27DefaultDarkAppearGain = 0.0;
 const double ios27DefaultLightAppearGain = 0.0;
 const double ios27DefaultDarkReduceMotionAppearGain = 0.0;
 const double ios27DefaultLightReduceMotionAppearGain = 0.0;
 const double ios27SnappyDisappearExponent = 2.75;
+const double ios27SnappyAppearExponent = 1.95;
 const double ios27SnappyDarkAppearGain = 0.44;
 const double ios27SnappyLightAppearGain = 0.44;
 const double ios27SnappyDarkReduceMotionAppearGain = 0.6;
 const double ios27SnappyLightReduceMotionAppearGain = 0.6;
 const double ios27BouncyDisappearExponent = 2.7;
+const double ios27BouncyAppearExponent = 2.45;
 const double ios27BouncyDarkAppearGain = 0.5;
 const double ios27BouncyLightAppearGain = 0.5;
 const double ios27BouncyDarkReduceMotionAppearGain = 0.8;

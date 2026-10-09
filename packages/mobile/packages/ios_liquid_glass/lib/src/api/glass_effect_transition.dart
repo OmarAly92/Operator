@@ -1,1 +1,1 @@
-enum GlassEffectTransition { materialize, identity }
+enum GlassEffectTransition { materialize, identity, matchedGeometry }
