@@ -584,7 +584,7 @@ After the review fix wave (runs `20261002-200447` to `20261002-210140`; the firs
    - the flagged morph takes behind the noise floors (E8): third recordings of the four cases that cannot be recomputed without them, if the floors matter;
    - keep the simulator exclusive while recording, and stop a stale boot (gotcha 49).
    - 2B.2's recordings (native references, noise takes, Done runs; extracted frame caches deleted, regenerable from `video.mp4`) are archived at `/Users/omaraly/development/AI/glass-lab-runs/2b2/`, moved from the removed worktree `Operator-2b2/packages/mobile/build/glass_lab/`; run folders cited in `results-2b2.md` are under its `runs/`. The prototype worktrees (`Operator-2b2-proto`, `-h4`, `-morph`) and their runs were removed on 2026-10-09 with the user's approval; their commits stay on branches `proto/2b2`, `proto/2b2-h4` and `proto/2b2-morph`. Copy what a worktree needs; never record into the archive.
-   - Free disk was about 50 GB on 2026-10-09.
+   - Free disk was about 190 GB after the 2026-10-09 cleanup.
 
 2. **2A.2 (static-look polish)** is a to-do list, not yet planned: `docs/liquid_glass/02a-looks/todo-2a2.md`. The user decides when, likely alongside project 3, since the tinted rings are a prominent-button detail.
 3. **Pending user decisions:**
