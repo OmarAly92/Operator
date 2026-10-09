@@ -5,6 +5,8 @@ import {
 	prBrowserUrl,
 	prCardPresentation,
 	prDiffSummary,
+	prIdentityKey,
+	prRepoName,
 	prStatusRows,
 	prSummaryParts,
 	sessionPRDisplaySummaries,
@@ -698,5 +700,37 @@ describe("prSummaryParts", () => {
 			status: "None",
 			summary: "Draft PR · Not ready for review",
 		});
+	});
+});
+
+describe("prRepoName", () => {
+	it("reads the repo from the PR's html url before the repo field", () => {
+		expect(prRepoName(summary({ htmlUrl: "https://github.com/acme/api/pull/12", repo: "acme/web" }))).toBe("api");
+	});
+
+	it("falls back to the repo field when the urls name no PR", () => {
+		expect(
+			prRepoName({ url: "https://api.github.com/repos/acme/web/pulls/12", htmlUrl: undefined, repo: "acme/web" }),
+		).toBe("web");
+		expect(prRepoName({ url: "", repo: "git@github.com:acme/web.git" })).toBe("web");
+	});
+
+	it("is undefined when nothing names a repo", () => {
+		expect(prRepoName({ url: "", repo: "" })).toBeUndefined();
+	});
+});
+
+describe("prIdentityKey", () => {
+	it("keeps two repos' PRs with the same number apart", () => {
+		expect(prIdentityKey({ url: "https://github.com/acme/api/pull/12", number: 12 })).not.toBe(
+			prIdentityKey({ url: "https://github.com/acme/web/pull/12", number: 12 }),
+		);
+	});
+
+	it("ignores case and a trailing slash, and falls back to the number", () => {
+		expect(prIdentityKey({ url: "https://GitHub.com/acme/api/pull/12/", number: 12 })).toBe(
+			prIdentityKey({ url: "https://github.com/acme/api/pull/12", number: 12 }),
+		);
+		expect(prIdentityKey({ url: "", number: 12 })).toBe("#12");
 	});
 });

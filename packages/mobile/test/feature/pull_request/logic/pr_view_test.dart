@@ -46,6 +46,19 @@ void main() {
       expect(got, hasLength(1));
     });
 
+    test('keeps two repos\' PRs with the same number in one workspace', () {
+      final got = collectPrs([
+        session('ws', [
+          const SessionPrModel(url: 'https://github.com/acme/api/pull/12', number: 12, state: 'open'),
+          const SessionPrModel(url: 'https://github.com/acme/web/pull/12', number: 12, state: 'open'),
+        ]),
+      ]);
+      expect(got.map((e) => e.pr.url), [
+        'https://github.com/acme/api/pull/12',
+        'https://github.com/acme/web/pull/12',
+      ]);
+    });
+
     test('skips placeholder PRs with no real number', () {
       expect(collectPrs([session('alpha', [pr(number: 0)])]), isEmpty);
       expect(collectPrs([session('alpha', [pr(number: null)])]), isEmpty);
@@ -258,6 +271,22 @@ void main() {
 
     test('returns nothing when there is nothing blocking', () {
       expect(prBlockerLine(const SessionPrSummaryModel()), isNull);
+    });
+  });
+
+  group('prRepoName', () {
+    test('reads the repo from the PR URL first', () {
+      expect(prRepoName(url: 'https://github.com/acme/api/pull/12', repo: 'acme/web'), 'api');
+    });
+
+    test('falls back to the repo field', () {
+      expect(prRepoName(repo: 'acme/web'), 'web');
+      expect(prRepoName(url: '', repo: 'git@github.com:acme/web.git'), 'web');
+    });
+
+    test('is null when nothing names a repo', () {
+      expect(prRepoName(), isNull);
+      expect(prRepoName(url: '', repo: '  '), isNull);
     });
   });
 }

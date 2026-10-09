@@ -259,11 +259,11 @@ The worktree path does not change, so the running agent keeps its cwd and contex
 
 **Files:** `frontend/src/renderer/components/SessionInspector.tsx`, the project settings page, `packages/mobile/lib/feature/pull_request/`, `service/session/claim_pr.go`.
 
-- [ ] Project page lists child repos with path, remote, base branch and a Rescan button (Phase 3 API). Follow DESIGN.md.
-- [ ] PR cards show the repo (`SessionPRSummary.repo`).
-- [ ] Desktop Reviews and mobile PR list key PRs by URL, not number.
-- [ ] Claiming a PR accepts any repo in the workspace.
-- [ ] Frontend: `npx vitest run`, typecheck, lint. Mobile: `flutter analyze`, `flutter test`.
+- [ ] Project page lists child repos with path, remote, base branch and a Rescan button (Phase 3 API). Follow DESIGN.md. *(2026-09-28: the read-only list is in project settings → Intake; the Rescan button waits on Task 3.1.)*
+- [x] PR cards show the repo (`SessionPRSummary.repo`). Desktop names it in workspace sessions or when a session's PRs span repos; mobile names the short repo on every card.
+- [x] Desktop Reviews and mobile PR list key PRs by URL, not number.
+- [x] Claiming a PR accepts any repo in the workspace. A bare number resolves against the root origin, or the only child origin when the root has none.
+- [ ] Frontend: `npx vitest run`, typecheck, lint. Mobile: `flutter analyze`, `flutter test`. *(Frontend done 2026-09-28; mobile left to CI, no Flutter in the cloud session.)*
 
 ---
 

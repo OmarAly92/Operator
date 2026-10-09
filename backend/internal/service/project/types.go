@@ -36,9 +36,10 @@ type Degraded struct {
 
 // WorkspaceRepo is the project-detail read shape for a registered child repo.
 type WorkspaceRepo struct {
-	Name         string `json:"name"`
-	RelativePath string `json:"relativePath"`
-	Repo         string `json:"repo"`
+	Name          string `json:"name"`
+	RelativePath  string `json:"relativePath"`
+	Repo          string `json:"repo"`
+	DefaultBranch string `json:"defaultBranch,omitempty"`
 }
 
 type Branch struct {

@@ -31,6 +31,28 @@ class PrEntry extends Equatable {
   List<Object?> get props => [pr, session];
 }
 
+/// A PR URL normalised for comparison, or null when there is none.
+String? prUrlKey(String? url) {
+  final trimmed = url?.trim().toLowerCase();
+  if (trimmed == null || trimmed.isEmpty) return null;
+  return trimmed.endsWith('/') ? trimmed.substring(0, trimmed.length - 1) : trimmed;
+}
+
+/// The short name of the repo a PR belongs to ("api" for acme/api), read from
+/// the PR URL first and then the summary's repo field. A workspace session opens
+/// PRs in several repos, so `#12` alone does not say which one.
+String? prRepoName({String? url, String? repo}) {
+  final uri = Uri.tryParse(url?.trim() ?? '');
+  if (uri != null && uri.hasScheme) {
+    final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    if (segments.length >= 3 && segments[2] == 'pull') return segments[1];
+  }
+  var name = repo?.trim() ?? '';
+  if (name.endsWith('.git')) name = name.substring(0, name.length - 4);
+  name = name.substring(name.lastIndexOf('/') + 1);
+  return name.isEmpty ? null : name;
+}
+
 List<PrEntry> collectPrs(List<SessionModel> sessions) {
   final seen = <String>{};
   final out = <PrEntry>[];
@@ -38,7 +60,8 @@ List<PrEntry> collectPrs(List<SessionModel> sessions) {
     for (final pr in session.prs ?? const <SessionPrModel>[]) {
       final number = pr.number ?? 0;
       if (number <= 0) continue;
-      if (!seen.add('${session.projectId}#$number')) continue;
+      // Keyed by URL within a project: a workspace's api#12 and web#12 are two PRs.
+      if (!seen.add('${session.projectId}|${prUrlKey(pr.url) ?? '#$number'}')) continue;
       out.add(PrEntry(pr: pr, session: session));
     }
   }
