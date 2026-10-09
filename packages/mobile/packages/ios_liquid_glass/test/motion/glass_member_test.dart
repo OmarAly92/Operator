@@ -231,4 +231,35 @@ void main() {
     await tester.pump(const Duration(milliseconds: 16));
     expect(coordinator.ghosts, isEmpty);
   });
+
+  testWidgets('of two leavers with one id only the first pairs with an arrival that has already been placed', (tester) async {
+    await tester.pump();
+    final coordinator = GlassMotionCoordinator(vsync: const TestVSync());
+    addTearDown(coordinator.dispose);
+    final space = _Space(coordinator);
+    final namespace = GlassNamespace();
+    GlassMember place({bool inserted = false}) {
+      final member = coordinator.join(inserted: inserted, morphs: true, id: GlassEffectID('x', namespace))
+        ..attachBox(space.box)
+        ..shape = const LiquidRoundedRectangle(borderRadius: 20)
+        ..sharedMaterial = GlassMaterialSource(resolve: (_) => const GlassMaterial({}), side: 88);
+      member.sized(space.box.size);
+      return member;
+    }
+
+    final first = place(), second = place();
+    final arrival = place(inserted: true);
+    arrival.sync();
+    expect(coordinator.leave(first, animate: true), isTrue);
+    expect(coordinator.leave(second, animate: true), isTrue);
+    final ghosts = coordinator.takeGhosts();
+    expect(ghosts.map((ghost) => ghost.kind), [GlassGhostKind.content, GlassGhostKind.pending]);
+    expect(ghosts.first.member, first);
+    expect(ghosts.first.partner, arrival);
+    expect(ghosts.last.partner, isNull);
+    coordinator.dropGhosts();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(milliseconds: 16));
+  });
 }

@@ -66,4 +66,28 @@ void main() {
       }
     }
   });
+
+  group('known carry-in to project 3: the carried gradient of a fold of three different shapes flips at the first pair\'s bisector', () {
+    const cluster = [MirrorShape.circle(0, 0, 44), MirrorShape.circle(52, 0, 44), MirrorShape.circle(-7.68, 17.77, 44)];
+    const row = [MirrorShape.circle(0, 0, 44), MirrorShape.circle(52, 0, 44), MirrorShape.circle(104, 0, 44)];
+
+    double step(List<MirrorShape> shapes, double k) {
+      var worst = 0.0;
+      for (var y = -60.0; y <= 60; y += 0.05) {
+        worst = math.max(worst, (sceneSdf(shapes, 26 - 1e-5, y, k) - sceneSdf(shapes, 26 + 1e-5, y, k)).abs());
+      }
+      return worst;
+    }
+
+    test('the field steps by 0.877 at k = 8 and 2.159 at k = 20 across x = 26; h * 0.5 in the carried gradient (sdf.glsl and the mirror) removes it and moves every fold of three or more shapes', () {
+      expect(step(cluster, 8), closeTo(0.877, 0.002));
+      expect(step(cluster, 20), closeTo(2.159, 0.002));
+    });
+
+    test('a row of three equal circles at k = 8 or 20 and any two shapes are unaffected', () {
+      expect(step(row, 8), lessThan(1e-9));
+      expect(step(row, 20), lessThan(1e-9));
+      expect(step(cluster.sublist(0, 2), 20), lessThan(1e-9));
+    });
+  });
 }

@@ -110,6 +110,53 @@ class _SwapState extends State<_Swap> {
   }
 }
 
+class _SwapRow extends StatefulWidget {
+  const _SwapRow();
+
+  @override
+  State<_SwapRow> createState() => _SwapRowState();
+}
+
+class _SwapRowState extends State<_SwapRow> {
+  final GlassNamespace namespace = GlassNamespace();
+  bool first = true;
+
+  void swap() => setState(() => first = !first);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: GlassTheme(
+        data: const GlassThemeData(brightness: Brightness.dark),
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: GlassEffectContainer(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(width: first ? 20 : 300),
+                if (first)
+                  GlassEffect(
+                    key: const ValueKey('a'),
+                    id: GlassEffectID('x', namespace),
+                    child: const SizedBox(width: 100, height: 40, child: ColoredBox(color: Color(0xFFFF0000))),
+                  )
+                else
+                  GlassEffect(
+                    key: const ValueKey('b'),
+                    id: GlassEffectID('x', namespace),
+                    child: const SizedBox(width: 200, height: 80, child: ColoredBox(color: Color(0xFF00FF00))),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Chain extends StatefulWidget {
   const _Chain();
 
@@ -464,6 +511,31 @@ void main() {
     expect(member.contentOpacity.value, inExclusiveRange(0, 1));
     _expectRect(coordinator.ghosts.single.current, mid);
     expect(coordinator.ghosts.single.opacity.value, closeTo(1 - member.contentOpacity.value, 1e-9));
+    await tester.pumpAndSettle();
+    _expectRect(_onScreen(member), _layout(tester, 'b'));
+    expect(member.contentOpacity.value, 1);
+    expect(coordinator.ghosts, isEmpty);
+  });
+
+  testWidgets('a glass inserted before the one it replaces is removed pairs with it all the same: one glass springs from the old rect to the new', (tester) async {
+    await tester.pumpWidget(const _SwapRow());
+    await tester.pump(const Duration(seconds: 1));
+    final old = _onScreen(_member(tester, 'a'));
+    final coordinator = _coordinator(tester, 'a');
+    tester.state<_SwapRowState>(find.byType(_SwapRow)).swap();
+    await tester.pump();
+    final member = _member(tester, 'b');
+    _expectRect(_onScreen(member), old);
+    expect(member.presence, GlassPresence.present);
+    expect(coordinator.ghosts, hasLength(1));
+    expect(coordinator.ghosts.single.kind, GlassGhostKind.content);
+    expect(member.contentOpacity.value, 0);
+    _expectRect(coordinator.ghosts.single.current, old);
+    await tester.pump(const Duration(milliseconds: 120));
+    final mid = _onScreen(member);
+    expect(mid.left, inExclusiveRange(old.left, 300));
+    expect(member.contentOpacity.value, inExclusiveRange(0, 1));
+    _expectRect(coordinator.ghosts.single.current, mid);
     await tester.pumpAndSettle();
     _expectRect(_onScreen(member), _layout(tester, 'b'));
     expect(member.contentOpacity.value, 1);
