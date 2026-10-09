@@ -1,0 +1,16 @@
+== normal: failing 895, of which non-finite 553
+    420 key absent (travel under minimum on a side, or NaN series)
+     58 fit invalid ('native',) ('at',)
+     46 fit invalid ('native',) ('rms',)
+     12 fit invalid ('flutter', 'native') ('rms',)
+      8 fit invalid ('flutter', 'native') ('at', 'rms')
+      7 topology join_ms inf (join/split present in one app only)
+      2 fit invalid ('flutter',) ('rms',)
+   key-absent by shape/key: {('collapsed', 'cy'): 85, ('heart', 'width'): 85, ('bolt', 'width'): 85, ('collapsed', 'width'): 85, ('star', 'cy'): 45, ('heart', 'cy'): 5, ('bolt', 'cy'): 5, ('toggle', 'cy'): 5, ('star', 'width'): 5, ('toggle', 'width'): 5, ('stack', 'ymin'): 5, ('stack', 'ymax'): 5}
+== rm: failing 687, of which non-finite 423
+    360 key absent (travel under minimum on a side, or NaN series)
+     30 fit invalid ('native',) ('at',)
+     28 fit invalid ('native',) ('rms',)
+      4 fit invalid ('flutter', 'native') ('rms',)
+      1 topology neck_rms inf (join/split present in one app only)
+   key-absent by shape/key: {('collapsed', 'cy'): 80, ('heart', 'width'): 80, ('bolt', 'width'): 80, ('collapsed', 'width'): 80, ('star', 'cy'): 40}
