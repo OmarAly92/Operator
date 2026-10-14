@@ -152,6 +152,22 @@
     },
     "track": [
       "glass"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
     ]
   },
   {
@@ -192,6 +208,22 @@
     },
     "track": [
       "glass"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
     ]
   },
   {
@@ -232,6 +264,22 @@
     },
     "track": [
       "glass"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
     ]
   },
   {
@@ -272,6 +320,22 @@
     },
     "track": [
       "glass"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
     ]
   },
   {
@@ -312,6 +376,22 @@
     },
     "track": [
       "glass"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
     ]
   },
   {
@@ -352,7 +432,752 @@
     },
     "track": [
       "glass"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
     ]
+  },
+  {
+    "group": "material",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "id": "material.drag.fast",
+    "title": "Interactive glass press-drag at 800 pt/s",
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": "glass",
+          "to": {
+            "element": "glass",
+            "dx": 60
+          },
+          "pressDuration": 0.3,
+          "velocity": 800,
+          "hold": 0.5
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        46,
+        377,
+        310,
+        148
+      ]
+    },
+    "track": [
+      "glass"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
+    ]
+  },
+  {
+    "group": "material",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "id": "material.drag.out",
+    "title": "Interactive glass press-drag that ends 40 pt outside the glass",
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": "glass",
+          "to": {
+            "element": "glass",
+            "dx": 165
+          },
+          "pressDuration": 0.3,
+          "velocity": 120,
+          "hold": 0.5
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        1,
+        377,
+        400,
+        148
+      ]
+    },
+    "track": [
+      "glass"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
+    ]
+  },
+  {
+    "group": "material",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "id": "material.drag.far",
+    "title": "Interactive glass press-drag 300 pt down, ending 256 pt below the glass",
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": "glass",
+          "to": {
+            "element": "glass",
+            "dy": 300
+          },
+          "pressDuration": 0.3,
+          "velocity": 120,
+          "hold": 0.5
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        46,
+        377,
+        310,
+        148
+      ]
+    },
+    "track": [
+      "glass"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
+    ]
+  },
+  {
+    "group": "material",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "id": "material.drag.up",
+    "title": "Interactive glass press-drag 150 pt up, out through its top edge",
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "pressDrag": {
+          "from": "glass",
+          "to": {
+            "element": "glass",
+            "dy": -150
+          },
+          "pressDuration": 0.3,
+          "velocity": 120,
+          "hold": 0.5
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        46,
+        377,
+        310,
+        148
+      ]
+    },
+    "track": [
+      "glass"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
+    ]
+  },
+  {
+    "group": "material",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "id": "material.press.circle44",
+    "title": "Interactive glass press, 44 pt circle (held out of the press fit)",
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        142,
+        392,
+        118,
+        118
+      ]
+    },
+    "track": [
+      "glass"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
+    ]
+  },
+  {
+    "group": "material",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "id": "material.press.capsule36",
+    "title": "Interactive glass press, 120 by 36 capsule",
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        111,
+        401,
+        180,
+        100
+      ]
+    },
+    "track": [
+      "glass"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
+    ]
+  },
+  {
+    "group": "material",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "id": "material.press.250x150",
+    "title": "Interactive glass press, 250 by 150 capsule",
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        46,
+        346,
+        310,
+        210
+      ]
+    },
+    "track": [
+      "glass"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
+    ]
+  },
+  {
+    "group": "material",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "id": "material.press.300x250",
+    "title": "Interactive glass press, 300 by 250 rounded rectangle",
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        11,
+        286,
+        380,
+        330
+      ]
+    },
+    "track": [
+      "glass"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
+    ]
+  },
+  {
+    "group": "material",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "id": "material.press.120x250",
+    "title": "Interactive glass press, 120 by 250 portrait capsule (held out of the press fit)",
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        111,
+        296,
+        180,
+        310
+      ]
+    },
+    "track": [
+      "glass"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
+    ]
+  },
+  {
+    "group": "material",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "id": "material.neighbours.0",
+    "title": "Two interactive glasses 0 pt apart in a spacing-20 container, the left one pressed",
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "left",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "left": [
+        65,
+        393,
+        136,
+        116
+      ],
+      "right": [
+        233,
+        393,
+        104,
+        116
+      ]
+    },
+    "track": [
+      "left",
+      "right"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
+    ],
+    "pinned": {
+      "right": [
+        233,
+        419,
+        64,
+        64
+      ]
+    }
+  },
+  {
+    "group": "material",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "id": "material.neighbours.10",
+    "title": "Two interactive glasses 10 pt apart in a spacing-20 container, the left one pressed",
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "left",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "left": [
+        60,
+        393,
+        141,
+        116
+      ],
+      "right": [
+        238,
+        393,
+        104,
+        116
+      ]
+    },
+    "track": [
+      "left",
+      "right"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
+    ],
+    "pinned": {
+      "right": [
+        238,
+        419,
+        64,
+        64
+      ]
+    }
+  },
+  {
+    "group": "material",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "id": "material.neighbours.40",
+    "title": "Two interactive glasses 40 pt apart in a spacing-20 container, the left one pressed",
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "left",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "left": [
+        45,
+        393,
+        152,
+        116
+      ],
+      "right": [
+        253,
+        393,
+        104,
+        116
+      ]
+    },
+    "track": [
+      "left",
+      "right"
+    ],
+    "motion": [
+      "delay_ms",
+      "press.glow_peak",
+      "press.glow_rise_ms",
+      "press.glow_fade_ms",
+      "press.glow_drop",
+      "press.glow_drop_ms",
+      "press.glow_level",
+      "press.glow_half_ms",
+      "press.grow_w",
+      "press.grow_h",
+      "press.grow_ms",
+      "press.shrink_ms",
+      "press.stretch",
+      "press.centre"
+    ],
+    "pinned": {
+      "right": [
+        253,
+        419,
+        64,
+        64
+      ]
+    }
   },
   {
     "id": "material.flip",
