@@ -37,7 +37,15 @@ void main() {
         ),
       );
 
-  double scaleOf(WidgetTester tester) => tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale;
+  bool interactive(WidgetTester tester) => tester.widget<GlassEffect>(find.byType(GlassEffect)).glass.isInteractive;
+
+  ({bool pressed, double scale, double light}) pressOf(WidgetTester tester) => debugGlassPress(tester.element(find.byType(GlassEffect)));
+
+  Future<void> hold(WidgetTester tester, Duration duration) async {
+    for (var elapsed = Duration.zero; elapsed < duration; elapsed += const Duration(milliseconds: 16)) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+  }
 
   testWidgets('tap fires haptic then onPressed once', (tester) async {
     var taps = 0;
@@ -48,14 +56,22 @@ void main() {
     expect(haptics, hasLength(1));
   });
 
-  testWidgets('press scales up and release returns to rest', (tester) async {
+  testWidgets('press lights and grows the glass and release returns it to rest', (tester) async {
     await tester.pumpWidget(host(GlassButton.label(label: 'Edit', onPressed: () {})));
+    expect(interactive(tester), isTrue);
+    expect(find.byType(AnimatedScale), findsNothing);
     final gesture = await tester.startGesture(tester.getCenter(find.byType(GlassButton)));
     await tester.pump();
-    expect(scaleOf(tester), GlassSurface.pressedScale);
+    expect(pressOf(tester).pressed, isTrue);
+    expect(pressOf(tester).light, greaterThan(0));
+    await hold(tester, const Duration(milliseconds: 500));
+    expect(pressOf(tester).scale, greaterThan(1));
     await gesture.up();
+    await tester.pump();
+    expect(pressOf(tester).pressed, isFalse);
     await tester.pumpAndSettle();
-    expect(scaleOf(tester), 1.0);
+    expect(pressOf(tester).scale, 1.0);
+    expect(pressOf(tester).light, 0);
   });
 
   testWidgets('cancel returns to rest without calling onPressed', (tester) async {
@@ -63,38 +79,43 @@ void main() {
     await tester.pumpWidget(host(GlassButton.icon(icon: Icons.add, onPressed: () => taps++)));
     final gesture = await tester.startGesture(tester.getCenter(find.byType(GlassButton)));
     await tester.pump();
+    expect(pressOf(tester).pressed, isTrue);
     await gesture.cancel();
+    await tester.pump();
+    expect(pressOf(tester).pressed, isFalse);
     await tester.pumpAndSettle();
-    expect(scaleOf(tester), 1.0);
+    expect(pressOf(tester).scale, 1.0);
     expect(taps, 0);
   });
 
-  testWidgets('disabled button neither animates nor fires haptics', (tester) async {
+  testWidgets('disabled button neither presses nor fires haptics', (tester) async {
     await tester.pumpWidget(host(const GlassButton.icon(icon: Icons.add, onPressed: null)));
+    expect(interactive(tester), isFalse);
     final gesture = await tester.startGesture(tester.getCenter(find.byType(GlassButton)));
-    await tester.pump();
-    expect(scaleOf(tester), 1.0);
+    await hold(tester, const Duration(milliseconds: 500));
+    expect(pressOf(tester).pressed, isFalse);
+    expect(pressOf(tester).scale, 1.0);
     await gesture.up();
     await tester.pumpAndSettle();
     expect(haptics, isEmpty);
   });
 
-  testWidgets('reduce motion keeps scale at rest', (tester) async {
+  testWidgets('reduce motion presses the glass without growing it', (tester) async {
     await tester.pumpWidget(host(GlassButton.icon(icon: Icons.add, onPressed: () {}), reduceMotion: true));
     final gesture = await tester.startGesture(tester.getCenter(find.byType(GlassButton)));
     await tester.pump();
-    expect(scaleOf(tester), 1.0);
+    expect(pressOf(tester).pressed, isTrue);
+    await hold(tester, const Duration(seconds: 1));
+    expect(pressOf(tester).scale, 1.0);
     await gesture.up();
+    await tester.pumpAndSettle();
   });
 
-  testWidgets('disabled button renders no GlassGlow', (tester) async {
+  testWidgets('no button wraps its content in a GlassGlow of its own', (tester) async {
+    await tester.pumpWidget(host(GlassButton.icon(icon: Icons.add, onPressed: () {})));
+    expect(find.byType(GlassGlow), findsNothing);
     await tester.pumpWidget(host(const GlassButton.icon(icon: Icons.add, onPressed: null)));
     expect(find.byType(GlassGlow), findsNothing);
-  });
-
-  testWidgets('enabled button renders a GlassGlow', (tester) async {
-    await tester.pumpWidget(host(GlassButton.icon(icon: Icons.add, onPressed: () {})));
-    expect(find.byType(GlassGlow), findsOneWidget);
   });
 
   testWidgets('meets the 44pt minimum hit target', (tester) async {
@@ -104,7 +125,7 @@ void main() {
     expect(size.height, greaterThanOrEqualTo(44));
   });
 
-  testWidgets('disabling mid-press releases the pressed scale', (tester) async {
+  testWidgets('disabling mid-press releases the press and returns the glass to rest', (tester) async {
     VoidCallback? onPressed = () {};
     await tester.pumpWidget(
       host(
@@ -118,8 +139,10 @@ void main() {
       ),
     );
     final gesture = await tester.startGesture(tester.getCenter(find.byType(GlassButton)));
-    await tester.pump();
-    expect(scaleOf(tester), GlassSurface.pressedScale);
+    await hold(tester, const Duration(milliseconds: 500));
+    expect(interactive(tester), isTrue);
+    expect(pressOf(tester).pressed, isTrue);
+    expect(pressOf(tester).scale, greaterThan(1));
     onPressed = null;
     await tester.pumpWidget(
       host(
@@ -133,7 +156,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(scaleOf(tester), 1.0);
+    expect(interactive(tester), isFalse);
+    expect(pressOf(tester).pressed, isFalse);
+    expect(pressOf(tester).scale, 1.0);
     await gesture.up();
   });
 
