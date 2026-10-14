@@ -8,6 +8,7 @@ import numpy as np
 import align
 import metrics
 import shapes
+import takecheck
 import springfit
 import touch
 import track
@@ -309,6 +310,11 @@ def analyze(scene, case_dir, noise=None, cache=None):
         result["native_stalls"] = native.get("stalls", [])
         result["flutter_stalls"] = flutter.get("stalls", [])
         limits = shapes.limits(result["shapes"], scene, noise)
+        if takecheck.judged(scene):
+            for app, folder in (("native", native_dir), ("flutter", flutter_dir)):
+                checked = takecheck.read(folder) or takecheck.check(scene, folder)
+                result.setdefault("takecheck", {})[app] = checked
+                limits[f"capture.{app}"] = (float(len(checked["failures"])), 0, "max")
         measures.update({f"motion.{k}": v for k, v in limits.items()})
         checks.update({f"motion.{k}": within(*v) for k, v in limits.items()})
     elif not scene.rest:

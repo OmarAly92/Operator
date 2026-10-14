@@ -20,6 +20,7 @@ import record
 import report
 import shapes
 import sim
+import takecheck
 import tonefit
 import tune
 
@@ -70,14 +71,38 @@ def run_cases(udid, scenes, apps, appearances, backdrop, a11y, run_dir, flutter_
                     case_dir = run_dir / scene.id / case_name(appearance, chosen, a11y)
                     for app in ["native"] if scene.native_only else apps:
                         print(f"{scene.id} {case_dir.name} {app}", flush=True)
-                        try:
-                            record.capture(udid, scene, app, chosen, case_dir / app, flutter_target)
-                        except Exception as error:
-                            (case_dir / app).mkdir(parents=True, exist_ok=True)
-                            (case_dir / app / "error.txt").write_text(str(error))
-                            print(f"  failed: {error}", flush=True)
+                        capture_checked(udid, scene, app, chosen, case_dir, flutter_target)
     finally:
         sim.accessibility(udid, "none")
+
+
+RETRIES = 2
+
+
+def capture_checked(udid, scene, app, backdrop, case_dir, flutter_target="example", capture=None, check=None):
+    capture = capture or record.capture
+    check = check or takecheck.check
+    take = case_dir / app
+    for attempt in range(RETRIES + 1):
+        try:
+            capture(udid, scene, app, backdrop, take, flutter_target)
+        except Exception as error:
+            take.mkdir(parents=True, exist_ok=True)
+            (take / "error.txt").write_text(str(error))
+            print(f"  failed: {error}", flush=True)
+            return
+        if not takecheck.judged(scene):
+            return
+        result = check(scene, take)
+        if not result["failures"]:
+            return
+        print(f"  take check: {'; '.join(result['failures'])}", flush=True)
+        if attempt == RETRIES:
+            return
+        kept = case_dir / "excluded" / f"{app}-{attempt}"
+        kept.parent.mkdir(parents=True, exist_ok=True)
+        take.rename(kept)
+        (kept / "reason.txt").write_text("\n".join(result["failures"]) + "\n")
 
 
 def new_run_dir():
@@ -189,8 +214,28 @@ def canonical_takes(takes):
     return sorted(takes, key=key)
 
 
+LEVERAGE = 3.0
+LEVERAGE_TAKES = 5
+
+
+def leverage(pairs, threshold):
+    found = {}
+    for name, values in pairs.items():
+        if not name.endswith("_ms") or not values:
+            continue
+        (a, b), worst = max(values.items(), key=lambda item: item[1])
+        if worst * analyze.NOISE_FACTOR <= threshold:
+            continue
+        for take in (a, b):
+            rest = sorted(v for (i, j), v in values.items() if take not in (i, j))
+            if rest and worst > LEVERAGE * rest[len(rest) // 2]:
+                found[name] = {"take": take, "noise": worst, "median_without": rest[len(rest) // 2]}
+    return found
+
+
 def case_noise(scene, takes, case_root):
     worst, static_worst, cache = {}, 0.0, {}
+    pairs = {}
     takes = canonical_takes(takes)
     for i in range(len(takes)):
         for j in range(i + 1, len(takes)):
@@ -213,7 +258,41 @@ def case_noise(scene, takes, case_root):
             for name, value in found.items():
                 if math.isfinite(value):
                     worst[name] = max(worst.get(name, 0.0), value)
+                    pairs.setdefault(name, {})[(takes[i].name, takes[j].name)] = value
+    sources = {name: {"pair": list(max(values, key=values.get)), "noise": max(values.values())} for name, values in pairs.items()}
+    flagged = leverage(pairs, metrics.THRESHOLDS["time_ms"]) if len(takes) >= LEVERAGE_TAKES else {}
+    Path(case_root).mkdir(parents=True, exist_ok=True)
+    (Path(case_root) / "noise-sources.json").write_text(json.dumps({"sources": sources, "leverage": flagged}, indent=1, sort_keys=True))
     return worst, static_worst
+
+
+def record_checked(udid, scene, backdrop, folder, run_dir, times, capture=None, check=None):
+    capture = capture or record.capture
+    check = check or takecheck.check
+    judged = takecheck.judged(scene)
+    for number in take_numbers(folder):
+        take = folder / str(number)
+        if judged and takecheck.read(take) is None:
+            result = check(scene, take)
+            if result["failures"]:
+                print(f"{scene.id} {folder.name} take {number} excluded: {'; '.join(result['failures'])}", flush=True)
+                takecheck.exclude(take, run_dir, result)
+    kept, attempts = 0, 0
+    while kept < times and attempts < 3 * times:
+        attempts += 1
+        number = max(take_numbers(folder) + take_numbers(run_dir / "excluded" / folder.relative_to(run_dir)) + [-1]) + 1
+        take = folder / str(number)
+        print(f"{scene.id} {folder.name} take {number}", flush=True)
+        capture(udid, scene, "native", backdrop, take)
+        if judged:
+            result = check(scene, take)
+            if result["failures"]:
+                print(f"  excluded: {'; '.join(result['failures'])}", flush=True)
+                takecheck.exclude(take, run_dir, result)
+                continue
+        kept += 1
+    if kept < times:
+        raise SystemExit(f"{scene.id} {folder.name}: {kept} of {times} takes passed the take check in {attempts} attempts")
 
 
 def cmd_repeat(args):
@@ -223,7 +302,7 @@ def cmd_repeat(args):
     scenes = [manifest.select(manifest.load(), name)[0] for name in names]
     run_dir = Path(args.into) if args.into else new_run_dir()
     noise = load_noise()
-    failed = []
+    failed, leveraged = [], []
     try:
         sim.accessibility(udid, args.a11y)
         for scene in scenes:
@@ -234,13 +313,15 @@ def cmd_repeat(args):
                 sim.appearance(udid, appearance)
                 name = case_name(appearance, backdrop, args.a11y)
                 folder = run_dir / "takes" / scene.id / name
-                start = (take_numbers(folder) or [-1])[-1] + 1
-                for number in range(start, start + args.times):
-                    print(f"{scene.id} {name} take {number}", flush=True)
-                    record.capture(udid, scene, "native", backdrop, folder / str(number))
+                record_checked(udid, scene, backdrop, folder, run_dir, args.times)
                 takes = [folder / str(n) for n in take_numbers(folder)]
                 worst, static_worst = case_noise(scene, takes, run_dir / scene.id / name)
-                entry[name] = worst
+                flagged = json.loads((run_dir / scene.id / name / "noise-sources.json").read_text())["leverage"]
+                for measure, found in flagged.items():
+                    print(f"{scene.id} {name}: take {found['take']} sets {measure} ({found['noise']:.1f} against {found['median_without']:.1f} without it); this case's floor is not written")
+                    leveraged.append(f"{scene.id} {name} {measure} take {found['take']}")
+                if not flagged:
+                    entry[name] = worst
                 print(f"{scene.id} {name}: {len(takes)} takes, static mad {static_worst:.2f}, motion noise {json.dumps({k: round(v, 1) for k, v in worst.items()})}")
                 if static_worst > 1.0:
                     print(f"{scene.id} {name}: static repeatability FAILED (mad {static_worst:.2f} > 1.0)")
@@ -253,6 +334,8 @@ def cmd_repeat(args):
     print(run_dir)
     if failed:
         raise SystemExit(f"static repeatability failed for {', '.join(failed)}")
+    if leveraged:
+        raise SystemExit("one take sets a time limit above 3 x its siblings' median: " + "; ".join(leveraged))
 
 
 def cmd_reboot(args):
