@@ -2,6 +2,7 @@ import numpy as np
 
 import align
 import metrics
+import press
 import springfit
 import touch
 import track
@@ -30,6 +31,7 @@ MOTION_MEASURES = (
     "progress.damping",
     "progress.rms",
     "progress.sharpness",
+    *(f"press.{measure}" for measure in press.MEASURES),
 )
 LIMITS = {
     "delay_ms": "time_ms",
@@ -53,6 +55,11 @@ TRANSITION_SAMPLES = 2
 def regions(scene):
     names = list(scene.track) + [name for name in scene.topology if name not in scene.track]
     return {name: tuple(scene.regions[name]) for name in names}
+
+
+def pinned_px(rect, region_px):
+    x, y, w, h = track.pixel_rect(rect)
+    return x - region_px[0], y - region_px[1], x - region_px[0] + w - 1, y - region_px[1] + h - 1
 
 
 def inner_slices(rest_box, shape):
@@ -86,6 +93,7 @@ def capture(scene, case_dir, found):
         bare, full = track.crop_px(bare_full, px), track.crop_px(ready_full, px)
         edge_map = track.edges(bare)
         rest = track.box(full, bare, edge_map)
+        rest_px = pinned_px(scene.pinned[name], px) if name in scene.pinned else track.box_pixels(full, bare, edge_map)
         bare_pt, full_pt = shrink(bare), shrink(full)
         parts[name] = {
             "local": local,
@@ -96,6 +104,7 @@ def capture(scene, case_dir, found):
             "full_pt": full_pt,
             "inner": inner_slices(rest, bare_pt.shape),
             "rest": rest,
+            "rest_px": rest_px,
         }
     rows = {name: [] for name in parts}
     previous, diffs = None, []
@@ -106,6 +115,7 @@ def capture(scene, case_dir, found):
         for name, part in parts.items():
             crop = track.crop_px(frame, part["local"])
             row = track.shape_row(crop, part["bare"], part["edges"], part["origin"])
+            row["glow"] = track.glow(crop, part["rest_px"])
             row.update(track.progress_row(shrink(crop), part["bare_pt"], part["full_pt"], part["inner"]))
             if name in scene.topology:
                 row.update(track.topology_row(crop, part["bare"]))
@@ -418,6 +428,8 @@ def compare(scene, native, flutter):
             shape["first_frame"] = {"native": a.get("first_frame", {}).get(name), "flutter": b.get("first_frame", {}).get(name)}
             pair["shapes"][name] = shape
         result["pairs"][label] = pair
+    if any(measure.startswith("press.") for measure in scene.motion):
+        result["press"] = press.compare_steps(scene, native, flutter)
     return result
 
 
@@ -431,6 +443,10 @@ def measures(result):
                 for measure, value in entry.items():
                     if measure in LIMITS and isinstance(value, (int, float)):
                         found[f"{name}.{label}.{key}.{measure}"] = float(value)
+    for label, step in result.get("press", {}).items():
+        for name, entry in step.items():
+            for measure in press.MEASURES:
+                found[f"{name}.{label}.press.{measure}"] = float(entry[measure])
     return found
 
 
@@ -441,6 +457,8 @@ def expected(result, scene):
     names = []
     for label in labels:
         for measure in scene.motion:
+            if measure.startswith("press."):
+                continue
             if measure == "delay_ms":
                 names.append(f"{label}.delay_ms")
                 continue
@@ -451,6 +469,9 @@ def expected(result, scene):
             else:
                 owners = scene.track
             names += [f"{name}.{label}.{measure}" for name in owners]
+    wanted = [measure for measure in scene.motion if measure.startswith("press.")]
+    for index in touch.touch_steps(scene.steps) if wanted else ():
+        names += [f"{name}.step{index}.{measure}" for measure in wanted for name in scene.track]
     return names
 
 
@@ -468,7 +489,8 @@ def limits(result, scene, noise=None, factor=1.5):
     present = measures(result)
     for name in expected(result, scene):
         value = present.get(name, float("inf"))
-        threshold = metrics.THRESHOLDS[LIMITS[name.split(".")[-1]]]
+        last = name.split(".")[-1]
+        threshold = metrics.THRESHOLDS[press.LIMITS[last] if ".press." in name else LIMITS[last]]
         found[name] = (value, max(threshold, factor * noise.get(name, 0.0)), "max")
     return found
 

@@ -27,6 +27,7 @@ MOTION_MEASURES = (
     "progress.damping",
     "progress.rms",
     "progress.sharpness",
+    *(f"press.{measure}" for measure in ("glow_peak", "glow_rise_ms", "glow_fade_ms", "glow_drop", "glow_drop_ms", "glow_level", "glow_half_ms", "grow_w", "grow_h", "grow_ms", "shrink_ms", "stretch", "centre")),
 )
 
 
@@ -47,6 +48,7 @@ class Scene:
     motion: tuple = ()
     topology: tuple = ()
     edges: dict = field(default_factory=dict)
+    pinned: dict = field(default_factory=dict)
 
     @property
     def native_only(self):
@@ -148,6 +150,20 @@ def validate(raw):
                 errors.append(f"{where}: edges must map a region to a non-empty list of edge keys")
                 continue
             errors += [f"{where}: unknown edge {k}" for k in keys if k not in EDGE_KEYS]
+        pinned = entry.get("pinned", {})
+        if not isinstance(pinned, dict):
+            errors.append(f"{where}: pinned must map a tracked region to a glow rect")
+            pinned = {}
+        for name, rect in pinned.items():
+            if name not in tracked:
+                errors.append(f"{where}: pinned names a region that is not tracked {name}")
+            if not (isinstance(rect, list) and len(rect) == 4 and all(isinstance(v, (int, float)) for v in rect)):
+                errors.append(f"{where}: pinned {name} must be [x, y, w, h]")
+            elif name in regions:
+                rx, ry, rw, rh = regions[name]
+                x, y, w, h = rect
+                if x < rx or y < ry or x + w > rx + rw or y + h > ry + rh:
+                    errors.append(f"{where}: pinned {name} must lie inside its region")
         motion = entry.get("motion", [])
         if not isinstance(motion, list):
             errors.append(f"{where}: motion must be a list")
@@ -200,6 +216,7 @@ def parse(raw):
             motion=tuple(entry.get("motion", [])),
             topology=tracks(entry.get("topology")),
             edges={name: tuple(keys) for name, keys in entry.get("edges", {}).items()},
+            pinned={name: list(rect) for name, rect in entry.get("pinned", {}).items()},
         )
         for entry in raw
     ]
