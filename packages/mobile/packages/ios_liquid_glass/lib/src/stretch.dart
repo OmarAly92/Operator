@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:ios_liquid_glass/src/accessibility/glass_accessibility.dart';
 import 'package:ios_liquid_glass/src/internal/glass_drag_builder.dart';
 import 'package:meta/meta.dart';
 import 'package:motor/motor.dart';
@@ -70,6 +71,9 @@ class LiquidStretch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (stretch == 0 && interactionScale == 1.0) {
+      return child;
+    }
+    if (GlassAccessibility.of(context).reduceMotion) {
       return child;
     }
 
