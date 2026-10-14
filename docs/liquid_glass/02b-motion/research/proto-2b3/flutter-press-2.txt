@@ -1,0 +1,8 @@
+material.interactive dark-photo step1 glass: peak 20.61 rise_ms 48.334 fade_ms 416.667 drop 11.501 drop_ms 416.667 grow_w 12.0 grow_h 4.333 grow_ms 210.0 shrink_ms 161.667 stretch 0.004 centre 0.236
+material.interactive dark-photo step3 glass: peak 20.602 rise_ms 38.333 fade_ms 535.0 drop 11.564 drop_ms 535.0 grow_w 12.0 grow_h 4.333 grow_ms 175.0 shrink_ms 268.333 stretch 0.007 centre 0.373
+material.interactive dark-photo step1 glass: peak 18.506 rise_ms 15.0 fade_ms 433.333 drop 10.694 drop_ms 433.333 grow_w 12.667 grow_h 4.0 grow_ms 131.667 shrink_ms 166.667 stretch 0.006 centre 0.373
+material.interactive dark-photo step3 glass: peak 18.502 rise_ms 38.333 fade_ms 433.334 drop 10.682 drop_ms 433.334 grow_w 12.667 grow_h 4.0 grow_ms 155.0 shrink_ms 168.334 stretch 0.006 centre 0.373
+material.press.250x44 dark-photo step1 glass: peak 17.051 rise_ms 26.666 fade_ms 413.333 drop 11.32 drop_ms 413.333 grow_w 17.0 grow_h 3.0 grow_ms 133.333 shrink_ms 148.333 stretch 0.008 centre 0.527
+material.press.250x44 dark-photo step1 glass: peak 17.423 rise_ms 31.667 fade_ms 435.0 drop 10.856 drop_ms 435.0 grow_w 18.333 grow_h 3.0 grow_ms 131.667 shrink_ms 168.333 stretch 0.008 centre 0.236
+material.press.360x200 dark-photo step1 glass: peak 5.535 rise_ms 5.0 fade_ms 365.0 drop 0.75 drop_ms - grow_w 3.333 grow_h 2.0 grow_ms 100.0 shrink_ms 118.334 stretch -0.003 centre 0.471
+material.press.360x200 dark-photo step1 glass: peak 4.583 rise_ms 0.0 fade_ms 431.667 drop 0.576 drop_ms - grow_w 5.333 grow_h 3.0 grow_ms 25.0 shrink_ms 298.333 stretch -0.003 centre 0.373

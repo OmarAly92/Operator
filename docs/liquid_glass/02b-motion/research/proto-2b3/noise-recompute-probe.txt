@@ -1,0 +1,13 @@
+material.press.250x44 dark-photo old 36 changed 0 missing 0 added 11
+  changed: {}
+  added: {'glass.step1.press.centre': 0.15, 'glass.step1.press.glow_drop': 0.55, 'glass.step1.press.glow_drop_ms': 23.33, 'glass.step1.press.glow_fade_ms': 23.33, 'glass.step1.press.glow_peak': 0.04, 'glass.step1.press.glow_rise_ms': 28.33, 'glass.step1.press.grow_h': 0.0, 'glass.step1.press.grow_ms': 15.0, 'glass.step1.press.grow_w': 0.33, 'glass.step1.press.shrink_ms': 33.33, 'glass.step1.press.stretch': 0.0}
+material.press.250x44 dark-stripes old 39 changed 0 missing 0 added 11
+  changed: {}
+  added: {'glass.step1.press.centre': 0.04, 'glass.step1.press.glow_drop': 0.14, 'glass.step1.press.glow_drop_ms': 26.67, 'glass.step1.press.glow_fade_ms': 26.67, 'glass.step1.press.glow_peak': 0.17, 'glass.step1.press.glow_rise_ms': 20.0, 'glass.step1.press.grow_h': 0.0, 'glass.step1.press.grow_ms': 21.67, 'glass.step1.press.grow_w': 0.0, 'glass.step1.press.shrink_ms': 21.67, 'glass.step1.press.stretch': 0.0}
+material.press.250x44 light-photo old 32 changed 0 missing 0 added 11
+  changed: {}
+  added: {'glass.step1.press.centre': 0.33, 'glass.step1.press.glow_drop': 0.36, 'glass.step1.press.glow_drop_ms': 25.0, 'glass.step1.press.glow_fade_ms': 25.0, 'glass.step1.press.glow_peak': 0.06, 'glass.step1.press.glow_rise_ms': 13.33, 'glass.step1.press.grow_h': 0.0, 'glass.step1.press.grow_ms': 13.33, 'glass.step1.press.grow_w': 0.33, 'glass.step1.press.shrink_ms': 40.0, 'glass.step1.press.stretch': 0.0}
+material.press.250x44 light-stripes old 29 changed 0 missing 0 added 11
+  changed: {}
+  added: {'glass.step1.press.centre': 0.0, 'glass.step1.press.glow_drop': 0.09, 'glass.step1.press.glow_drop_ms': 21.67, 'glass.step1.press.glow_fade_ms': 21.67, 'glass.step1.press.glow_peak': 0.02, 'glass.step1.press.glow_rise_ms': 16.67, 'glass.step1.press.grow_h': 0.0, 'glass.step1.press.grow_ms': 16.67, 'glass.step1.press.grow_w': 0.0, 'glass.step1.press.shrink_ms': 23.33, 'glass.step1.press.stretch': 0.02}
+other scenes changed: []

@@ -1,0 +1,2407 @@
+{
+ "material.interactive/dark-photo/native": {
+  "motion": [
+   24,
+   30,
+   30
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    6,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    3,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {
+   "ready.bbox_pt": [
+    2.0,
+    1.0
+   ],
+   "settled.bbox_pt": [
+    2.0,
+    1.0
+   ]
+  },
+  "failing": {
+   "motion.glass.step1.press.glow_rise_ms": [
+    21.666,
+    17.0
+   ],
+   "motion.glass.step1.press.grow_ms": [
+    31.666,
+    17.0
+   ],
+   "motion.glass.step3.press.glow_drop_ms": [
+    125.0,
+    17.0
+   ],
+   "motion.glass.step3.press.glow_fade_ms": [
+    125.0,
+    17.0
+   ],
+   "motion.glass.step3.press.glow_half_ms": [
+    68.333,
+    17.0
+   ],
+   "motion.glass.step3.press.shrink_ms": [
+    200.0,
+    17.0
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.interactive",
+    "touches": [
+     [
+      15.6,
+      16.587
+     ],
+     [
+      20.835,
+      22.147
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.interactive",
+    "touches": [
+     [
+      13.573,
+      14.54
+     ],
+     [
+      18.057,
+      19.357
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.circle58/dark-photo/native": {
+  "motion": [
+   10,
+   16,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {
+   "ready.bbox_pt": [
+    5.0,
+    1.0
+   ],
+   "ready.centre_pt": [
+    2.5,
+    1.0
+   ],
+   "settled.bbox_pt": [
+    5.0,
+    1.0
+   ],
+   "settled.centre_pt": [
+    2.5,
+    1.0
+   ]
+  },
+  "failing": {
+   "motion.glass.step1.press.glow_drop_ms": [
+    53.333,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_fade_ms": [
+    53.333,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_half_ms": [
+    36.666,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_peak": [
+    12.918,
+    3.0
+   ],
+   "motion.glass.step1.press.grow_ms": [
+    33.333,
+    17.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    151.667,
+    17.0
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.circle58",
+    "touches": [
+     [
+      15.725,
+      16.718
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.circle58",
+    "touches": [
+     [
+      18.363,
+      19.335
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.138x53/dark-photo/native": {
+  "motion": [
+   14,
+   16,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {
+   "ready.rim_rms": [
+    6.359,
+    6.0
+   ],
+   "settled.rim_rms": [
+    6.359,
+    6.0
+   ]
+  },
+  "failing": {
+   "motion.glass.step1.press.glow_rise_ms": [
+    41.667,
+    17.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    133.333,
+    17.0
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.138x53",
+    "touches": [
+     [
+      15.953,
+      16.95
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.138x53",
+    "touches": [
+     [
+      17.542,
+      18.497
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.250x44/dark-photo/native": {
+  "motion": [
+   12,
+   16,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    1,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {},
+  "failing": {
+   "motion.glass.step1.press.glow_half_ms": [
+    51.667,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_rise_ms": [
+    36.667,
+    17.0
+   ],
+   "motion.step1e1.delay_ms": [
+    286.667,
+    45.0
+   ],
+   "motion.step1e2.delay_ms": [
+    411.667,
+    122.501
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.250x44",
+    "touches": [
+     [
+      19.638,
+      20.63
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.250x44",
+    "touches": [
+     [
+      17.543,
+      18.495
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.300x120/dark-photo/native": {
+  "motion": [
+   8,
+   9,
+   15
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    1,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    1.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {},
+  "failing": {
+   "motion.glass.step1.press.glow_drop_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_fade_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_half_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_peak": [
+    3.962,
+    3.0
+   ],
+   "motion.glass.step1.press.glow_rise_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.grow_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    "nan",
+    17.0
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.300x120",
+    "touches": [
+     [
+      15.742,
+      16.725
+     ]
+    ],
+    "failures": [
+     "capture hole (squeezed first frame) at 15.745 s"
+    ]
+   },
+   "flutter": {
+    "scene": "material.press.300x120",
+    "touches": [
+     [
+      17.258,
+      18.213
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.360x200/dark-photo/native": {
+  "motion": [
+   8,
+   9,
+   15
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    2,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    1.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {},
+  "failing": {
+   "motion.glass.step1.press.glow_drop_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_fade_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_half_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_rise_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.grow_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.grow_w": [
+    1.333,
+    1.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    "nan",
+    17.0
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.360x200",
+    "touches": [
+     [
+      15.935,
+      16.918
+     ]
+    ],
+    "failures": [
+     "capture hole (squeezed first frame) at 15.938 s"
+    ]
+   },
+   "flutter": {
+    "scene": "material.press.360x200",
+    "touches": [
+     [
+      17.128,
+      18.097
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.interactive/dark-stripes/native": {
+  "motion": [
+   21,
+   32,
+   32
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    6,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {},
+  "failing": {
+   "motion.glass.step1.press.glow_rise_ms": [
+    55.0,
+    17.0
+   ],
+   "motion.glass.step1.press.grow_ms": [
+    70.0,
+    17.0
+   ],
+   "motion.glass.step3.press.glow_drop_ms": [
+    126.666,
+    17.0
+   ],
+   "motion.glass.step3.press.glow_fade_ms": [
+    126.666,
+    17.0
+   ],
+   "motion.glass.step3.press.glow_half_ms": [
+    120.0,
+    17.0
+   ],
+   "motion.glass.step3.press.glow_rise_ms": [
+    18.334,
+    17.0
+   ],
+   "motion.glass.step3.press.grow_h": [
+    1.0,
+    1.0
+   ],
+   "motion.glass.step3.press.grow_ms": [
+    41.667,
+    17.0
+   ],
+   "motion.glass.step3.press.shrink_ms": [
+    20.0,
+    17.0
+   ],
+   "motion.step3e1.delay_ms": [
+    33.333,
+    17.5
+   ],
+   "motion.step3e2.delay_ms": [
+    163.333,
+    37.501
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.interactive",
+    "touches": [
+     [
+      15.467,
+      16.452
+     ],
+     [
+      20.718,
+      22.042
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.interactive",
+    "touches": [
+     [
+      17.03,
+      17.983
+     ],
+     [
+      21.48,
+      22.767
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.circle58/dark-stripes/native": {
+  "motion": [
+   9,
+   10,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    1.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {
+   "ready.bbox_pt": [
+    6.0,
+    1.0
+   ],
+   "ready.centre_pt": [
+    2.5,
+    1.0
+   ],
+   "settled.bbox_pt": [
+    6.0,
+    1.0
+   ],
+   "settled.centre_pt": [
+    2.5,
+    1.0
+   ]
+  },
+  "failing": {
+   "motion.glass.step1.press.glow_drop_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_fade_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_half_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_peak": [
+    4.415,
+    3.0
+   ],
+   "motion.glass.step1.press.glow_rise_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.grow_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    "nan",
+    17.0
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.circle58",
+    "touches": [
+     [
+      15.785,
+      16.778
+     ]
+    ],
+    "failures": [
+     "capture hole (burst) at 17.397 s"
+    ]
+   },
+   "flutter": {
+    "scene": "material.press.circle58",
+    "touches": [
+     [
+      18.525,
+      19.497
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.138x53/dark-stripes/native": {
+  "motion": [
+   7,
+   10,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    2.0,
+    0
+   ]
+  },
+  "statics_failing": {
+   "ready.rim_rms": [
+    6.462,
+    6.0
+   ],
+   "ready.bbox_pt": [
+    3.0,
+    1.0
+   ],
+   "ready.centre_pt": [
+    2.0,
+    1.0
+   ],
+   "settled.rim_rms": [
+    6.462,
+    6.0
+   ],
+   "settled.bbox_pt": [
+    3.0,
+    1.0
+   ],
+   "settled.centre_pt": [
+    2.0,
+    1.0
+   ]
+  },
+  "failing": {
+   "motion.glass.step1.press.glow_drop_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_fade_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_half_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_rise_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.grow_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.stretch": [
+    0.025,
+    0.01
+   ],
+   "motion.step1e1.delay_ms": [
+    81.667,
+    70.0
+   ],
+   "motion.step1e2.delay_ms": [
+    81.666,
+    62.502
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.138x53",
+    "touches": [
+     [
+      17.497,
+      18.483
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.138x53",
+    "touches": [
+     [
+      20.155,
+      21.042
+     ]
+    ],
+    "failures": [
+     "capture hole (squeezed first frame) at 20.158 s",
+     "capture hole (burst) at 20.158 s"
+    ]
+   }
+  }
+ },
+ "material.press.250x44/dark-stripes/native": {
+  "motion": [
+   10,
+   16,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {},
+  "failing": {
+   "motion.glass.step1.press.glow_drop_ms": [
+    18.333,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_fade_ms": [
+    18.333,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_half_ms": [
+    60.0,
+    17.0
+   ],
+   "motion.glass.step1.press.grow_w": [
+    1.333,
+    1.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    18.333,
+    17.0
+   ],
+   "motion.glass.step1.press.stretch": [
+    0.018,
+    0.01
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.250x44",
+    "touches": [
+     [
+      17.438,
+      18.427
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.250x44",
+    "touches": [
+     [
+      18.505,
+      19.487
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.300x120/dark-stripes/native": {
+  "motion": [
+   15,
+   16,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {
+   "ready.luminance": [
+    3.27,
+    3.0
+   ],
+   "ready.bbox_pt": [
+    2.0,
+    1.0
+   ],
+   "settled.luminance": [
+    3.27,
+    3.0
+   ],
+   "settled.bbox_pt": [
+    2.0,
+    1.0
+   ]
+  },
+  "failing": {
+   "motion.glass.step1.press.glow_rise_ms": [
+    38.333,
+    17.0
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.300x120",
+    "touches": [
+     [
+      17.435,
+      18.422
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.300x120",
+    "touches": [
+     [
+      17.182,
+      18.133
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.360x200/dark-stripes/native": {
+  "motion": [
+   9,
+   9,
+   15
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    2,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    1.0,
+    0
+   ]
+  },
+  "statics_failing": {},
+  "failing": {
+   "motion.glass.step1.press.glow_drop_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_fade_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_half_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_rise_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.grow_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    "nan",
+    17.0
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.360x200",
+    "touches": [
+     [
+      15.512,
+      16.505
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.360x200",
+    "touches": [
+     [
+      16.908,
+      17.853
+     ]
+    ],
+    "failures": [
+     "capture hole (squeezed first frame) at 16.912 s"
+    ]
+   }
+  }
+ },
+ "material.interactive/light-photo/native": {
+  "motion": [
+   22,
+   30,
+   30
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    7,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    4,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {
+   "ready.rim_rms": [
+    7.977,
+    6.0
+   ],
+   "settled.rim_rms": [
+    7.964,
+    6.0
+   ]
+  },
+  "failing": {
+   "motion.glass.step1.press.glow_half_ms": [
+    30.0,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_rise_ms": [
+    33.333,
+    17.0
+   ],
+   "motion.glass.step1.press.grow_ms": [
+    68.333,
+    17.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    28.332,
+    17.0
+   ],
+   "motion.glass.step3.press.glow_drop_ms": [
+    250.0,
+    17.0
+   ],
+   "motion.glass.step3.press.glow_fade_ms": [
+    250.0,
+    17.0
+   ],
+   "motion.glass.step3.press.glow_half_ms": [
+    50.0,
+    17.0
+   ],
+   "motion.step1e1.delay_ms": [
+    35.0,
+    17.0
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.interactive",
+    "touches": [
+     [
+      15.752,
+      16.748
+     ],
+     [
+      20.993,
+      22.32
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.interactive",
+    "touches": [
+     [
+      20.595,
+      21.532
+     ],
+     [
+      25.025,
+      26.315
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.circle58/light-photo/native": {
+  "motion": [
+   10,
+   16,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    1,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {},
+  "failing": {
+   "motion.glass.step1.press.glow_drop": [
+    4.136,
+    3.0
+   ],
+   "motion.glass.step1.press.glow_half_ms": [
+    36.666,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_level": [
+    3.597,
+    3.0
+   ],
+   "motion.glass.step1.press.glow_peak": [
+    8.554,
+    3.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    73.334,
+    17.0
+   ],
+   "motion.step1e0.delay_ms": [
+    23.333,
+    19.999
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.circle58",
+    "touches": [
+     [
+      16.13,
+      17.118
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.circle58",
+    "touches": [
+     [
+      17.46,
+      18.415
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.138x53/light-photo/native": {
+  "motion": [
+   11,
+   16,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {
+   "ready.rim_rms": [
+    13.189,
+    6.0
+   ],
+   "settled.rim_rms": [
+    13.199,
+    6.0
+   ]
+  },
+  "failing": {
+   "motion.glass.step1.press.glow_drop_ms": [
+    148.334,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_fade_ms": [
+    148.334,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_peak": [
+    3.082,
+    3.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    113.334,
+    17.0
+   ],
+   "motion.glass.step1.press.stretch": [
+    0.017,
+    0.01
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.138x53",
+    "touches": [
+     [
+      17.622,
+      18.603
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.138x53",
+    "touches": [
+     [
+      17.792,
+      18.762
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.250x44/light-photo/native": {
+  "motion": [
+   14,
+   16,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {},
+  "failing": {
+   "motion.glass.step1.press.grow_ms": [
+    28.333,
+    17.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    125.0,
+    17.0
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.250x44",
+    "touches": [
+     [
+      15.603,
+      16.593
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.250x44",
+    "touches": [
+     [
+      17.442,
+      18.43
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.300x120/light-photo/native": {
+  "motion": [
+   15,
+   16,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {
+   "ready.rim_rms": [
+    6.152,
+    6.0
+   ],
+   "settled.rim_rms": [
+    6.152,
+    6.0
+   ]
+  },
+  "failing": {
+   "motion.glass.step1.press.grow_ms": [
+    43.333,
+    17.0
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.300x120",
+    "touches": [
+     [
+      15.622,
+      16.605
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.300x120",
+    "touches": [
+     [
+      19.877,
+      20.847
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.360x200/light-photo/native": {
+  "motion": [
+   11,
+   14,
+   15
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    2,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {},
+  "failing": {
+   "motion.glass.step1.press.glow_fade_ms": [
+    56.667,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_rise_ms": [
+    21.667,
+    17.0
+   ],
+   "motion.glass.step1.press.grow_ms": [
+    40.0,
+    17.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    "inf",
+    17.0
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.360x200",
+    "touches": [
+     [
+      15.898,
+      16.882
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.360x200",
+    "touches": [
+     [
+      17.215,
+      18.17
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.interactive/light-stripes/native": {
+  "motion": [
+   15,
+   19,
+   31
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    6,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    1,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    2.0,
+    0
+   ]
+  },
+  "statics_failing": {},
+  "failing": {
+   "motion.glass.step1.press.glow_drop_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_fade_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_half_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_peak": [
+    3.216,
+    3.0
+   ],
+   "motion.glass.step1.press.glow_rise_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.grow_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step3.press.glow_drop_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step3.press.glow_fade_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step3.press.glow_half_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step3.press.glow_peak": [
+    3.219,
+    3.0
+   ],
+   "motion.glass.step3.press.glow_rise_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step3.press.grow_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step3.press.shrink_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.step3e1.delay_ms": [
+    58.333,
+    32.501
+   ],
+   "motion.step3e2.delay_ms": [
+    186.667,
+    47.5
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.interactive",
+    "touches": [
+     [
+      17.547,
+      18.525
+     ],
+     [
+      22.81,
+      24.127
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.interactive",
+    "touches": [
+     [
+      20.263,
+      21.248
+     ],
+     [
+      24.822,
+      26.082
+     ]
+    ],
+    "failures": [
+     "capture hole (33.3 ms lost while the glass moved) at 20.382 s",
+     "capture hole (squeezed first frame) at 24.823 s"
+    ]
+   }
+  }
+ },
+ "material.press.circle58/light-stripes/native": {
+  "motion": [
+   10,
+   16,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {},
+  "failing": {
+   "motion.glass.step1.press.glow_drop_ms": [
+    86.667,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_fade_ms": [
+    86.667,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_half_ms": [
+    43.333,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_rise_ms": [
+    35.0,
+    17.0
+   ],
+   "motion.glass.step1.press.grow_ms": [
+    18.333,
+    17.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    43.333,
+    17.0
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.circle58",
+    "touches": [
+     [
+      15.508,
+      16.503
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.circle58",
+    "touches": [
+     [
+      17.2,
+      18.173
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.138x53/light-stripes/native": {
+  "motion": [
+   14,
+   16,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {
+   "ready.rim_rms": [
+    12.187,
+    6.0
+   ],
+   "settled.rim_rms": [
+    12.187,
+    6.0
+   ]
+  },
+  "failing": {
+   "motion.glass.step1.press.glow_peak": [
+    3.457,
+    3.0
+   ],
+   "motion.glass.step1.press.stretch": [
+    0.012,
+    0.01
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.138x53",
+    "touches": [
+     [
+      15.663,
+      16.65
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.138x53",
+    "touches": [
+     [
+      17.67,
+      18.627
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.250x44/light-stripes/native": {
+  "motion": [
+   11,
+   16,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {},
+  "failing": {
+   "motion.glass.step1.press.glow_drop_ms": [
+    20.0,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_fade_ms": [
+    20.0,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_rise_ms": [
+    20.001,
+    17.0
+   ],
+   "motion.glass.step1.press.grow_ms": [
+    21.667,
+    17.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    36.666,
+    17.0
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.250x44",
+    "touches": [
+     [
+      17.71,
+      18.702
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.250x44",
+    "touches": [
+     [
+      17.827,
+      18.782
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.300x120/light-stripes/native": {
+  "motion": [
+   9,
+   10,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    1.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    1.0,
+    0
+   ]
+  },
+  "statics_failing": {},
+  "failing": {
+   "motion.glass.step1.press.glow_drop_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_fade_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_half_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_rise_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.grow_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    "nan",
+    17.0
+   ],
+   "motion.step1e2.delay_ms": [
+    41.666,
+    32.499
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.300x120",
+    "touches": [
+     [
+      15.59,
+      16.58
+     ]
+    ],
+    "failures": [
+     "capture hole (squeezed first frame) at 15.593 s"
+    ]
+   },
+   "flutter": {
+    "scene": "material.press.300x120",
+    "touches": [
+     [
+      17.37,
+      18.315
+     ]
+    ],
+    "failures": [
+     "capture hole (squeezed first frame) at 17.373 s"
+    ]
+   }
+  }
+ },
+ "material.press.360x200/light-stripes/native": {
+  "motion": [
+   8,
+   12,
+   15
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    2,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {},
+  "failing": {
+   "motion.glass.step1.press.glow_fade_ms": [
+    "inf",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_half_ms": [
+    "inf",
+    17.0
+   ],
+   "motion.glass.step1.press.glow_rise_ms": [
+    "inf",
+    17.0
+   ],
+   "motion.glass.step1.press.grow_ms": [
+    35.001,
+    17.0
+   ],
+   "motion.glass.step1.press.grow_w": [
+    5.333,
+    1.0
+   ],
+   "motion.glass.step1.press.stretch": [
+    0.031,
+    0.01
+   ],
+   "motion.step1e0.delay_ms": [
+    20.0,
+    17.5
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.360x200",
+    "touches": [
+     [
+      15.535,
+      16.523
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.360x200",
+    "touches": [
+     [
+      17.007,
+      17.977
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.250x150/dark-photo/native": {
+  "motion": [
+   13,
+   16,
+   16
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    3,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {
+   "ready.bbox_pt": [
+    4.0,
+    1.0
+   ],
+   "settled.bbox_pt": [
+    4.0,
+    1.0
+   ]
+  },
+  "failing": {
+   "motion.glass.step1.press.grow_ms": [
+    26.666,
+    17.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    153.333,
+    17.0
+   ],
+   "motion.glass.step1.press.stretch": [
+    0.01,
+    0.01
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.250x150",
+    "touches": [
+     [
+      27.085,
+      28.063
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.250x150",
+    "touches": [
+     [
+      17.31,
+      18.263
+     ]
+    ],
+    "failures": []
+   }
+  }
+ },
+ "material.press.300x250/dark-photo/native": {
+  "motion": [
+   8,
+   15,
+   15
+  ],
+  "gates": {
+   "motion.events.native_motion": [
+    2,
+    1
+   ],
+   "motion.events.steps": [
+    0,
+    0
+   ],
+   "motion.events.unpaired": [
+    0,
+    0
+   ],
+   "motion.touches.native": [
+    0,
+    0
+   ],
+   "motion.touches.flutter": [
+    0,
+    0
+   ],
+   "motion.capture.native": [
+    0.0,
+    0
+   ],
+   "motion.capture.flutter": [
+    0.0,
+    0
+   ]
+  },
+  "statics_failing": {},
+  "failing": {
+   "motion.glass.step1.press.glow_fade_ms": [
+    18.334,
+    17.0
+   ],
+   "motion.glass.step1.press.glow_rise_ms": [
+    55.0,
+    17.0
+   ],
+   "motion.glass.step1.press.grow_h": [
+    1.0,
+    1.0
+   ],
+   "motion.glass.step1.press.grow_w": [
+    1.333,
+    1.0
+   ],
+   "motion.glass.step1.press.shrink_ms": [
+    135.0,
+    17.0
+   ],
+   "motion.step1e0.delay_ms": [
+    18.334,
+    17.0
+   ],
+   "motion.step1e1.delay_ms": [
+    28.333,
+    17.0
+   ]
+  },
+  "takecheck": {
+   "native": {
+    "scene": "material.press.300x250",
+    "touches": [
+     [
+      16.278,
+      17.233
+     ]
+    ],
+    "failures": []
+   },
+   "flutter": {
+    "scene": "material.press.300x250",
+    "touches": [
+     [
+      17.42,
+      18.368
+     ]
+    ],
+    "failures": []
+   }
+  }
+ }
+}

@@ -1,0 +1,13 @@
+material.interactive dark-photo step1 glass: peak 20.61 rise_ms 0.0 fade_ms 415.0 drop 11.815 drop_ms 415.0 grow_w 12.0 grow_h 4.333 grow_ms 90.0 shrink_ms 161.666 stretch 0.004 centre 0.236
+material.interactive dark-photo step3 glass: peak 20.591 rise_ms 46.667 fade_ms 593.333 drop 11.591 drop_ms 593.333 grow_w 12.0 grow_h 4.333 grow_ms 156.667 shrink_ms 266.667 stretch 0.007 centre 0.373
+material.drag.fast dark-photo step1 glass: peak 20.628 rise_ms 33.334 fade_ms 473.334 drop 11.575 drop_ms 473.334 grow_w 12.0 grow_h 4.333 grow_ms 133.334 shrink_ms 281.667 stretch 0.007 centre 0.236
+material.drag.out dark-photo step1 glass: peak 20.611 rise_ms 0.0 fade_ms 563.334 drop 11.574 drop_ms 563.334 grow_w 12.667 grow_h 4.333 grow_ms 140.0 shrink_ms 131.667 stretch 0.012 centre 1.333
+material.neighbours.0 dark-photo step1 left: peak 23.485 rise_ms 81.666 fade_ms 553.333 drop 10.589 drop_ms 553.333 grow_w 6.0 grow_h 9.333 grow_ms 153.333 shrink_ms 315.0 stretch -0.051 centre 3.018
+material.neighbours.0 dark-photo step1 right: peak 0.392 rise_ms - fade_ms - drop 0.0 drop_ms - grow_w 0.0 grow_h 3.0 grow_ms - shrink_ms - stretch -0.042 centre 1.5
+material.neighbours.10 dark-photo step1 left: peak 23.527 rise_ms 0.0 fade_ms 548.333 drop 10.614 drop_ms 548.333 grow_w 11.0 grow_h 9.0 grow_ms 20.0 shrink_ms 313.333 stretch -0.01 centre 0.527
+material.neighbours.10 dark-photo step1 right: peak 0.021 rise_ms - fade_ms - drop 0.0 drop_ms - grow_w 5.667 grow_h 0.0 grow_ms 20.0 shrink_ms 135.0 stretch 0.047 centre 2.833
+material.neighbours.40 dark-photo step1 left: peak 23.858 rise_ms 85.0 fade_ms 553.334 drop 10.548 drop_ms 553.334 grow_w 12.0 grow_h 9.0 grow_ms 155.0 shrink_ms 316.667 stretch 0.004 centre 0.236
+material.neighbours.40 dark-photo step1 right: peak 0.004 rise_ms - fade_ms - drop 0.0 drop_ms - grow_w 0.0 grow_h 0.0 grow_ms - shrink_ms - stretch 0.0 centre 0.0
+material.interactive dark-photo-reduce-motion step1 glass: peak 19.626 rise_ms 25.0 fade_ms 570.0 drop 11.581 drop_ms 570.0 grow_w 0.0 grow_h 0.333 grow_ms - shrink_ms - stretch -0.004 centre 0.167
+material.interactive dark-photo-reduce-motion step3 glass: peak 19.621 rise_ms 51.667 fade_ms 568.333 drop 11.575 drop_ms 568.333 grow_w 0.0 grow_h 0.333 grow_ms - shrink_ms - stretch -0.004 centre 0.167
+material.drag.fast dark-photo-reduce-motion step1 glass: peak 19.608 rise_ms 25.0 fade_ms 558.333 drop 11.566 drop_ms 558.333 grow_w 0.0 grow_h 0.333 grow_ms - shrink_ms - stretch -0.004 centre 0.167

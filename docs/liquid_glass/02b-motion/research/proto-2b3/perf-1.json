@@ -1,0 +1,23 @@
+{
+  "perf.material": {
+    "takes": 4,
+    "frames": 1440,
+    "raster_median_ms": 13.4115,
+    "raster_p90_ms": 15.625,
+    "build_median_ms": 1.025
+  },
+  "perf.motion": {
+    "takes": 4,
+    "frames": 979,
+    "raster_median_ms": 14.501,
+    "raster_p90_ms": 17.374499999999998,
+    "build_median_ms": 3.2560000000000002
+  },
+  "perf.slide": {
+    "takes": 4,
+    "frames": 808,
+    "raster_median_ms": 15.1595,
+    "raster_p90_ms": 18.7185,
+    "build_median_ms": 2.873
+  }
+}

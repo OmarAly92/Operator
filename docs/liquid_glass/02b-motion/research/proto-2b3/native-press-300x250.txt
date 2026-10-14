@@ -1,0 +1,1 @@
+material.press.300x250 dark-photo step1 glass: glow_peak 5.718 glow_rise_ms 70.0 glow_fade_ms 365.0 glow_drop 0.763 glow_drop_ms - glow_level - glow_half_ms 216.667 grow_w 4.333 grow_h 3.667 grow_ms 155.0 shrink_ms 131.667 stretch -0.001 centre 0.236

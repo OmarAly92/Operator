@@ -1,0 +1,55 @@
+ok t00-setup: PASS 52 packages have newer versions incompatible with dependency constraints. | Try `flutter pub outdated` for more information.
+applied t01-tests
+ok t01-harness-red: FAIL FAILED (errors=1)
+applied t01-impl
+ok t01-harness-green: PASS Ran 18 tests in <time> | OK
+ok t01-gate-harness: PASS Ran 271 tests in <time> | OK
+applied t02-tests
+ok t02-harness-red: FAIL FAILED (failures=1, errors=3)
+applied t02-impl
+ok t02-harness-green: PASS Ran 7 tests in <time> | OK
+ok t02-manifest: PASS Ran 22 tests in <time> | OK
+ok t02-native: PASS built for 708879DD-8B2A-4547-863F-F49EE1474D8B
+ok t02-gate-harness: PASS Ran 274 tests in <time> | OK
+applied t03-tests
+ok t03-harness-red: FAIL FAILED (errors=9)
+applied t03-impl
+ok t03-harness-green: PASS Ran 37 tests in <time> | OK
+ok t03-gate-harness: PASS Ran 294 tests in <time> | OK
+applied t04-tests
+ok t04-harness-red: FAIL FAILED (errors=1)
+applied t04-impl
+ok t04-harness-green: PASS Ran 16 tests in <time> | OK
+ok t04-gate-harness: PASS Ran 310 tests in <time> | OK
+applied t05-tests
+ok t05-pkg-red: FAIL test/motion/glass_press_test.dart:275:19: Error: The getter 'press' isn't defined for the type 'GlassMember'.
+applied t05-impl
+ok t05-pkg-green: PASS +53: All tests passed!
+ok t05-table: PASS table reproduced by pressfit
+ok t05-gate-pkg-analyze: PASS No issues found! in <time>
+ok t05-gate-pkg-test: PASS +277: All tests passed!
+applied t06-tests
+ok t06-pkg-red: FAIL +0 -1: Some tests failed.
+applied t06-impl
+ok t06-pkg-green: PASS +1: All tests passed!
+ok t06-gate-pkg-analyze: PASS No issues found! in <time>
+ok t06-gate-pkg-test: PASS +278: All tests passed!
+applied t07-impl
+ok t07-gate-example-analyze: PASS No issues found! in <time>
+ok t07-gate-example-test: PASS +25: All tests passed!
+applied t08-impl
+ok t08-gate-example-analyze: PASS No issues found! in <time>
+ok t08-gate-example-test: PASS +25: All tests passed!
+applied t09-impl
+ok t09-mirror: PASS +10: All tests passed!
+ok t09-gate-pkg-analyze: PASS No issues found! in <time>
+ok t09-gate-pkg-test: PASS +280: All tests passed!
+applied t10-tests
+ok t10-app-red: FAIL +7 -5: Some tests failed.
+applied t10-impl
+ok t10-app-green: PASS +12: All tests passed!
+ok t10-gate-app-analyze: PASS No issues found! in <time>
+ok t10-gate-app-test: PASS +2188: All tests passed!
+applied t11-impl
+ok t11-readme: PASS 1
+18 patches, 36 runs, 0 problems

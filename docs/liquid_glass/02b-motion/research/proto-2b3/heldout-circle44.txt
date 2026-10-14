@@ -1,0 +1,9 @@
+material.press.circle44 dark-photo motion 9/15/15 gates {} statics []
+    glass.step1.press.glow_drop_ms [113.333, 17.0]
+    glass.step1.press.glow_fade_ms [113.333, 17.0]
+    glass.step1.press.glow_half_ms [26.667, 17.0]
+    glass.step1.press.glow_peak [10.441, 3.0]
+    glass.step1.press.shrink_ms [66.667, 17.0]
+    step1e1.delay_ms [20.0, 17.0]
+material.press.circle44 dark-photo step1 glass: peak 53.508 rise_ms 108.334 fade_ms 750.0 drop 9.85 drop_ms 750.0 level 9.875 half_ms 140.0 grow_w 16.667 grow_h 17.333 grow_ms 156.667 shrink_ms 335.0 stretch -0.023 centre 0.236
+material.press.circle44 dark-photo step1 glass: peak 43.067 rise_ms 101.667 fade_ms 636.667 drop 7.966 drop_ms 636.667 level 7.941 half_ms 166.667 grow_w 17.0 grow_h 17.333 grow_ms 151.667 shrink_ms 268.333 stretch -0.015 centre 0.236

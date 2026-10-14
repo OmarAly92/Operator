@@ -1,0 +1,99 @@
+PASS material.interactive 20261006-085522/material.interactive/dark-photo/native 
+PASS material.press.circle58 20261006-085825/material.press.circle58/dark-photo/native 
+PASS material.press.138x53 20261006-085825/material.press.138x53/dark-photo/native 
+PASS material.press.250x44 20261006-085825/material.press.250x44/dark-photo/native 
+FAIL material.press.300x120 20261006-085825/material.press.300x120/dark-photo/native capture hole (squeezed first frame) at 15.745 s
+FAIL material.press.360x200 20261006-085825/material.press.360x200/dark-photo/native capture hole (squeezed first frame) at 15.938 s
+PASS material.interactive 20261006-085522/material.interactive/dark-stripes/native 
+FAIL material.press.circle58 20261006-085825/material.press.circle58/dark-stripes/native capture hole (burst) at 17.397 s
+PASS material.press.138x53 20261006-085825/material.press.138x53/dark-stripes/native 
+PASS material.press.250x44 20261006-085825/material.press.250x44/dark-stripes/native 
+PASS material.press.300x120 20261006-085825/material.press.300x120/dark-stripes/native 
+PASS material.press.360x200 20261006-085825/material.press.360x200/dark-stripes/native 
+PASS material.interactive 20261006-085522/material.interactive/light-photo/native 
+PASS material.press.circle58 20261006-085825/material.press.circle58/light-photo/native 
+PASS material.press.138x53 20261006-085825/material.press.138x53/light-photo/native 
+PASS material.press.250x44 20261006-085825/material.press.250x44/light-photo/native 
+PASS material.press.300x120 20261006-085825/material.press.300x120/light-photo/native 
+PASS material.press.360x200 20261006-085825/material.press.360x200/light-photo/native 
+PASS material.interactive 20261006-085522/material.interactive/light-stripes/native 
+PASS material.press.circle58 20261006-085825/material.press.circle58/light-stripes/native 
+PASS material.press.138x53 20261006-085825/material.press.138x53/light-stripes/native 
+PASS material.press.250x44 20261006-085825/material.press.250x44/light-stripes/native 
+FAIL material.press.300x120 20261006-085825/material.press.300x120/light-stripes/native capture hole (squeezed first frame) at 15.593 s
+PASS material.press.360x200 20261006-085825/material.press.360x200/light-stripes/native 
+PASS material.interactive excluded/material.interactive/dark-photo/native 
+FAIL material.interactive excluded/material.interactive/dark-stripes/native capture hole (burst) at 24.360 s; capture hole (101.7 ms lost while the glass moved) at 24.142 s
+FAIL material.interactive takes/material.interactive/dark-photo/0 capture hole (squeezed first frame) at 22.862 s
+PASS material.interactive takes/material.interactive/dark-photo/1 
+PASS material.interactive takes/material.interactive/dark-photo/2 
+FAIL material.interactive takes/material.interactive/dark-photo/3 capture hole (118.3 ms lost while the glass moved) at 24.183 s
+FAIL material.interactive takes/material.interactive/dark-photo/4 capture hole (squeezed first frame) at 21.008 s
+FAIL material.interactive takes/material.interactive/light-photo/0 capture hole (squeezed first frame) at 15.978 s
+PASS material.interactive takes/material.interactive/light-photo/1 
+FAIL material.interactive takes/material.interactive/light-photo/2 capture hole (squeezed first frame) at 20.880 s
+PASS material.interactive takes/material.interactive/light-photo/3 
+PASS material.interactive takes/material.interactive/light-photo/4 
+PASS material.press.250x44 takes/material.press.250x44/dark-photo/0 
+PASS material.press.250x44 takes/material.press.250x44/dark-photo/1 
+PASS material.press.250x44 takes/material.press.250x44/dark-photo/2 
+PASS material.press.250x44 takes/material.press.250x44/dark-photo/3 
+FAIL material.press.250x44 takes/material.press.250x44/dark-photo/4 capture hole (squeezed first frame) at 16.832 s
+PASS material.press.250x44 takes/material.press.250x44/light-photo/0 
+PASS material.press.250x44 takes/material.press.250x44/light-photo/1 
+PASS material.press.250x44 takes/material.press.250x44/light-photo/2 
+FAIL material.press.250x44 takes/material.press.250x44/light-photo/3 capture hole (squeezed first frame) at 16.655 s
+FAIL material.press.250x44 takes/material.press.250x44/light-photo/4 capture hole (squeezed first frame) at 16.750 s
+PASS material.press.circle58 takes/material.press.circle58/dark-photo/0 
+FAIL material.press.circle58 takes/material.press.circle58/dark-photo/1 capture hole (squeezed first frame) at 15.692 s
+PASS material.press.circle58 takes/material.press.circle58/dark-photo/2 
+FAIL material.press.circle58 takes/material.press.circle58/dark-photo/3 capture hole (squeezed first frame) at 18.557 s
+FAIL material.press.circle58 takes/material.press.circle58/dark-photo/4 capture hole (squeezed first frame) at 19.112 s
+PASS material.press.circle58 takes/material.press.circle58/light-photo/0 
+PASS material.press.circle58 takes/material.press.circle58/light-photo/1 
+PASS material.press.circle58 takes/material.press.circle58/light-photo/2 
+FAIL material.press.circle58 takes/material.press.circle58/light-photo/3 capture hole (squeezed first frame) at 15.617 s
+FAIL material.press.circle58 takes/material.press.circle58/light-photo/4 capture hole (squeezed first frame) at 19.400 s
+PASS material.interactive 20261013-084629/material.interactive/dark-photo/flutter 
+PASS material.interactive 20261013-084629/material.interactive/dark-stripes/flutter 
+PASS material.interactive 20261013-084629/material.interactive/light-photo/flutter 
+PASS material.interactive 20261013-084629/material.interactive/light-stripes/flutter 
+PASS material.press.circle58 20261013-084932/material.press.circle58/dark-photo/flutter 
+PASS material.press.circle58 20261013-084932/material.press.circle58/dark-stripes/flutter 
+PASS material.press.circle58 20261013-084932/material.press.circle58/light-photo/flutter 
+PASS material.press.circle58 20261013-084932/material.press.circle58/light-stripes/flutter 
+FAIL material.press.138x53 20261013-085251/material.press.138x53/dark-photo/flutter capture hole (squeezed first frame) at 18.420 s
+PASS material.press.138x53 20261013-085251/material.press.138x53/dark-stripes/flutter 
+FAIL material.press.138x53 20261013-085251/material.press.138x53/light-photo/flutter capture hole (squeezed first frame) at 18.473 s; capture hole (burst) at 18.473 s
+PASS material.press.138x53 20261013-085251/material.press.138x53/light-stripes/flutter 
+PASS material.press.250x44 20261013-085842/material.press.250x44/dark-photo/flutter 
+PASS material.press.250x44 20261013-085842/material.press.250x44/dark-stripes/flutter 
+PASS material.press.250x44 20261013-085842/material.press.250x44/light-photo/flutter 
+PASS material.press.250x44 20261013-085842/material.press.250x44/light-stripes/flutter 
+FAIL material.press.300x120 20261013-090213/material.press.300x120/dark-photo/flutter capture hole (squeezed first frame) at 18.295 s
+PASS material.press.300x120 20261013-090213/material.press.300x120/dark-stripes/flutter 
+PASS material.press.300x120 20261013-090213/material.press.300x120/light-photo/flutter 
+PASS material.press.300x120 20261013-090213/material.press.300x120/light-stripes/flutter 
+PASS material.press.360x200 20261013-090628/material.press.360x200/dark-photo/flutter 
+PASS material.press.360x200 20261013-090628/material.press.360x200/dark-stripes/flutter 
+PASS material.press.360x200 20261013-090628/material.press.360x200/light-photo/flutter 
+FAIL material.press.360x200 20261013-090628/material.press.360x200/light-stripes/flutter capture hole (squeezed first frame) at 17.880 s
+PASS material.press.138x53 20261013-091446/material.press.138x53/light-photo/flutter 
+PASS material.interactive 20261009-084003/material.interactive/dark-photo/native 
+FAIL material.drag.far 20261009-084254/material.drag.far/dark-photo/native capture hole (squeezed first frame) at 17.178 s
+PASS material.drag.far 20261009-084517/material.drag.far/dark-photo/native 
+PASS material.drag.up 20261009-084601/material.drag.up/dark-photo/native 
+PASS material.drag.up 20261009-084726/material.drag.up/dark-photo/native 
+FAIL material.press.circle44 20261009-084811/material.press.circle44/dark-photo/native capture hole (squeezed first frame) at 16.058 s
+PASS material.press.circle44 20261009-103129/material.press.circle44/dark-photo/native 
+PASS material.press.circle44 20261013-084547/material.press.circle44/dark-photo/flutter 
+PASS material.interactive 20261009-085013/material.interactive/dark-photo-reduce-motion/native 
+PASS material.interactive 20261009-085102/material.interactive/dark-photo-reduce-motion/native 
+PASS material.interactive 20261009-085319/material.interactive/dark-photo-reduce-motion/native 
+PASS material.interactive 20261009-085453/material.interactive/dark-photo-reduce-motion/native 
+PASS material.interactive 20261009-085541/material.interactive/dark-photo-reduce-motion/native 
+PASS material.interactive 20261009-085628/material.interactive/dark-photo-reduce-motion/native 
+PASS material.press.250x150 20261009-121639/material.press.250x150/dark-photo/native 
+PASS material.press.250x150 20261013-084335/material.press.250x150/dark-photo/flutter 
+PASS material.press.300x250 20261013-084022/material.press.300x250/dark-photo/native 
+PASS material.press.300x250 20261013-084127/material.press.300x250/dark-photo/flutter 

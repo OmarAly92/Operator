@@ -1,0 +1,21 @@
+material.press.circle44 dark-photo native motion 10/15/15 gates {} statics []
+    glass.step1.press.glow_drop_ms [83.333, 17.0]
+    glass.step1.press.glow_fade_ms [83.333, 17.0]
+    glass.step1.press.glow_half_ms [26.667, 17.0]
+    glass.step1.press.glow_peak [10.275, 3.0]
+    glass.step1.press.shrink_ms [85.0, 17.0]
+material.press.120x250 dark-photo native motion 6/16/16 gates {} statics []
+    glass.step1.press.glow_peak [3.372, 3.0]
+    glass.step1.press.glow_rise_ms [46.667, 17.0]
+    glass.step1.press.grow_h [1.667, 1.0]
+    glass.step1.press.grow_ms [43.333, 17.0]
+    glass.step1.press.grow_w [1.667, 1.0]
+    glass.step1.press.shrink_ms [153.334, 17.0]
+    glass.step1.press.stretch [0.012, 0.01]
+    step1e0.delay_ms [28.333, 17.0]
+    step1e1.delay_ms [25.0, 17.0]
+    step1e2.delay_ms [41.667, 17.0]
+material.press.circle44 dark-photo step1 glass: peak 53.508 rise_ms 108.334 fade_ms 750.0 drop 9.85 drop_ms 750.0 level 9.875 half_ms 140.0 grow_w 16.667 grow_h 17.333 grow_ms 156.667 shrink_ms 335.0 stretch -0.023 centre 0.236
+material.press.circle44 dark-photo step1 glass: peak 43.233 rise_ms 120.0 fade_ms 666.667 drop 8.241 drop_ms 666.667 level 8.23 half_ms 166.667 grow_w 17.0 grow_h 17.333 grow_ms 170.0 shrink_ms 250.0 stretch -0.015 centre 0.333
+material.press.120x250 dark-photo step1 glass: peak 20.611 rise_ms 81.667 fade_ms 398.333 drop 11.028 drop_ms 398.333 level 11.559 half_ms 163.333 grow_w 5.0 grow_h 9.0 grow_ms 178.333 shrink_ms 163.333 stretch 0.006 centre 0.333
+material.press.120x250 dark-photo step1 glass: peak 17.239 rise_ms 35.0 fade_ms 400.0 drop 10.434 drop_ms 400.0 level 10.466 half_ms 166.667 grow_w 3.333 grow_h 7.333 grow_ms 135.0 shrink_ms 316.667 stretch -0.005 centre 0.333
