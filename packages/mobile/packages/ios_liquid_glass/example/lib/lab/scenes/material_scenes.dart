@@ -53,6 +53,23 @@ sealed class MaterialScenes {
       backdrop: launch.backdrop,
       children: [GlassLabMarker('glass', child: LabBlock(width: 250, height: 88, glass: Glass.regular.interactive()))],
     ),
+    'material.press.circle58': (launch) => _press(launch, 58, 58, shape: const GlassShape.circle()),
+    'material.press.138x53': (launch) => _press(launch, 138, 53),
+    'material.press.250x44': (launch) => _press(launch, 250, 44),
+    'material.press.300x120': (launch) => _press(launch, 300, 120),
+    'material.press.360x200': (launch) => _press(launch, 360, 200, shape: const GlassShape.rect(32)),
+    'material.drag.fast': (launch) => _press(launch, 250, 88),
+    'material.drag.out': (launch) => _press(launch, 250, 88),
+    'material.drag.far': (launch) => _press(launch, 250, 88),
+    'material.drag.up': (launch) => _press(launch, 250, 88),
+    'material.press.circle44': (launch) => _press(launch, 44, 44, shape: const GlassShape.circle()),
+    'material.press.capsule36': (launch) => _press(launch, 120, 36),
+    'material.press.250x150': (launch) => _press(launch, 250, 150),
+    'material.press.300x250': (launch) => _press(launch, 300, 250, shape: const GlassShape.rect(32)),
+    'material.press.120x250': (launch) => _press(launch, 120, 250),
+    'material.neighbours.0': (launch) => _neighbours(launch, 0),
+    'material.neighbours.10': (launch) => _neighbours(launch, 10),
+    'material.neighbours.40': (launch) => _neighbours(launch, 40),
     'material.shapes': (launch) => LabCentered(
       backdrop: launch.backdrop,
       gap: 40,
@@ -233,3 +250,25 @@ class _UnionSceneState extends State<UnionScene> {
     );
   }
 }
+
+Widget _press(GlassLabLaunch launch, double width, double height, {GlassShape shape = const GlassShape.capsule()}) => LabCentered(
+  backdrop: launch.backdrop,
+  children: [GlassLabMarker('glass', child: LabBlock(width: width, height: height, glass: Glass.regular.interactive(), shape: shape))],
+);
+
+Widget _neighbours(GlassLabLaunch launch, double gap) => LabCentered(
+  backdrop: launch.backdrop,
+  children: [
+    GlassEffectContainer(
+      spacing: 20,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GlassLabMarker('left', child: LabBlock(width: 120, height: 88, glass: Glass.regular.interactive())),
+          SizedBox(width: gap),
+          GlassLabMarker('right', child: LabBlock(width: 120, height: 88, glass: Glass.regular.interactive())),
+        ],
+      ),
+    ),
+  ],
+);
