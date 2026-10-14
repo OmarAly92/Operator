@@ -29,7 +29,7 @@ The glass is drawn behind the child, in the shape you choose, sized by the child
 | `.glassEffect(.clear)` | `GlassEffect(glass: Glass.clear, ...)` |
 | `.glassEffect(.regular.tint(.green))` | `GlassEffect(glass: Glass.regular.tint(green), ...)` |
 | `.glassEffect(.identity)` | `GlassEffect(glass: Glass.identity, ...)` |
-| `.glassEffect(.regular.interactive())` | `Glass.regular.interactive()` (the press arrives in a later version) |
+| `.glassEffect(.regular.interactive())` | `GlassEffect(glass: Glass.regular.interactive(), ...)` |
 | `.glassEffect(in: .circle)`, `.rect(cornerRadius:)`, capsule | `GlassShape.circle()`, `GlassShape.rect(r)`, `GlassShape.superellipse(r)`, `GlassShape.capsule()` |
 | `GlassEffectContainer(spacing:)`, `GlassEffectContainer()` | `GlassEffectContainer(spacing: 40, child: ...)`, `GlassEffectContainer(child: ...)` (native default, 8 pt) |
 | `@Namespace` | `GlassNamespace()`, created once in a `State` |
@@ -42,6 +42,7 @@ The glass is drawn behind the child, in the shape you choose, sized by the child
 | (no equivalent) | `GlassAnimationScope(animation: ..., child: ...)`, a default for a subtree; `GlassAnimation.none` turns animation off |
 | `.scrollEdgeEffectStyle(.soft / .hard / .automatic)` | `ScrollUnderBars(style: ScrollEdgeStyle.soft, child: ...)` or `ScrollEdgeEffect(...)` |
 | the 35% dimming layer under clear glass | `GlassDimming(child: ...)` |
+| (no equivalent; for widget tests only) | `debugGlassPress(element)`: whether the glass under `element` is pressed, its press scale and its light. Exported for tests that check a press, as `debugResetGlassAnimation` is; not an API for app code |
 
 ### Motion
 
@@ -77,6 +78,19 @@ A glass with a `GlassEffectID` and no `transition` morphs (`GlassEffectTransitio
 
 Glass in one container that shares a `GlassEffectUnion` (the same id in the same `GlassNamespace`), the same shape and the same `Glass` draws as one shape at any distance, as native's `.glassEffectUnion` does: a shape on the bounding rect of the members' drawn rects, so it follows a member that moves. Circles and capsules become a capsule of that rect, as native draws two 64 pt circles 16 pt apart as one 144 × 64 pt capsule; rounded rectangles and superellipses keep their corner radius. Each member's content stays where that member is laid out. A union counts as one shape against a container's 16 shapes, and blends with the container's other glass by `spacing` like any shape. Glass with the same union id but a different shape or `Glass` forms its own union. A member that is materializing draws on its own and joins its union when it settles; a removed member leaves its union at once and dematerializes on its own. A union needs a container: glass outside one draws on its own whatever its union. The fallback renderer without shader support (`FakeGlass`) draws each member on its own.
 
+### Press
+
+Interactive glass (`Glass.regular.interactive()`, or `.interactive()` on any `Glass`) reacts to a touch as native interactive glass does on the iOS 27 simulator:
+- **It lights at once and grows second.** On touch-down the glass brightens in the frame of the touch: an even light over the whole glass and a brighter spot under the finger that follows it. About 50 ms later the glass and its content scale up together about their centre, on a spring that overshoots a little and settles. The scale is uniform, the same factor on both axes, and falls with size: the **settled** growth in width is min(15.84, 9.73 × (100 / height)^1.24) pt (15.84 pt for glass up to about 67 pt tall, 11.4 pt at 88 pt, 4.1 pt at 200 pt), within 0.88 pt of native's at every landscape size measured, from 58 × 58 to 360 × 200 and 300 × 250, and the height grows by the same factor. A width term was fitted too and adds nothing measurable at those sizes.
+- **Release.** On touch-up the glass springs back to its size, slightly under it and back. The spot fades while the even light stays, and then all the light goes in one frame, later for small glass than for large: about 650 ms after release for a 58 pt circle, 400 ms for a 250 × 88 capsule.
+- **Drags.** A finger that moves keeps the press, the spot following it, and the glass does not stretch while the finger is inside it. Leaving the glass does not release it: native glass stays pressed until the finger lifts, measured with the finger 40 pt beside it, 106 pt above it and 256 pt below it. Native glass also leans a little toward a finger outside it (up to about 1.7 pt and 3.5 % of its aspect at 256 pt); this package does not.
+- **Neighbours.** Pressing one glass in a container does not light or scale its neighbours. A pressed glass that grows toward a neighbour within `spacing` blends with it as any glass does.
+- **Touches.** The glass listens to raw pointer events and never enters the gesture arena, so a button inside interactive glass keeps its tap and the glass presses too. Any touch inside the glass's shape counts, whatever its content, and the glass takes that touch: inside its shape, interactive glass is opaque to hit testing, so a widget behind it does not get the touch. With interactive glass nested in interactive glass only the innermost presses, and a second finger is ignored. A scroll view that scrolls while the finger is down releases the press; no native recording of that exists, it is the design.
+- **Reduce Motion.** The glass lights as usual and never grows; the light goes about 560 ms after release.
+- **What differs from native, measured.** Native's light changes the glass's colour on saturated backdrops (it brightens and saturates it); this package adds white. Native's light lasts longer after a press-drag than after a press. Measured limits of the size law: a 120 × 250 portrait capsule, which the law was not fitted on, grows 1.55 pt less in width here than in native, and a 300 × 250 rectangle 0.88 pt less; every other measured size is within 0.55 pt. The details are in the repository's `docs/liquid_glass/02b-motion/results-2b3.md`.
+
+The numbers come from the lab: `pressfit.py` fits the size law, the growth and release springs, the light's timing, its strength and its cut per glass size on native recordings that pass the lab's take check, and writes `ios27_press.dart`.
+
 ### Theme
 
 `GlassTheme` is optional. Without it, glass follows the platform brightness.
@@ -99,6 +113,8 @@ GlassTheme(
 ### Accessibility
 
 Reduce Transparency, Increase Contrast and Reduce Motion are read live. On iOS a small plugin reports Reduce Transparency, which Flutter's `MediaQuery` does not expose. Glass switches to its tuned `reduceTransparency` or `increaseContrast` material without a restart. `GlassAccessibility.of(context)` returns the current values.
+
+Under Reduce Motion glass does what native glass does under it, measured, not guessed: materialize keeps its timing and blur and overshoots more (above); merge and morph change nothing but morphing glass, which slides at full size with its content fading in sharp; a press lights the glass without growing it. `LiquidStretch` does nothing under Reduce Motion. A change of the setting applies from the next change.
 
 ### Size
 
