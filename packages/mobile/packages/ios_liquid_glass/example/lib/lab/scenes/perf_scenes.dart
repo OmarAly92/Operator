@@ -1,5 +1,8 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
@@ -18,6 +21,8 @@ sealed class PerfScenes {
     'perf.glass': (launch) => const PerfScene(id: 'perf.glass'),
     'perf.material': (launch) => const PerfScene(id: 'perf.material'),
     'perf.edge': (launch) => const PerfScene(id: 'perf.edge'),
+    'perf.motion': (launch) => const PerfScene(id: 'perf.motion'),
+    'perf.slide': (launch) => const PerfScene(id: 'perf.slide'),
   };
 
   static Map<String, double> stats(List<double> values) {
@@ -77,13 +82,31 @@ class _PerfSceneState extends State<PerfScene> with SingleTickerProviderStateMix
     super.dispose();
   }
 
-  Widget _glass(double radius, Widget child) => widget.id == 'perf.material'
+  Widget _glass(double radius, Widget child) => widget.id == 'perf.material' || widget.id == 'perf.slide'
       ? GlassEffect(child: child)
       : LiquidGlass.withOwnLayer(
           settings: const LiquidGlassSettings(),
           shape: LiquidRoundedSuperellipse(borderRadius: radius),
           child: child,
         );
+
+  Widget _layout() => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (var row = 0; row < 4; row++)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var column = 0; column < 3; column++)
+                Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: _glass(22, const SizedBox(width: 110, height: 44))),
+            ],
+          ),
+        ),
+      _glass(40, const SizedBox(width: 360, height: 200)),
+    ],
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -110,31 +133,128 @@ class _PerfSceneState extends State<PerfScene> with SingleTickerProviderStateMix
             top: 0,
             child: ScrollEdgeEffect(edge: ScrollEdge.top, style: ScrollEdgeStyle.soft, height: MediaQuery.paddingOf(context).top + 94, capExtent: MediaQuery.paddingOf(context).top),
           ),
-        if (widget.id == 'perf.glass' || widget.id == 'perf.material')
+        if (widget.id == 'perf.motion') SafeArea(child: Center(child: PerfMotion(clock: _motion))),
+        if (widget.id == 'perf.glass' || widget.id == 'perf.material') SafeArea(child: Center(child: _layout())),
+        if (widget.id == 'perf.slide')
           SafeArea(
             child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: AnimatedBuilder(
+                animation: _motion,
+                builder: (context, child) => Transform.translate(offset: Offset(12 * math.sin(_motion.value * 2 * math.pi), 0), child: child),
+                child: _layout(),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class PerfMotion extends StatefulWidget {
+  const PerfMotion({super.key, required this.clock});
+
+  final Animation<double> clock;
+
+  @override
+  State<PerfMotion> createState() => _PerfMotionState();
+}
+
+class _PerfMotionState extends State<PerfMotion> {
+  static const Duration step = Duration(milliseconds: 400);
+  final List<GlobalKey> _pressed = [for (var i = 0; i < 4; i++) GlobalKey()];
+  final Set<int> _down = {};
+  Timer? _timer;
+  int _tick = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(step, (_) => _advance());
+  }
+
+  void _advance() {
+    if (!mounted) return;
+    _tick++;
+    for (var i = 0; i < _pressed.length; i++) {
+      if ((_tick + i) % 3 == 0) {
+        _pointer(i, down: true);
+      } else if ((_tick + i) % 3 == 2) {
+        _pointer(i, down: false);
+      }
+    }
+    setState(() {});
+  }
+
+  void _pointer(int index, {required bool down}) {
+    final box = _pressed[index].currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached || down == _down.contains(index)) return;
+    final position = box.localToGlobal(box.size.center(Offset.zero));
+    final pointer = 900 + index;
+    GestureBinding.instance.handlePointerEvent(
+      down ? PointerDownEvent(pointer: pointer, position: position) : PointerUpEvent(pointer: pointer, position: position),
+    );
+    if (down) {
+      _down.add(index);
+    } else {
+      _down.remove(index);
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    for (final index in _down.toList()) {
+      _pointer(index, down: false);
+    }
+    super.dispose();
+  }
+
+  Widget _pill(int index) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 6),
+    child: GlassEffect(glass: Glass.regular.interactive(), child: SizedBox(key: _pressed[index], width: 110, height: 44)),
+  );
+
+  Widget _row(List<Widget> children) => Padding(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: SizedBox(height: 44, child: Row(mainAxisSize: MainAxisSize.min, children: children)),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = _tick % 2 == 0;
+    final merged = _tick % 4 < 2;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _row([_pill(0), _pill(1), _pill(2)]),
+        _row([
+          for (var i = 0; i < 3; i++)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: SizedBox(width: 110, height: 44, child: (i.isEven ? shown : !shown) ? const GlassEffect(child: SizedBox(width: 110, height: 44)) : null),
+            ),
+        ]),
+        _row([
+          GlassEffectContainer(
+            spacing: 20,
+            child: SizedBox(
+              width: 366,
+              height: 44,
+              child: Stack(
                 children: [
-                  for (var row = 0; row < 4; row++)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          for (var column = 0; column < 3; column++)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 6),
-                              child: _glass(22, const SizedBox(width: 110, height: 44)),
-                            ),
-                        ],
-                      ),
-                    ),
-                  _glass(40, const SizedBox(width: 360, height: 200)),
+                  for (final x in merged ? const [70.0, 180.0, 186.0] : const [0.0, 128.0, 256.0])
+                    AnimatedPositioned(duration: Duration.zero, left: x, top: 0, child: const GlassEffect(child: SizedBox(width: 110, height: 44))),
                 ],
               ),
             ),
           ),
+        ]),
+        AnimatedBuilder(
+          animation: widget.clock,
+          builder: (context, child) => Transform.translate(offset: Offset(12 * math.sin(widget.clock.value * 2 * math.pi), 0), child: child),
+          child: _row([for (var i = 0; i < 3; i++) const Padding(padding: EdgeInsets.symmetric(horizontal: 6), child: GlassEffect(child: SizedBox(width: 110, height: 44)))]),
+        ),
+        GlassEffect(glass: Glass.regular.interactive(), child: SizedBox(key: _pressed[3], width: 360, height: 200)),
       ],
     );
   }
