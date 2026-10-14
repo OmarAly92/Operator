@@ -90,4 +90,32 @@ void main() {
       expect(step(cluster.sublist(0, 2), 20), lessThan(1e-9));
     });
   });
+
+  group('a pressed glass in a row (D1): a 44 pt circle scaled by the press between two others does not reach the fold step', () {
+    double scan(List<MirrorShape> shapes, double k) {
+      var worst = 0.0;
+      for (var y = -49.75; y <= 50; y += 0.5) {
+        var previous = sceneSdf(shapes, -40, y, k);
+        for (var x = -40.0 + 0.02; x <= 160; x += 0.02) {
+          final value = sceneSdf(shapes, x, y, k);
+          worst = math.max(worst, (value - previous).abs() - 0.0201);
+          previous = value;
+        }
+      }
+      return worst;
+    }
+
+    test('the scan finds the known step of the three-shape cluster', () {
+      const cluster = [MirrorShape.circle(0, 0, 44), MirrorShape.circle(52, 0, 44), MirrorShape.circle(-7.68, 17.77, 44)];
+      expect(scan(cluster, 8), greaterThan(0.5));
+    });
+
+    test('a row at the app\'s spacing of 20 with its middle circle at x 1.38 is continuous', () {
+      for (final gap in [8.0, 16.0]) {
+        final row = [const MirrorShape.circle(0, 0, 44), MirrorShape.circle(44 + gap, 0, 44 * 1.38), MirrorShape.circle(88 + 2 * gap, 0, 44)];
+        expect(scan(row, 20), lessThan(1e-6));
+        expect(scan(row, 8), lessThan(1e-6));
+      }
+    });
+  });
 }
