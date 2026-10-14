@@ -25,6 +25,9 @@ class _Motion extends ChangeNotifier implements GlassShapeMotion {
   bool get isTransient => transient;
 
   @override
+  double get contentScale => 1;
+
+  @override
   bool syncMoved() {
     final result = moved;
     moved = false;

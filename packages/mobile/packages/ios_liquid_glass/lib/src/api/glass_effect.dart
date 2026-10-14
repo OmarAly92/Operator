@@ -14,6 +14,7 @@ import 'package:ios_liquid_glass/src/motion/glass_animation.dart';
 import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_coordinator.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_widgets.dart';
+import 'package:ios_liquid_glass/src/motion/glass_press_widgets.dart';
 
 class GlassEffect extends StatefulWidget {
   const GlassEffect({
@@ -46,6 +47,7 @@ class GlassEffect extends StatefulWidget {
 
 class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStateMixin {
   final _snapshotKey = GlobalKey();
+  final _pressKey = GlobalKey();
   double _pixelRatio = 1;
   GlassMotionCoordinator? _private;
   GlassMotionCoordinator? _coordinator;
@@ -217,7 +219,16 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
     final snapshot = GlassSnapshotBoundary(key: _snapshotKey, child: GlassEffectScope(glass: widget.glass, child: widget.child));
     final member = _member;
     if (_identity || member == null) return snapshot;
-    final content = GlassMorphContent(member: member, child: snapshot);
+    final pressable = widget.glass.isInteractive
+        ? GlassPressTarget(
+            key: _pressKey,
+            member: member,
+            shape: widget.shape.liquidShape,
+            scrolling: Scrollable.maybeOf(context)?.position,
+            child: CustomPaint(painter: GlassPressGlow(member), child: snapshot),
+          )
+        : snapshot;
+    final content = GlassMorphContent(member: member, child: pressable);
     member
       ..scrollables = _scrollables()
       ..rebuilt();

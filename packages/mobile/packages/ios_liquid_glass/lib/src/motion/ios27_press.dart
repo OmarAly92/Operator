@@ -1,0 +1,23 @@
+const double ios27PressGrowthCap = 15.84;
+const double ios27PressGrowthAt100 = 9.73;
+const double ios27PressGrowthPower = 1.24;
+const double ios27PressGrowthWidthPower = 0.0;
+const double ios27PressGrowthDelay = 0.0513;
+const double ios27PressGrowthResponse = 0.27;
+const double ios27PressGrowthDamping = 0.62;
+const double ios27PressReleaseDelay = 0.0207;
+const double ios27PressReleaseResponse = 0.33;
+const double ios27PressReleaseDamping = 0.59;
+const double ios27PressGlowRiseJump = 0.0;
+const double ios27PressGlowRiseResponse = 0.04;
+const double ios27PressGlowRiseDamping = 1.845;
+const double ios27PressGlowHold = 0.0833;
+const double ios27PressGlowFadeResponse = 0.31;
+const double ios27PressGlowFadeDamping = 1.35;
+const double ios27PressReduceMotionGlowCut = 0.5642;
+const double ios27PressGlowSigma = 77.0;
+
+const List<double> ios27PressGlowAreas = [3364.0, 7314.0, 11000.0, 22000.0, 36000.0, 37500.0, 72000.0, 75000.0];
+const List<double> ios27PressGlowHoldLuma = [9.789, 11.34, 11.09, 11.227, 11.052, 10.819, 0.0, 0.0];
+const List<double> ios27PressGlowSwellLuma = [32.632, 11.135, 7.941, 11.51, 9.98, 11.648, 9.718, 13.565];
+const List<double> ios27PressGlowCutSeconds = [0.6517, 0.525, 0.4183, 0.4, 0.3808, 0.3717, 0.3717, 0.3717];

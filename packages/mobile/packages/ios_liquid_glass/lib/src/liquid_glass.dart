@@ -494,10 +494,18 @@ class RenderLiquidGlass extends RenderProxyBox
     if (attached) {
       final layout = Offset.zero & size;
       final shift = _motion == null ? Offset.zero : drawnRect.center - layout.center;
+      final scale = _motion?.contentScale ?? 1;
+      final moved = shift == Offset.zero ? transform : (Matrix4.copy(transform)..translateByDouble(shift.dx, shift.dy, 0, 1));
+      final centre = layout.center;
       transformLayerHandle.layer = context.pushTransform(
         needsCompositing,
         offset,
-        shift == Offset.zero ? transform : (Matrix4.copy(transform)..translateByDouble(shift.dx, shift.dy, 0, 1)),
+        scale == 1
+            ? moved
+            : (Matrix4.copy(moved)
+                ..translateByDouble(centre.dx, centre.dy, 0, 1)
+                ..scaleByDouble(scale, scale, 1, 1)
+                ..translateByDouble(-centre.dx, -centre.dy, 0, 1)),
         super.paint,
         oldLayer: transformLayerHandle.layer,
       );
