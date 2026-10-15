@@ -268,6 +268,21 @@ class LeverageTests(unittest.TestCase):
         self.assertEqual(lab.leverage({"x.glow_rise_ms": small}, 17.0), {})
         self.assertEqual(lab.leverage({"x.grow_w": {("0", "1"): 9.0, ("0", "2"): 0.1, ("1", "2"): 0.1}}, 17.0), {})
 
+    def _four(self, worst, rest):
+        return {("0", "1"): rest, ("0", "2"): rest, ("1", "2"): rest, ("0", "3"): worst, ("1", "3"): rest, ("2", "3"): rest}
+
+    def test_one_frame_of_jitter_over_the_siblings_is_not_flagged(self):
+        self.assertEqual(lab.leverage({"x.glow_rise_ms": self._four(15.0, 3.3)}, 17.0), {})
+        self.assertEqual(lab.leverage({"x.glow_rise_ms": self._four(25.0, 8.3)}, 17.0), {})
+
+    def test_a_real_outlier_is_still_flagged_with_its_figures(self):
+        found = lab.leverage({"x.glow_rise_ms": self._four(283.3, 16.7)}, 17.0)
+        self.assertEqual(found["x.glow_rise_ms"], {"take": "3", "noise": 283.3, "median_without": 16.7})
+
+    def test_the_jitter_limit_is_two_frames(self):
+        self.assertEqual(lab.leverage({"x.glow_rise_ms": self._four(43.3, 10.0)}, 17.0), {})
+        self.assertIn("x.glow_rise_ms", lab.leverage({"x.glow_rise_ms": self._four(43.4, 10.0)}, 17.0))
+
 
 if __name__ == "__main__":
     unittest.main()

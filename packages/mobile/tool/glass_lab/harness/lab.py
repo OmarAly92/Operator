@@ -216,6 +216,7 @@ def canonical_takes(takes):
 
 LEVERAGE = 3.0
 LEVERAGE_TAKES = 5
+LEVERAGE_JITTER_MS = 2 * 1000 / 60
 
 
 def leverage(pairs, threshold):
@@ -228,8 +229,11 @@ def leverage(pairs, threshold):
             continue
         for take in (a, b):
             rest = sorted(v for (i, j), v in values.items() if take not in (i, j))
-            if rest and worst > LEVERAGE * rest[len(rest) // 2]:
-                found[name] = {"take": take, "noise": worst, "median_without": rest[len(rest) // 2]}
+            if not rest:
+                continue
+            median = rest[len(rest) // 2]
+            if worst > LEVERAGE * median and worst - median > LEVERAGE_JITTER_MS:
+                found[name] = {"take": take, "noise": worst, "median_without": median}
     return found
 
 
