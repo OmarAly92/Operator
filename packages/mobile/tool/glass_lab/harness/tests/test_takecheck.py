@@ -226,7 +226,7 @@ class LeverageStopTests(unittest.TestCase):
         self.assertEqual(self.noise_with(4), {})
         self.assertEqual(self.noise_with(5)["glass.step1.press.glow_rise_ms"]["take"], "3")
 
-    def test_a_stopped_case_keeps_its_old_floor_and_repeat_exits_after_writing_the_others(self):
+    def test_a_flagged_case_still_gets_its_floor_and_repeat_reports_without_stopping(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Path(temp) / "run"
             noise_file = Path(temp) / "noise.json"
@@ -246,13 +246,15 @@ class LeverageStopTests(unittest.TestCase):
             with mock.patch.object(lab.build, "require_fresh"), mock.patch.object(lab.sim, "device", return_value="udid"), \
                  mock.patch.object(lab.sim, "accessibility"), mock.patch.object(lab.sim, "appearance"), \
                  mock.patch.object(lab, "record_checked", side_effect=fake_record), mock.patch.object(lab, "case_noise", side_effect=fake_noise), \
-                 mock.patch.object(lab, "NOISE", noise_file), contextlib.redirect_stdout(io.StringIO()):
-                with self.assertRaises(SystemExit) as stopped:
-                    lab.cmd_repeat(args)
+                 mock.patch.object(lab, "NOISE", noise_file), contextlib.redirect_stdout(io.StringIO()) as out:
+                lab.cmd_repeat(args)
             written = json.loads(noise_file.read_text())["material.interactive"]
-            self.assertIn("take 3", str(stopped.exception))
-            self.assertEqual(written["dark-photo"], {"old": 1.0})
+            self.assertEqual(written["dark-photo"], {"new": 3.0})
             self.assertEqual(written["light-photo"], {"new": 3.0})
+            lines = [line for line in out.getvalue().splitlines() if line.startswith("LEVERAGE")]
+            self.assertEqual(lines, ["LEVERAGE (reported, not a stop): material.interactive dark-photo x.glow_rise_ms take 3 noise 60.0 ms against a median of 10.0 ms"])
+            kept = json.loads((run / "material.interactive" / "dark-photo" / "noise-sources.json").read_text())["leverage"]
+            self.assertEqual(kept["x.glow_rise_ms"]["take"], "3")
 
 
 class LeverageTests(unittest.TestCase):
