@@ -25,7 +25,7 @@ PRESS_KINDS = ("press", "pressDrag")
 
 
 def judged(scene):
-    return any(next(iter(step)) in PRESS_KINDS for step in scene.steps)
+    return bool(scene.track) and any(next(iter(step)) in PRESS_KINDS for step in scene.steps)
 
 
 def scripted(step):

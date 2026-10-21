@@ -133,6 +133,7 @@ class TakeRuleTests(unittest.TestCase):
         self.assertTrue(takecheck.judged(SCENES["material.interactive"]))
         self.assertTrue(takecheck.judged(SCENES["material.neighbours.10"]))
         self.assertFalse(takecheck.judged(SCENES["material.merge"]))
+        self.assertFalse(takecheck.judged(SCENES["button.press"]))
 
 
 class CheckedRecordingTests(unittest.TestCase):
