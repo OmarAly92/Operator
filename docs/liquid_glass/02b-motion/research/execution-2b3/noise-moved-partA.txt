@@ -1,0 +1,26 @@
+Time-limit (_ms) changes in noise.json against git HEAD, 2B.1 scenes, five clean takes per case
+material.interactive light-stripes: press keys 26/26; time limits changed 38 of 42 (up 13, down 13, new 12); largest glass.step1e2.luma.peak_ms 66.66666666666667 -> 291.7
+material.interactive light-photo: press keys 26/26; time limits changed 41 of 46 (up 15, down 14, new 12); largest step3e2.delay_ms 88.33299999999849 -> 600.0
+material.interactive dark-stripes: press keys 26/26; time limits changed 25 of 54 (up 9, down 4, new 12); largest glass.step3.press.glow_half_ms None -> 30.0
+material.interactive dark-photo: press keys 26/26; time limits changed 41 of 49 (up 15, down 11, new 15); largest glass.step3.press.glow_drop_ms None -> 168.3
+material.press.circle58 light-stripes: press keys 13/13; time limits changed 23 of 25 (up 6, down 11, new 6); largest glass.step1.press.glow_drop_ms None -> 178.3
+material.press.circle58 light-photo: press keys 13/13; time limits changed 15 of 25 (up 4, down 5, new 6); largest glass.step1.press.glow_drop_ms None -> 195.0
+material.press.circle58 dark-stripes: press keys 13/13; time limits changed 19 of 27 (up 3, down 10, new 6); largest glass.step1e1.progress.t10_90_ms 266.6666666666667 -> 8.3
+material.press.circle58 dark-photo: press keys 13/13; time limits changed 18 of 21 (up 4, down 8, new 6); largest glass.step1e1.luma.settle_ms 241.66666666666669 -> 66.7
+material.press.138x53 light-stripes: press keys 13/13; time limits changed 12 of 21 (up 1, down 5, new 6); largest glass.step1.press.shrink_ms None -> 33.3
+material.press.138x53 light-photo: press keys 13/13; time limits changed 17 of 23 (up 7, down 4, new 6); largest glass.step1e2.luma.peak_ms 225.0 -> 0.0
+material.press.138x53 dark-stripes: press keys 13/13; time limits changed 16 of 27 (up 3, down 7, new 6); largest glass.step1e2.luma.peak_ms 174.99999999999997 -> 250.0
+material.press.138x53 dark-photo: press keys 13/13; time limits changed 17 of 23 (up 5, down 6, new 6); largest glass.step1.press.glow_drop_ms None -> 153.3
+material.press.250x44 light-stripes: press keys 13/13; time limits changed 12 of 17 (up 0, down 6, new 6); largest glass.step1.press.shrink_ms None -> 25.0
+material.press.250x44 light-photo: press keys 13/13; time limits changed 11 of 19 (up 1, down 4, new 6); largest glass.step1.press.shrink_ms None -> 40.0
+material.press.250x44 dark-stripes: press keys 13/13; time limits changed 17 of 18 (up 2, down 5, new 10); largest glass.step1e1.luma.settle_ms None -> 325.0
+material.press.250x44 dark-photo: press keys 13/13; time limits changed 11 of 19 (up 4, down 1, new 6); largest glass.step1.press.shrink_ms None -> 33.3
+material.press.300x120 light-stripes: press keys 13/13; time limits changed 21 of 23 (up 7, down 4, new 10); largest glass.step1e0.height.peak_ms None -> 150.0
+material.press.300x120 light-photo: press keys 13/13; time limits changed 6 of 19 (up 0, down 0, new 6); largest glass.step1.press.glow_drop_ms None -> 40.0
+material.press.300x120 dark-stripes: press keys 13/13; time limits changed 16 of 27 (up 5, down 3, new 8); largest glass.step1.press.grow_ms None -> 51.7
+material.press.300x120 dark-photo: press keys 13/13; time limits changed 13 of 19 (up 3, down 4, new 6); largest glass.step1e0.width.settle_ms 50.0 -> 16.7
+material.press.360x200 light-stripes: press keys 13/13; time limits changed 8 of 8 (up 0, down 2, new 6); largest glass.step1.press.grow_ms None -> 103.3
+material.press.360x200 light-photo: press keys 13/13; time limits changed 10 of 10 (up 3, down 1, new 6); largest glass.step1.press.shrink_ms None -> 343.3
+material.press.360x200 dark-stripes: press keys 13/13; time limits changed 13 of 16 (up 6, down 1, new 6); largest glass.step1.press.shrink_ms None -> 530.0
+material.press.360x200 dark-photo: press keys 13/13; time limits changed 8 of 12 (up 1, down 1, new 6); largest glass.step1e1.luma.peak_ms 50.0 -> 158.3
+missing press keys: []
