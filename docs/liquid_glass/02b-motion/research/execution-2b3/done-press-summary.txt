@@ -1,0 +1,68 @@
+Task 15 Done runs, press scenes (counts from done-press.txt; passing/judged/expected over motion.* measures, gates apart)
+Runs: 20261021-070611 20261021-071448 20261021-071951 20261021-072550 20261021-073330 20261021-073852 20261021-074358 20261021-074636 20261021-074912 20261021-075319 20261021-075558 20261021-080045 20261021-080500 20261021-081056 20261021-081439 20261021-081925 20261021-082203 20261021-082509 20261021-084658 20261021-085500 20261021-090016 20261021-090711 
+Reduce Motion cases are summed into their scene (material.interactive 4+4, drag.fast 2+2, drag.out 2+2). material.morph rows are reported apart (morph run, dark-photo only).
+
+PER SCENE passing/judged/expected (cases)
+material.interactive 197/241/247 cases 8
+   failing measures by name: {'glow_half_ms': 11, 'glow_drop_ms': 9, 'glow_fade_ms': 9, 'grow_ms': 6, 'glow_peak': 4, 'glow_rise_ms': 4, 'delay_ms': 4, 'shrink_ms': 3}
+material.press.circle58 47/64/64 cases 4
+   failing measures by name: {'shrink_ms': 4, 'glow_peak': 3, 'glow_half_ms': 3, 'glow_rise_ms': 3, 'grow_ms': 3, 'stretch': 1}
+material.press.138x53 46/64/64 cases 4
+   failing measures by name: {'grow_w': 4, 'shrink_ms': 4, 'glow_half_ms': 3, 'stretch': 2, 'glow_peak': 2, 'grow_ms': 1, 'glow_drop_ms': 1, 'glow_fade_ms': 1}
+material.press.250x44 54/62/62 cases 4
+   failing measures by name: {'glow_half_ms': 2, 'grow_ms': 2, 'grow_w': 1, 'stretch': 1, 'glow_rise_ms': 1, 'shrink_ms': 1}
+material.press.300x120 59/64/64 cases 4
+   failing measures by name: {'glow_rise_ms': 2, 'glow_peak': 1, 'shrink_ms': 1, 'glow_half_ms': 1}
+material.press.360x200 47/56/60 cases 4
+   failing measures by name: {'glow_half_ms': 3, 'grow_w': 2, 'grow_ms': 2, 'shrink_ms': 2, 'glow_fade_ms': 2, 'glow_rise_ms': 1, 'delay_ms': 1}
+material.press.circle44 21/31/31 cases 2
+   failing measures by name: {'glow_peak': 2, 'grow_ms': 2, 'shrink_ms': 2, 'glow_drop': 1, 'glow_half_ms': 1, 'glow_level': 1, 'glow_rise_ms': 1}
+material.press.250x150 28/31/31 cases 2
+   failing measures by name: {'shrink_ms': 2, 'glow_peak': 1}
+material.press.300x250 21/30/30 cases 2
+   failing measures by name: {'delay_ms': 3, 'glow_half_ms': 1, 'glow_rise_ms': 1, 'grow_h': 1, 'glow_fade_ms': 1, 'grow_w': 1, 'shrink_ms': 1}
+material.press.120x250 25/32/32 cases 2
+   failing measures by name: {'glow_peak': 1, 'grow_h': 1, 'grow_w': 1, 'shrink_ms': 1, 'stretch': 1, 'glow_half_ms': 1, 'glow_rise_ms': 1}
+material.press.capsule36 28/32/32 cases 2
+   failing measures by name: {'shrink_ms': 2, 'glow_half_ms': 1, 'glow_peak': 1}
+material.drag.fast 48/63/63 cases 4
+   failing measures by name: {'delay_ms': 4, 'glow_half_ms': 3, 'glow_drop_ms': 2, 'glow_fade_ms': 2, 'glow_peak': 1, 'glow_rise_ms': 1, 'shrink_ms': 1, 'stretch': 1}
+material.drag.out 34/46/62 cases 4
+   failing measures by name: {'delay_ms': 5, 'glow_drop_ms': 4, 'glow_fade_ms': 4, 'centre': 2, 'grow_ms': 2, 'shrink_ms': 2, 'stretch': 2, 'glow_drop': 1, 'glow_half_ms': 1, 'glow_level': 1, 'glow_peak': 1, 'glow_rise_ms': 1, 'grow_h': 1, 'grow_w': 1}
+material.drag.far 12/32/32 cases 2
+   failing measures by name: {'delay_ms': 3, 'centre': 2, 'glow_drop_ms': 2, 'glow_fade_ms': 2, 'glow_half_ms': 2, 'glow_rise_ms': 2, 'grow_h': 2, 'shrink_ms': 2, 'stretch': 2, 'glow_peak': 1}
+material.drag.up 16/32/32 cases 2
+   failing measures by name: {'delay_ms': 4, 'glow_drop_ms': 2, 'glow_fade_ms': 2, 'glow_half_ms': 2, 'shrink_ms': 2, 'stretch': 2, 'glow_peak': 1, 'glow_rise_ms': 1}
+material.neighbours.0 42/51/57 cases 2
+   failing measures by name: {'shrink_ms': 3, 'grow_ms': 2, 'glow_rise_ms': 2, 'glow_peak': 1, 'centre': 1, 'glow_drop_ms': 1, 'glow_fade_ms': 1, 'glow_half_ms': 1, 'grow_h': 1, 'stretch': 1, 'delay_ms': 1}
+material.neighbours.10 46/57/57 cases 2
+   failing measures by name: {'centre': 2, 'stretch': 2, 'glow_drop_ms': 1, 'glow_fade_ms': 1, 'glow_peak': 1, 'grow_w': 1, 'shrink_ms': 1, 'grow_h': 1, 'glow_half_ms': 1}
+material.neighbours.40 51/58/58 cases 2
+   failing measures by name: {'glow_rise_ms': 2, 'stretch': 2, 'glow_half_ms': 1, 'glow_peak': 1, 'shrink_ms': 1}
+material.morph 37/67/195 cases 1
+   failing measures by name: {'response_pct': 36, 'damping': 35, 'peak_ms': 29, 'settle_ms': 29, 'overshoot_pct': 24, 'join_ms': 2, 'split_ms': 1, 'count': 1, 'gap_rms': 1}
+material.morph.plain 39/79/195 cases 1
+   failing measures by name: {'response_pct': 32, 'overshoot_pct': 30, 'damping': 30, 'peak_ms': 29, 'settle_ms': 28, 'join_ms': 2, 'neck_rms': 2, 'split_ms': 1, 'count': 1, 'gap_rms': 1}
+TOTAL excluding material.morph*: 822/1046/1078
+TOTAL morph (reported apart): material.morph 37/67/195 material.morph.plain 39/79/195
+
+CASES WITH A FAILING GATE (motion.events/touches/capture)
+material.interactive dark-photo 20261021-070611  ['motion.events.unpaired']
+material.press.138x53 dark-photo 20261021-071951  ['motion.events.unpaired']
+material.press.138x53 light-photo 20261021-071951  ['motion.events.unpaired']
+material.press.250x44 dark-photo 20261021-072550  ['motion.events.unpaired']
+material.press.250x44 dark-stripes 20261021-072550  ['motion.events.unpaired']
+material.drag.fast dark-photo 20261021-080045  ['motion.events.unpaired']
+material.drag.fast light-photo 20261021-080045  ['motion.events.unpaired']
+material.drag.out dark-photo 20261021-080500 CAPTURE-GATE-FAILS ['motion.capture.native']
+material.drag.up dark-photo 20261021-081439  ['motion.events.unpaired']
+material.drag.up light-photo 20261021-081439  ['motion.events.unpaired']
+material.neighbours.0 light-photo 20261021-081925  ['motion.events.unpaired']
+material.neighbours.10 dark-photo 20261021-082203  ['motion.events.unpaired']
+material.interactive dark-stripes-reduce-motion 20261021-084658  ['motion.events.unpaired']
+material.interactive light-photo-reduce-motion 20261021-084658  ['motion.events.unpaired']
+material.drag.out dark-photo-reduce-motion 20261021-090016  ['motion.events.unpaired']
+material.morph dark-photo 20261021-090711  ['motion.events.unpaired']
+
+MISSING cases: none
+Cases whose capture gate fails (kept take still holed): material.drag.out dark-photo (motion.capture.native); counted as failing in full

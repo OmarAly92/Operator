@@ -1,0 +1,98 @@
+[
+ {
+  "tree": "HEAD",
+  "time": "10:14:25",
+  "scene": "perf.slide",
+  "frames": 258,
+  "raster_ms": {
+   "median": 12.675,
+   "p90": 13.48,
+   "max": 16.592
+  },
+  "build_ms": {
+   "median": 2.305,
+   "p90": 3.26,
+   "max": 4.575
+  }
+ },
+ {
+  "tree": "abe33abbc",
+  "time": "10:20:52",
+  "scene": "perf.slide",
+  "frames": 312,
+  "raster_ms": {
+   "median": 12.771,
+   "p90": 13.692,
+   "max": 18.073
+  },
+  "build_ms": {
+   "median": 1.975,
+   "p90": 2.771,
+   "max": 3.9
+  }
+ },
+ {
+  "tree": "abe33abbc",
+  "time": "10:21:02",
+  "scene": "perf.slide",
+  "frames": 306,
+  "raster_ms": {
+   "median": 12.745,
+   "p90": 13.737,
+   "max": 17.957
+  },
+  "build_ms": {
+   "median": 2.014,
+   "p90": 2.735,
+   "max": 3.958
+  }
+ },
+ {
+  "tree": "HEAD",
+  "time": "00:54:47",
+  "scene": "perf.slide",
+  "frames": 251,
+  "raster_ms": {
+   "median": 13.037,
+   "p90": 14.281,
+   "max": 16.743
+  },
+  "build_ms": {
+   "median": 2.469,
+   "p90": 3.465,
+   "max": 4.634
+  }
+ },
+ {
+  "tree": "HEAD",
+  "time": "00:54:58",
+  "scene": "perf.slide",
+  "frames": 252,
+  "raster_ms": {
+   "median": 13.099,
+   "p90": 14.198,
+   "max": 17.144
+  },
+  "build_ms": {
+   "median": 2.429,
+   "p90": 3.309,
+   "max": 4.444
+  }
+ },
+ {
+  "tree": "abe33abbc",
+  "time": "01:02:39",
+  "scene": "perf.slide",
+  "frames": 309,
+  "raster_ms": {
+   "median": 13.112,
+   "p90": 14.422,
+   "max": 17.608
+  },
+  "build_ms": {
+   "median": 2.091,
+   "p90": 2.919,
+   "max": 4.299
+  }
+ }
+]
