@@ -38,6 +38,8 @@ def size_of(scene_id):
     if scene_id == "material.interactive" or scene_id.startswith("material.drag."):
         return 250.0, 88.0, "capsule"
     tail = scene_id.split(".")[-1]
+    if tail.startswith("capsule"):
+        return 120.0, float(tail[len("capsule") :]), "capsule"
     if tail.startswith("circle"):
         side = float(tail[len("circle") :])
         return side, side, "circle"
