@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:ios_liquid_glass/src/glass_shadow.dart';
+import 'package:ios_liquid_glass/src/internal/clip_hit_bypass.dart';
 import 'package:ios_liquid_glass/src/internal/transform_tracking_repaint_boundary_mixin.dart';
 import 'package:ios_liquid_glass/src/liquid_glass_blend_group.dart';
 import 'package:ios_liquid_glass/src/liquid_glass_render_scope.dart';
@@ -322,10 +323,12 @@ class LiquidGlass extends StatelessWidget {
         shape: shape,
         glassContainsChild: glassContainsChild,
         motion: motion,
-        child: ClipPath(
-          clipper: ShapeBorderClipper(shape: shape),
-          clipBehavior: clipBehavior,
-          child: animated == null ? content : FadeTransition(opacity: animated, child: content),
+        child: ClipHitBypass(
+          child: ClipPath(
+            clipper: ShapeBorderClipper(shape: shape),
+            clipBehavior: clipBehavior,
+            child: animated == null ? content : FadeTransition(opacity: animated, child: content),
+          ),
         ),
       ),
     );
