@@ -100,6 +100,10 @@ def capture_checked(udid, scene, app, backdrop, case_dir, flutter_target="exampl
         if attempt == RETRIES:
             return
         kept = case_dir / "excluded" / f"{app}-{attempt}"
+        suffix = 0
+        while kept.exists():
+            suffix += 1
+            kept = case_dir / "excluded" / f"{app}-{attempt}-{suffix}"
         kept.parent.mkdir(parents=True, exist_ok=True)
         take.rename(kept)
         (kept / "reason.txt").write_text("\n".join(result["failures"]) + "\n")

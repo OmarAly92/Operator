@@ -155,6 +155,24 @@ class CheckedRecordingTests(unittest.TestCase):
             self.assertTrue((case / "native").is_dir())
             self.assertEqual((case / "excluded" / "native-0" / "reason.txt").read_text(), "capture hole\n")
 
+    def test_run_into_a_folder_that_already_holds_an_excluded_take_keeps_both(self):
+        scene = SCENES["material.interactive"]
+        results = iter([{"failures": ["capture hole"]}, {"failures": []}])
+        with tempfile.TemporaryDirectory() as temp:
+            case = Path(temp) / "case"
+            old = case / "excluded" / "native-0"
+            old.mkdir(parents=True)
+            (old / "reason.txt").write_text("earlier\n")
+
+            def capture(udid, scene, app, backdrop, take, target):
+                take.mkdir(parents=True)
+
+            lab.capture_checked("udid", scene, "native", "photo", case, capture=capture, check=lambda scene, take: next(results))
+            self.assertEqual((old / "reason.txt").read_text(), "earlier\n")
+            kept = sorted(path.name for path in (case / "excluded").iterdir())
+            self.assertEqual(len(kept), 2)
+            self.assertTrue((case / "native").is_dir())
+
     def test_run_gives_up_after_its_retries_and_keeps_the_last_take(self):
         scene = SCENES["material.interactive"]
         with tempfile.TemporaryDirectory() as temp:

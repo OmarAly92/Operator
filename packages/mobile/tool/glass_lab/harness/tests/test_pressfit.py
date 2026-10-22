@@ -216,5 +216,10 @@ class PressFitTests(unittest.TestCase):
             self.assertIn("within", str(stopped.exception))
             self.assertEqual(target.read_text(), "shipped\n")
 
+class SizeOfTests(unittest.TestCase):
+    def test_a_capsule_scene_is_120_wide_at_its_height(self):
+        self.assertEqual(pressfit.size_of("material.press.capsule36"), (120.0, 36.0, "capsule"))
+
+
 if __name__ == "__main__":
     unittest.main()
