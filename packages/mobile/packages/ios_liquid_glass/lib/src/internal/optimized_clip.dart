@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:ios_liquid_glass/src/internal/clip_hit_bypass.dart';
 
 /// Clips its child using the given [shape].
 ///
@@ -25,7 +26,7 @@ class OptimizedClip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shape = this.shape;
-    return switch (shape) {
+    final clip = switch (shape) {
       null => child,
       RoundedSuperellipseBorder(:final borderRadius) => ClipRSuperellipse(
           clipBehavior: clipBehavior,
@@ -53,5 +54,6 @@ class OptimizedClip extends StatelessWidget {
           child: child,
         )
     };
+    return shape == null ? clip : ClipHitBypass(child: clip);
   }
 }
