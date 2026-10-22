@@ -21,6 +21,7 @@ THRESHOLDS = {
     "neck_pt": 1.0,
     "gap_pt": 1.0,
     "count": 0.0,
+    "ratio": 0.01,
 }
 
 

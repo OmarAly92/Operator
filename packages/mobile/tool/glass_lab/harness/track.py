@@ -106,6 +106,13 @@ def shape_row(frame, bare, edge_map, origin, scale=metrics.SCALE):
     }
 
 
+def glow(frame, rest_px):
+    if rest_px is None:
+        return float(metrics.luma(frame).mean())
+    left, top, right, bottom = rest_px
+    return float(metrics.luma(frame[top : bottom + 1, left : right + 1]).mean())
+
+
 def laplacian(image):
     gray = metrics.luma(image)
     centre = gray[1:-1, 1:-1] * 4 - gray[:-2, 1:-1] - gray[2:, 1:-1] - gray[1:-1, :-2] - gray[1:-1, 2:]

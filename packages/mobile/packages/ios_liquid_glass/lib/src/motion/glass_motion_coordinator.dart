@@ -12,6 +12,7 @@ import 'package:ios_liquid_glass/src/motion/glass_frame.dart';
 import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:ios_liquid_glass/src/motion/glass_materialize.dart';
 import 'package:ios_liquid_glass/src/motion/glass_morph_geometry.dart';
+import 'package:ios_liquid_glass/src/motion/glass_press.dart';
 import 'package:ios_liquid_glass/src/motion/glass_shape_motion.dart';
 import 'package:ios_liquid_glass/src/motion/glass_spring.dart';
 import 'package:meta/meta.dart';
@@ -42,6 +43,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
   final GlassSpring _morph = GlassSpring(1);
   final GlassMotionValue contentOpacity = GlassMotionValue();
   final ValueNotifier<bool> contentBlurred = ValueNotifier(false);
+  final GlassPress press = GlassPress();
   GlassEffectID? id;
   bool morphs = false;
   _Arrival? _arrival;
@@ -109,7 +111,32 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
   Rect? get _lastDrawn {
     final live = _live, size = drawnSize;
     if (live == null || size == null) return null;
-    return Rect.fromLTWH(live.dx + _offset[0].value, live.dy + _offset[1].value, size.width, size.height);
+    final rect = Rect.fromLTWH(live.dx + _offset[0].value, live.dy + _offset[1].value, size.width, size.height);
+    final scale = contentScale;
+    return scale == 1 ? rect : Rect.fromCenter(center: rect.center, width: rect.width * scale, height: rect.height * scale);
+  }
+
+  @override
+  double get contentScale {
+    final size = _size;
+    return size == null ? 1 : GlassPress.scaleFor(size, press.growth);
+  }
+
+  void pressDown(Offset position) {
+    if (_offScreen) return;
+    press.down(position, reduceMotion: reduceMotion, cut: GlassPress.cutFor(_size ?? Size.zero, reduceMotion: reduceMotion), now: coordinator._now);
+    coordinator._start();
+    notifyListeners();
+  }
+
+  void pressMove(Offset position) {
+    press.move(position, now: coordinator._now);
+    coordinator._start();
+  }
+
+  void pressUp() {
+    press.up(now: coordinator._now);
+    coordinator._start();
   }
 
   void unite(GlassEffectUnion? union, {Glass? glass, required bool grouped}) {
@@ -211,6 +238,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
   }
 
   void settle() {
+    press.settle();
     _presence.jumpTo(_presence.target);
     for (final spring in _offset) {
       spring.jumpTo(spring.target);
@@ -416,7 +444,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
     _publish();
   }
 
-  bool get _due => isMoving || presence == GlassPresence.appearing;
+  bool get _due => isMoving || presence == GlassPresence.appearing || press.isActive;
 
   void _begin(GlassAnimation animation, {required bool reduceMotion}) {
     _arrival = _Arrival(animation, reduceMotion: reduceMotion);
@@ -429,6 +457,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
     for (final spring in _offset) {
       moving = spring.sample(now) || moving;
     }
+    moving = press.sample(now) || moving;
     _publish();
     if (!_presence.isMoving && presence == GlassPresence.appearing) {
       presence = GlassPresence.present;
@@ -545,6 +574,9 @@ class GlassGhost extends ChangeNotifier implements GlassShapeMotion {
 
   @override
   bool get isTransient => true;
+
+  @override
+  double get contentScale => 1;
 
   @override
   bool syncMoved() => false;

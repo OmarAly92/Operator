@@ -15,6 +15,18 @@ enum MaterialScenes {
         "material.press.250x44": { AnyView(PressScene(width: 250, height: 44)) },
         "material.press.300x120": { AnyView(PressScene(width: 300, height: 120)) },
         "material.press.360x200": { AnyView(PressScene(width: 360, height: 200, cornerRadius: 32)) },
+        "material.drag.fast": { AnyView(InteractiveScene()) },
+        "material.drag.out": { AnyView(InteractiveScene()) },
+        "material.drag.far": { AnyView(InteractiveScene()) },
+        "material.drag.up": { AnyView(InteractiveScene()) },
+        "material.press.circle44": { AnyView(PressScene(width: 44, height: 44, circle: true)) },
+        "material.press.capsule36": { AnyView(PressScene(width: 120, height: 36)) },
+        "material.press.250x150": { AnyView(PressScene(width: 250, height: 150)) },
+        "material.press.300x250": { AnyView(PressScene(width: 300, height: 250, cornerRadius: 32)) },
+        "material.press.120x250": { AnyView(PressScene(width: 120, height: 250)) },
+        "material.neighbours.0": { AnyView(NeighboursScene(gap: 0)) },
+        "material.neighbours.10": { AnyView(NeighboursScene(gap: 10)) },
+        "material.neighbours.40": { AnyView(NeighboursScene(gap: 40)) },
         "material.spacing.default.a": { AnyView(SpacingScene(gaps: [0, 4, 8, 12], spacing: nil)) },
         "material.spacing.default.b": { AnyView(SpacingScene(gaps: [16, 20, 24, 32], spacing: nil)) },
         "material.spacing.default.c": { AnyView(SpacingScene(gaps: [40, 48, 60], spacing: nil)) },
@@ -128,6 +140,30 @@ struct PressScene: View {
             }
             .accessibilityElement()
             .accessibilityIdentifier("glass")
+        }
+    }
+}
+
+struct NeighboursScene: View {
+    let gap: CGFloat
+
+    var body: some View {
+        ZStack {
+            Backdrop()
+            GlassEffectContainer(spacing: 20) {
+                HStack(spacing: gap) {
+                    Color.white.opacity(0.001)
+                        .frame(width: 120, height: 88)
+                        .glassEffect(.regular.interactive())
+                        .accessibilityElement()
+                        .accessibilityIdentifier("left")
+                    Color.white.opacity(0.001)
+                        .frame(width: 120, height: 88)
+                        .glassEffect(.regular.interactive())
+                        .accessibilityElement()
+                        .accessibilityIdentifier("right")
+                }
+            }
         }
     }
 }

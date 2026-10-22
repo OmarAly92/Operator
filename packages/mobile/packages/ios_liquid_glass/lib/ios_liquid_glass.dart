@@ -27,6 +27,7 @@ export 'src/material/ios27.dart' show ios27Table;
 export 'src/material/ios27_scroll_edge.dart' show ios27ScrollEdgeTable;
 export 'src/material/scroll_edge_material.dart' show ScrollEdgeMaterial, ScrollEdgeStyle;
 export 'src/motion/glass_animation.dart' show GlassAnimation, GlassAnimationScope, debugResetGlassAnimation, withGlassAnimation;
+export 'src/motion/glass_press_widgets.dart' show debugGlassPress;
 export 'src/rendering/liquid_glass_layer.dart' show LiquidGlassLayer;
 export 'src/scroll_edge/scroll_edge_effect.dart' show ScrollEdge, ScrollEdgeEffect;
 export 'src/scroll_edge/scroll_under_bars.dart' show ScrollUnderBars;

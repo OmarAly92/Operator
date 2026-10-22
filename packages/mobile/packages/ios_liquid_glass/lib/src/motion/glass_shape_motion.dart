@@ -10,6 +10,8 @@ abstract interface class GlassShapeMotion implements Listenable {
 
   bool get isTransient;
 
+  double get contentScale;
+
   bool syncMoved();
 }
 

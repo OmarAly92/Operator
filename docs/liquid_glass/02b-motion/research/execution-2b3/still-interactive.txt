@@ -1,0 +1,15 @@
+8 scene, case and frame triples compared; 8 Flutter frames byte-identical to the 2A run
+identical flutter material.interactive dark-photo ready: native frame max difference 0.0
+identical flutter material.interactive dark-photo settled: native frame max difference 0.0
+identical flutter material.interactive dark-stripes ready: native frame max difference 0.0
+identical flutter material.interactive dark-stripes settled: native frame max difference 0.0
+identical flutter material.interactive light-photo ready: native frame max difference 0.0
+identical flutter material.interactive light-photo settled: native frame max difference 0.0
+identical flutter material.interactive light-stripes ready: native frame max difference 0.0
+identical flutter material.interactive light-stripes settled: native frame max difference 0.0
+material.interactive dark-photo ready bbox_pt: 2.00 -> 2.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.interactive dark-photo settled bbox_pt: 2.00 -> 2.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.interactive light-photo ready rim_rms: 7.98 -> 7.98 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.interactive light-photo settled rim_rms: 7.96 -> 7.96 (fail -> fail), flutter frame max difference 0.0, native 0.0
+missing: 0
+worse: 0

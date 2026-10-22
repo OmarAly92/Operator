@@ -1,0 +1,6 @@
+perf.slide, HEAD vs abe33abbc, order H,A,A,H,H,A, rebuilt before each switch; ratio = HEAD / abe33abbc
+takes 0,1 valid=True HEAD 12.675 ms p90 13.48 frames 258 | abe33abbc 12.771 ms p90 13.692 frames 312 | ratio 0.9925 (-0.8%), frames 17.3% fewer at HEAD
+takes 2,3 valid=True HEAD 13.037 ms p90 14.281 frames 251 | abe33abbc 12.745 ms p90 13.737 frames 306 | ratio 1.0229 (+2.3%), frames 18.0% fewer at HEAD
+takes 4,5 valid=True HEAD 13.099 ms p90 14.198 frames 252 | abe33abbc 13.112 ms p90 14.422 frames 309 | ratio 0.9990 (-0.1%), frames 18.4% fewer at HEAD
+valid pairs 3; median ratio 0.9990 (-0.1%), range -0.8% to +2.3%
+Note: session 1 (takes 0-2) and session 2 (takes 3-5, after reboot) differ in absolute level (12.7 vs 13.1 ms), pairs within a session are close.

@@ -6,9 +6,11 @@ sys.path.insert(0, "tool/glass_lab/harness")
 
 import analyze
 import manifest
+import press
 import shapes
 
 REFERENCE = Path("build/glass_lab/reference")
+RUNS = Path("build/glass_lab/runs")
 SCENES = {s.id: s for s in manifest.load()}
 
 
@@ -30,7 +32,7 @@ def materialize():
         print(f"materialize {case}: {timing} residual peak {peak:.2f} floor {floor[len(floor) // 2] if floor else float('nan'):.2f}")
 
 
-def press():
+def press_sizes():
     cases = [
         ("P-20261003-012138/probe.interactive.v13/dark-stripes", "material.interactive", {"glass": [46, 377, 310, 148]}),
         ("P-20261003-012427/probe.interactive.v16/dark-stripes", "material.interactive", {"glass": [142, 392, 118, 118]}),
@@ -63,5 +65,27 @@ def menu():
         print(f"menu {case.name}: events {motion['event_count']} springs " + " ".join(f"{s['response']:.2f}/{s['damping']:.2f}" for s in springs))
 
 
+def glow():
+    cases = [
+        (REFERENCE / "P-20261003-012138/probe.interactive.v13/dark-stripes", "material.interactive", {"glass": [46, 377, 310, 148]}),
+        (REFERENCE / "P-20261003-012914/probe.interactive.v13/light-photo", "material.interactive", {"glass": [46, 377, 310, 148]}),
+    ]
+    for run in ("20261006-085522",):
+        for case in ("dark-photo", "dark-stripes", "light-photo", "light-stripes"):
+            cases.append((RUNS / run / "material.interactive" / case, "material.interactive", None))
+    for scene_id in ("material.press.circle58", "material.press.138x53", "material.press.250x44", "material.press.300x120", "material.press.360x200"):
+        for case in ("dark-photo", "light-photo"):
+            cases.append((RUNS / "20261006-085825" / scene_id / case, scene_id, None))
+    for folder, scene_id, regions in cases:
+        if not folder.exists():
+            print(f"glow {folder}: missing")
+            continue
+        found = capture(folder, scene_id, regions or SCENES[scene_id].regions)
+        for label, step in press.step_features(SCENES[scene_id], found).items():
+            for name, f in step.items():
+                text = " ".join(f"{key} {'-' if f[key] is None else round(f[key], 3)}" for key in press.MEASURES)
+                print(f"glow {folder.relative_to(folder.parents[2])} {label} {name}: {text}")
+
+
 if __name__ == "__main__":
-    {"materialize": materialize, "press": press, "menu": menu}[sys.argv[1]]()
+    {"materialize": materialize, "press": press_sizes, "menu": menu, "glow": glow}[sys.argv[1]]()

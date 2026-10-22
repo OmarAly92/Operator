@@ -67,7 +67,8 @@ class RunFreshnessTests(unittest.TestCase):
              mock.patch.object(lab.build, "require_fresh") as fresh, \
              mock.patch.object(lab.sim, "device", return_value="udid"), \
              mock.patch.object(lab, "run_cases"), \
-             mock.patch.object(lab, "new_run_dir", return_value=Path(temp)):
+             mock.patch.object(lab, "new_run_dir", return_value=Path(temp)), \
+             contextlib.redirect_stdout(io.StringIO()):
             lab.cmd_run(args)
             self.assertEqual(json.loads((Path(temp) / "run.json").read_text()), {"flutter": "example", "a11y": "none"})
         fresh.assert_called_once_with("native")
@@ -163,7 +164,10 @@ class NoiseTests(unittest.TestCase):
                 takes.append(Path(temp) / "takes" / str(number))
             with mock.patch.object(lab.analyze, "analyze", side_effect=analyze_pair):
                 worst, _ = lab.case_noise(scene, takes, Path(temp) / "pairs")
-            names = [p.name for p in (Path(temp) / "pairs").iterdir()]
+            names = [p.name for p in (Path(temp) / "pairs").iterdir() if p.is_dir()]
+            sources = json.loads((Path(temp) / "pairs" / "noise-sources.json").read_text())
+        self.assertEqual(sources["sources"]["ready.mad"]["noise"], 1.5)
+        self.assertEqual(sources["leverage"], {})
         self.assertEqual(len(names), 66)
         self.assertEqual(len(set(names)), 66)
         self.assertIn("pair-1-11", names)

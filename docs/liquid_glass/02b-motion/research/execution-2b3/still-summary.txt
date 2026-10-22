@@ -1,0 +1,14 @@
+Task 15 Step 5 still check (2B.3 against 2B.2 final still runs; interactive against development c0e69d9a4 recording)
+scene | new run | reference run | missing | worse
+material.interactive | 20261022-010456 | Operator-2b3-dev runs/20261009-101012 | 0 | 0
+material.regular | 20261022-011155 | 2b2 20261008-230550 | 0 | 0
+material.clear | 20261022-012300 | 2b2 20261008-231709 | 0 | 0
+material.tinted | 20261022-012842 | 2b2 20261008-232144 | 0 | 0
+material.edge | 20261022-013527 | 2b2 20261008-232823 | 0 | 0
+material.regular reduce-transparency | 20261022-014212 | 2b2 20261008-233505 | 0 | 0
+material.regular increase-contrast | 20261022-015400 | 2b2 20261008-234625 | 0 | 0
+tabbar.rest (operator) | 20261022-020531 | 2b2 20261008-235737 | 0 | 0
+button.press (operator) | 20261022-023804 | 2b2 20261009-000641 | 0 | 1 (light-stripes settled mad 7.993689 -> 7.993737; Flutter settled frames differ by max 9/255 in 447 px, dark-stripes max 5 in 1579 px, at the button rows; ready frames byte-identical)
+navbar.inline (operator) | 20261022-021545 | 2b2 20261008-225125 | 0 | 0
+tabbar.rest light-white: the reference run 235737 Flutter frame differs (max 241) from the new one; the new measures equal the 2B.2 rerun of light-white (mad 9.41), no row worse.
+Ruling by the coordinator: the one worse row (button.press light-stripes settled mad, +0.00005, fail -> fail) is accepted as render noise or press settle, to be classed in Task 16.

@@ -96,7 +96,6 @@ class _GlassButtonState extends State<GlassButton> {
           : GlassVariant.regular,
       pressable: true,
       enabled: _enabled,
-      glowAlpha: widget.prominent ? 0.25 : 0.35,
       child: content,
     );
     final tappable = widget.compact

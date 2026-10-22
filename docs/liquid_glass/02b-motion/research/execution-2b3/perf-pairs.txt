@@ -1,0 +1,28 @@
+scene medians of take medians: {'perf.material': 12.224, 'perf.motion': 12.187, 'perf.slide': 12.808}
+
+perf.motion vs perf.material, adjacent takes in the alternating order
+  takes  0/ 1 valid=True material=12.797 ms (p90 13.779, frames 365)  other=12.872 ms (p90 15.084, frames 289)  ratio 1.0059 (+0.6%)  frames 20.8% fewer
+  takes  5/ 4 valid=True material=12.102 ms (p90 12.980, frames 355)  other=12.085 ms (p90 13.500, frames 311)  ratio 0.9986 (-0.1%)  frames 12.4% fewer
+  takes  6/ 7 valid=True material=12.102 ms (p90 12.927, frames 357)  other=12.087 ms (p90 13.580, frames 309)  ratio 0.9988 (-0.1%)  frames 13.4% fewer
+  takes 11/10 valid=True material=12.255 ms (p90 12.924, frames 357)  other=12.201 ms (p90 13.670, frames 314)  ratio 0.9956 (-0.4%)  frames 12.0% fewer
+  takes 12/13 valid=True material=12.399 ms (p90 13.077, frames 357)  other=12.172 ms (p90 13.621, frames 311)  ratio 0.9817 (-1.8%)  frames 12.9% fewer
+  takes 17/16 valid=True material=12.193 ms (p90 13.026, frames 357)  other=12.218 ms (p90 13.796, frames 310)  ratio 1.0021 (+0.2%)  frames 13.2% fewer
+  valid pairs 6; median ratio 0.9987 (-0.1%), mean -0.3%, min -1.8%, max +0.6%
+  median p90 material 13.003, other 13.646; frames material 2148 other 1844 -> 14.2% fewer
+
+perf.slide vs perf.material, same group of three (never adjacent: motion sits between them in the order)
+  takes  0/ 2 valid=True material=12.797 ms (p90 13.779, frames 365)  other=13.382 ms (p90 15.160, frames 239)  ratio 1.0457 (+4.6%)  frames 34.5% fewer
+  takes  5/ 3 valid=True material=12.102 ms (p90 12.980, frames 355)  other=12.572 ms (p90 13.448, frames 252)  ratio 1.0388 (+3.9%)  frames 29.0% fewer
+  takes  6/ 8 valid=True material=12.102 ms (p90 12.927, frames 357)  other=12.749 ms (p90 13.794, frames 252)  ratio 1.0535 (+5.3%)  frames 29.4% fewer
+  takes 11/ 9 valid=True material=12.255 ms (p90 12.924, frames 357)  other=12.786 ms (p90 14.012, frames 258)  ratio 1.0433 (+4.3%)  frames 27.7% fewer
+  takes 12/14 valid=True material=12.399 ms (p90 13.077, frames 357)  other=12.829 ms (p90 13.861, frames 258)  ratio 1.0347 (+3.5%)  frames 27.7% fewer
+  takes 17/15 valid=True material=12.193 ms (p90 13.026, frames 357)  other=12.846 ms (p90 13.618, frames 258)  ratio 1.0536 (+5.4%)  frames 27.7% fewer
+  valid pairs 6; median ratio 1.0445 (+4.5%), mean +4.5%, min +3.5%, max +5.4%
+  median p90 material 13.003, other 13.828; frames material 2148 other 1517 -> 29.4% fewer
+
+All takes, frames (6 s windows) per scene:
+  perf.material [365, 355, 357, 357, 357, 357] total 2148
+  perf.motion [289, 311, 309, 314, 311, 310] total 1844
+  perf.slide [239, 252, 252, 258, 258, 258] total 1517
+
+Pooled across all six takes: motion vs material raster median ratio 0.9969 slide 1.0477

@@ -1,0 +1,34 @@
+material.press.circle44 dark-photo run 20261021-061852: all checks 26/32, motion 16/22, pass=False
+    motion.step1e1.delay_ms [31.667, 22.500]
+    motion.glass.step1.press.glow_peak [10.483, 3.000]
+    motion.glass.step1.press.glow_rise_ms [31.667, 17.500]
+    motion.glass.step1.press.glow_half_ms [26.667, 17.000]
+    motion.glass.step1.press.grow_ms [50.000, 17.500]
+    motion.glass.step1.press.shrink_ms [146.667, 25.001]
+  native : glow_peak 53.52 glow_rise_ms 115.0 glow_fade_ms 731.666 glow_drop 9.846 glow_drop_ms 731.666 glow_level 9.883 glow_half_ms 125.0 grow_w 16.333 grow_h 17.333 grow_ms 165.0 shrink_ms 315.0 stretch -0.021 centre 0.333
+  flutter: glow_peak 43.037 glow_rise_ms 146.667 glow_fade_ms 835.0 glow_drop 7.862 glow_drop_ms 835.0 glow_level 7.872 glow_half_ms 151.667 grow_w 17.333 grow_h 17.333 grow_ms 215.0 shrink_ms 168.333 stretch -0.015 centre 0.167
+material.press.circle44 light-photo run 20261021-061852: all checks 22/32, motion 12/22, pass=False
+    motion.events.unpaired [1.000, 0.000]
+    motion.glass.step1.press.glow_peak [8.683, 3.000]
+    motion.glass.step1.press.glow_rise_ms [36.667, 17.000]
+    motion.glass.step1.press.glow_fade_ms [inf, 152.500]
+    motion.glass.step1.press.glow_drop_ms [600.000, 152.500]
+    motion.glass.step1.press.glow_level [12.535, 3.551]
+    motion.glass.step1.press.glow_half_ms [66.667, 17.000]
+    motion.glass.step1.press.grow_ms [70.000, 32.499]
+    motion.glass.step1.press.shrink_ms [70.000, 17.000]
+    motion.glass.step1.press.stretch [0.014, 0.010]
+  native : glow_peak 46.034 glow_rise_ms 143.333 glow_fade_ms - glow_drop 6.688 glow_drop_ms 133.334 glow_level 20.393 glow_half_ms 86.667 grow_w 16.333 grow_h 17.0 grow_ms 243.333 shrink_ms 321.667 stretch -0.023 centre 0.236
+  flutter: glow_peak 54.718 glow_rise_ms 106.666 glow_fade_ms 733.334 glow_drop 7.849 glow_drop_ms 733.334 glow_level 7.859 glow_half_ms 153.334 grow_w 17.333 grow_h 17.333 grow_ms 173.333 shrink_ms 251.667 stretch -0.009 centre 0.236
+material.press.120x250 dark-photo run 20261021-062410: all checks 28/33, motion 18/23, pass=False
+    motion.glass.step1.press.glow_peak [3.544, 3.000]
+    motion.glass.step1.press.grow_w [1.667, 1.000]
+    motion.glass.step1.press.grow_h [1.667, 1.000]
+    motion.glass.step1.press.shrink_ms [160.000, 17.000]
+    motion.glass.step1.press.stretch [0.012, 0.010]
+  native : glow_peak 20.611 glow_rise_ms 73.334 glow_fade_ms 390.0 glow_drop 11.085 glow_drop_ms 390.0 glow_level 11.61 glow_half_ms 156.666 grow_w 5.0 grow_h 9.0 grow_ms 165.0 shrink_ms 156.666 stretch 0.006 centre 0.373
+  flutter: glow_peak 17.068 glow_rise_ms 66.667 glow_fade_ms 401.666 glow_drop 10.243 glow_drop_ms 401.666 glow_level 10.271 glow_half_ms 148.333 grow_w 3.333 grow_h 7.333 grow_ms 150.0 shrink_ms 316.666 stretch -0.005 centre 0.373
+material.press.120x250 light-photo run 20261021-062410: all checks 32/33, motion 22/23, pass=False
+    motion.glass.step1.press.glow_half_ms [33.333, 24.999]
+  native : glow_peak 18.977 glow_rise_ms 120.0 glow_fade_ms 390.0 glow_drop 11.038 glow_drop_ms 390.0 glow_level 11.048 glow_half_ms 118.333 grow_w 5.0 grow_h 8.333 grow_ms 171.666 shrink_ms 148.333 stretch 0.008 centre 0.373
+  flutter: glow_peak 19.522 glow_rise_ms 110.0 glow_fade_ms 403.333 glow_drop 10.208 glow_drop_ms 403.333 glow_level 10.264 glow_half_ms 151.666 grow_w 4.333 grow_h 7.333 grow_ms 178.333 shrink_ms 151.666 stretch 0.009 centre 0.527
