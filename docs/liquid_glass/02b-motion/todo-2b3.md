@@ -84,3 +84,7 @@ Files it would touch: `tool/glass_lab/harness/pressfit.py` (a `lean` command, `f
 - **todo-2b1's harness rows** (`fitvis` paths and grouping, a narrowed `repeat` on an old scene-wide entry, `analyze` on a repeat run, the warm-up tap, the empty-frame neck) and **todo-2b1's package defects** (D8): a fix wave.
 - **Decisions still with the user** (recommendation first): D2 A (morph's round-trip measure, a 2B fix wave), D4 A (`FakeGlass` ignores visibility, motion and the press, project 3), D7 A, D8 A, D10 A (above, a fix wave). D6, D9, D12 and D13 were decided A; D1 was settled by F20's test; D3 and D5 are built; D11 was ruled.
 - **Project 5 re-checks on a device**: the touch-to-response delay (2B.1 ruling 33), native `.interactive()` on a real iPhone, the scroll that takes over a press (ruling 11: no native recording exists, the release is the design).
+
+## Deferred by decision (2026-10-22)
+
+The user deferred the whole 2B.3 fix wave in favour of project 3. Nothing in this file blocks project 3; pick items up when a later project touches the same code.

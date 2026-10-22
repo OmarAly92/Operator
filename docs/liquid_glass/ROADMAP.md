@@ -598,14 +598,14 @@ After the review fix wave (runs `20261002-200447` to `20261002-210140`; the firs
 
 ## 9. Exact next steps
 
-1. **Show the user `02b-motion/results-2b3.md` and Operator's press swap (Task 10, D9), then merge 2B.3** (`feat/ios-liquid-glass-2b3` into `development`; the whole-branch review and the measurement audit come first, as for 2B.2; never push without the user's yes). Then pick the next work with the user: a 2B.3 fix wave from `02b-motion/todo-2b3.md` (D10 native's light, the release and fade per size, the size law for portrait glass, the cut after a drag, the event test, the dark-photo rest box, the A9 frame count) or project 3. Carry in `02b-motion/todo-2b3.md`, `todo-2b2.md` and `todo-2b1.md`:
+1. **2B.3 is merged and pushed (`e7fe4259d`); its fix wave is deferred by the user's decision.** The open items are fidelity gaps, not bugs, and are listed in `02b-motion/todo-2b3.md` (D10 native's light, the release and fade per size, the size law for portrait glass, the cut after a drag, the event test, the dark-photo rest box, the A9 frame count, the `pressfit` light area). The corner-tap bug (children of a circle or capsule glass got no taps outside the shape) is fixed separately. The next work is **project 3**. Carry in `02b-motion/todo-2b3.md`, `todo-2b2.md` and `todo-2b1.md`:
    - D10, D2, D4, D7 and D8 are the user's decisions (recommendations in `plan-2b3.md`); D6's lean has a sketch in `todo-2b3.md`;
    - the shader seam in `angleSmoothUnion` for three or more different overlapping shapes (fix `h * 0.5` in `sdf.glsl` and the Dart mirror; re-measure merge, morph, union and navbar);
    - per-glass materials in one layer for mixed-size containers (project 3);
    - morph's round-trip motion measure: the net-travel gate in `shapes.compare_key` hides real heart and bolt differences;
    - the morph toggle's swelling, one spring for all arrivals, and the other class (a) causes in `todo-2b2.md`;
    - keep the simulator exclusive while recording and stop a stale boot (gotchas 49 and 53);
-   - 2B.2's recordings are at `/Users/omaraly/development/AI/glass-lab-runs/2b2/`; 2B.3's recordings (native references, noise takes, Done runs; frame caches deleted, regenerable from `video.mp4`) are in `packages/mobile/build/glass_lab/runs/` of the worktree `Operator-2b3` and must be archived to `glass-lab-runs/2b3/` (copied, never recorded into) before the worktree is removed. The worktree `Operator-2b3-proto` and its branch `proto/2b3` are kept until the plan's evidence is no longer needed.
+   - recordings are archived in `/Users/omaraly/development/AI/glass-lab-runs/` (`2b2/`, and `2b3/` with `runs`, `proto-runs`, `dev-runs`; frame caches deleted, regenerable from `video.mp4`). The 2B.3 worktrees are removed; the branches `proto/2b3` and `docs/2b3-plan` are kept.
 
 2. **2A.2 (static-look polish)** is a to-do list, not yet planned: `docs/liquid_glass/02a-looks/todo-2a2.md`. The user decides when, likely alongside project 3, since the tinted rings are a prominent-button detail.
 3. **Pending user decisions:**
