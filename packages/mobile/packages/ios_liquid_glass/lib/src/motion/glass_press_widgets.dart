@@ -87,7 +87,8 @@ class RenderGlassPressTarget extends RenderProxyBoxWithHitTestBehavior {
 
   @override
   bool hitTest(BoxHitTestResult result, {required Offset position}) {
-    if (!size.contains(position) || !shape.getOuterPath(Offset.zero & size).contains(position)) return false;
+    if (!size.contains(position)) return false;
+    if (!shape.getOuterPath(Offset.zero & size).contains(position)) return hitTestChildren(result, position: position);
     return super.hitTest(result, position: position);
   }
 

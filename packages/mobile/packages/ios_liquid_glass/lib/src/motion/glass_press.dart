@@ -92,7 +92,7 @@ class GlassPress {
     _fadeStarted = false;
     _focusX.jumpTo(position.dx);
     _focusY.jumpTo(position.dy);
-    _swell.restart(ios27PressGlowRiseJump, 0, 1, riseAnimation, now);
+    _swell.restart(math.max(ios27PressGlowRiseJump, _swell.value), 0, 1, riseAnimation, now);
   }
 
   void move(Offset position, {Duration? now}) {

@@ -1,6 +1,8 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_coordinator.dart';
@@ -61,12 +63,96 @@ void main() {
     expect(GlassPress.scaleFor(const Size(250, 88), 0), 1);
   });
 
-  test('the glow table is interpolated in log area and held at its ends', () {
+  test('the glow table is held at its ends', () {
     final (hold, swell) = GlassPress.glowFor(Size(ios27PressGlowAreas.first, 1));
     expect(hold, closeTo(ios27PressGlowHoldLuma.first / 255, 1e-9));
     expect(swell, closeTo(ios27PressGlowSwellLuma.first / 255, 1e-9));
     final (big, _) = GlassPress.glowFor(Size(ios27PressGlowAreas.last * 2, 1));
     expect(big, closeTo(ios27PressGlowHoldLuma.last / 255, 1e-9));
+  });
+
+  test('the glow table is interpolated in log area between its stops', () {
+    const areas = ios27PressGlowAreas;
+    for (var i = 1; i < areas.length; i++) {
+      final mid = math.sqrt(areas[i - 1] * areas[i]);
+      final (hold, swell) = GlassPress.glowFor(Size(mid, 1));
+      expect(hold, closeTo((ios27PressGlowHoldLuma[i - 1] + ios27PressGlowHoldLuma[i]) / 2 / 255, 1e-9));
+      expect(swell, closeTo((ios27PressGlowSwellLuma[i - 1] + ios27PressGlowSwellLuma[i]) / 2 / 255, 1e-9));
+    }
+  });
+
+  test('a second press restarts the swell from where it is, not from zero', () {
+    final press = GlassPress();
+    press.down(Offset.zero, reduceMotion: false, cut: 0.7, now: Duration.zero);
+    for (var ms = 16; ms <= 120; ms += 16) {
+      press.sample(Duration(milliseconds: ms));
+    }
+    final before = press.swell;
+    expect(before, greaterThan(0));
+    press.down(Offset.zero, reduceMotion: false, cut: 0.7, now: const Duration(milliseconds: 120));
+    expect(press.swell, closeTo(before, 1e-9));
+  });
+
+  testWidgets('the press target passes a tap outside its shape to its child and presses only for a tap on the shape', (tester) async {
+    final coordinator = GlassMotionCoordinator(vsync: tester);
+    final member = GlassMember(coordinator);
+    var taps = 0;
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: GlassPressTarget(
+            member: member,
+            shape: const LiquidOval(),
+            child: SizedBox(width: 44, height: 44, child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => taps++)),
+          ),
+        ),
+      ),
+    );
+    final topLeft = tester.getTopLeft(find.byType(GlassPressTarget));
+    final corner = await tester.startGesture(topLeft + const Offset(2, 2));
+    await corner.up();
+    expect(taps, 1);
+    expect(member.press.isPressed, isFalse);
+    final centre = await tester.startGesture(topLeft + const Offset(22, 22));
+    expect(member.press.isPressed, isTrue);
+    await centre.up();
+    expect(taps, 2);
+    coordinator.dispose();
+  });
+
+  testWidgets('the held light is additive over the backdrop, also under the content fade at rest', (tester) async {
+    final coordinator = GlassMotionCoordinator(vsync: tester);
+    final member = GlassMember(coordinator);
+    member.press.down(const Offset(125, 44), reduceMotion: false, cut: 1, now: Duration.zero);
+    final boundary = GlobalKey();
+    Future<int> grey(Widget glow) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: RepaintBoundary(
+              key: boundary,
+              child: ColoredBox(color: const Color(0xFF808080), child: SizedBox(width: 250, height: 88, child: glow)),
+            ),
+          ),
+        ),
+      );
+      return (await tester.runAsync(() async {
+        final render = tester.renderObject<RenderRepaintBoundary>(find.byKey(boundary));
+        final image = await render.toImage();
+        final data = (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+        final offset = (4 * image.width + 4) * 4;
+        return data.getUint8(offset);
+      }))!;
+    }
+    final (holdAlpha, _) = GlassPress.glowFor(const Size(250, 88));
+    final expected = 128 + 255 * holdAlpha;
+    final bare = await grey(CustomPaint(painter: GlassPressGlow(member)));
+    final faded = await grey(FadeTransition(opacity: member.contentOpacity, child: CustomPaint(painter: GlassPressGlow(member))));
+    expect(bare, closeTo(expected, 1.5));
+    expect(faded, closeTo(expected, 1.5));
+    coordinator.dispose();
   });
 
   testWidgets('a press lights the glass at once and grows it after the growth delay, uniformly, to the size law', (tester) async {
